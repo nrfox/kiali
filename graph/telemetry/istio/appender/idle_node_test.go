@@ -1,12 +1,17 @@
 package appender
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	apps_v1 "k8s.io/api/apps/v1"
+	"k8s.io/client-go/rest"
 
+	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/graph"
+	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/models"
 )
 
@@ -203,6 +208,26 @@ func TestVersionWithNoTrafficScenario(t *testing.T) {
 	assert.Equal(idleV2Node.Cluster, cluster)
 }
 
+func TestAppendGraphErrorPanics(t *testing.T) {
+	assert := assert.New(t)
+
+	a := IdleNodeAppender{}
+
+	fake := &fakeK8S{}
+	layer := &business.Layer{
+		Mesh: business.NewMeshService(fake, func(config *rest.Config) (kubernetes.ClientInterface, error) {
+			return fake, nil
+		}),
+	}
+	globalInfo := &graph.AppenderGlobalInfo{
+		Business: layer,
+	}
+
+	assert.PanicsWithError("panic error", func() {
+		a.AppendGraph(nil, globalInfo, &graph.AppenderNamespaceInfo{})
+	})
+}
+
 func mockServices(a IdleNodeAppender) []models.ServiceDetails {
 	if !(a.GraphType == graph.GraphTypeService || a.InjectServiceNodes) {
 		return []models.ServiceDetails{}
@@ -302,4 +327,12 @@ func (a *IdleNodeAppender) v1Traffic(cluster string) map[string]*graph.Node {
 	recommendation.Metadata["httpIn"] = 0.8
 
 	return trafficMap
+}
+
+type fakeK8S struct {
+	kubernetes.K8SClient
+}
+
+func (k *fakeK8S) GetDeployment(namespace string, name string) (*apps_v1.Deployment, error) {
+	return nil, fmt.Errorf("panic error")
 }
