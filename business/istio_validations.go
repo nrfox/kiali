@@ -1,9 +1,12 @@
 package business
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	networking_v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -14,6 +17,7 @@ import (
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
 	"github.com/kiali/kiali/prometheus/internalmetrics"
+	"github.com/kiali/kiali/tracing"
 )
 
 type IstioValidationsService struct {
@@ -28,10 +32,15 @@ type ObjectChecker interface {
 // GetValidations returns an IstioValidations object with all the checks found when running
 // all the enabled checkers. If service is "" then the whole namespace is validated.
 // If service is not empty string, then all of its associated Istio objects are validated.
-func (in *IstioValidationsService) GetValidations(namespace, service string) (models.IstioValidations, error) {
+func (in *IstioValidationsService) GetValidations(ctx context.Context, namespace, service string) (models.IstioValidations, error) {
+	if config.Get().Server.TracingEnabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetValidations")
+		defer span.End()
+	}
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(ctx, namespace); err != nil {
 		return nil, err
 	}
 
@@ -130,7 +139,7 @@ func (in *IstioValidationsService) GetIstioObjectValidations(namespace string, o
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err = in.businessLayer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err = in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
 		return nil, err
 	}
 
@@ -534,7 +543,7 @@ func (in *IstioValidationsService) fetchNonLocalmTLSConfigs(mtlsDetails *kuberne
 		nsNames = append(nsNames, ns.Name)
 	}
 
-	destinationRules, err := in.businessLayer.TLS.getAllDestinationRules(nsNames)
+	destinationRules, err := in.businessLayer.TLS.getAllDestinationRules(context.TODO(), nsNames)
 	if err != nil {
 		errChan <- err
 	} else {

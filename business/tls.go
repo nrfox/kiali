@@ -1,8 +1,11 @@
 package business
 
 import (
+	"context"
 	"sync"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	networking_v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	security_v1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	core_v1 "k8s.io/api/core/v1"
@@ -10,6 +13,7 @@ import (
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/models"
+	"github.com/kiali/kiali/tracing"
 	"github.com/kiali/kiali/util/mtls"
 )
 
@@ -32,7 +36,7 @@ func (in *TLSService) MeshWidemTLSStatus(namespaces []string) (models.MTLSStatus
 		return models.MTLSStatus{}, error
 	}
 
-	drs, error := in.getAllDestinationRules(namespaces)
+	drs, error := in.getAllDestinationRules(context.TODO(), namespaces)
 	if error != nil {
 		return models.MTLSStatus{}, error
 	}
@@ -58,7 +62,12 @@ func (in *TLSService) getMeshPeerAuthentications() ([]security_v1beta1.PeerAuthe
 	return istioConfigList.PeerAuthentications, err
 }
 
-func (in *TLSService) getAllDestinationRules(namespaces []string) ([]networking_v1alpha3.DestinationRule, error) {
+func (in *TLSService) getAllDestinationRules(ctx context.Context, namespaces []string) ([]networking_v1alpha3.DestinationRule, error) {
+	if config.Get().Server.TracingEnabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "getAllDestinationRules")
+		defer span.End()
+	}
 	drChan := make(chan []networking_v1alpha3.DestinationRule, len(namespaces))
 	errChan := make(chan error, 1)
 	wg := sync.WaitGroup{}
@@ -100,18 +109,23 @@ func (in *TLSService) getAllDestinationRules(namespaces []string) ([]networking_
 	return allDestinationRules, nil
 }
 
-func (in TLSService) NamespaceWidemTLSStatus(namespace string) (models.MTLSStatus, error) {
-	pas, err := in.getPeerAuthentications(namespace)
+func (in TLSService) NamespaceWidemTLSStatus(ctx context.Context, namespace string) (models.MTLSStatus, error) {
+	if config.Get().Server.TracingEnabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "NamespaceWidemTLSStatus")
+		defer span.End()
+	}
+	pas, err := in.getPeerAuthentications(ctx, namespace)
 	if err != nil {
 		return models.MTLSStatus{}, nil
 	}
 
-	nss, err := in.getNamespaces()
+	nss, err := in.getNamespaces(ctx)
 	if err != nil {
 		return models.MTLSStatus{}, nil
 	}
 
-	drs, err := in.getAllDestinationRules(nss)
+	drs, err := in.getAllDestinationRules(ctx, nss)
 	if err != nil {
 		return models.MTLSStatus{}, nil
 	}
@@ -129,7 +143,12 @@ func (in TLSService) NamespaceWidemTLSStatus(namespace string) (models.MTLSStatu
 	}, nil
 }
 
-func (in TLSService) getPeerAuthentications(namespace string) ([]security_v1beta1.PeerAuthentication, error) {
+func (in TLSService) getPeerAuthentications(ctx context.Context, namespace string) ([]security_v1beta1.PeerAuthentication, error) {
+	if config.Get().Server.TracingEnabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "getPeerAuthentications")
+		defer span.End()
+	}
 	if namespace == config.Get().IstioNamespace {
 		return []security_v1beta1.PeerAuthentication{}, nil
 	}
@@ -141,7 +160,12 @@ func (in TLSService) getPeerAuthentications(namespace string) ([]security_v1beta
 	return istioConfigList.PeerAuthentications, err
 }
 
-func (in TLSService) getNamespaces() ([]string, error) {
+func (in TLSService) getNamespaces(ctx context.Context) ([]string, error) {
+	if config.Get().Server.TracingEnabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "getNamespaces")
+		defer span.End()
+	}
 	nss, nssErr := in.businessLayer.Namespace.GetNamespaces()
 	if nssErr != nil {
 		return nil, nssErr

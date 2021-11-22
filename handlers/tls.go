@@ -21,7 +21,7 @@ func NamespaceTls(w http.ResponseWriter, r *http.Request) {
 
 	namespace := params["namespace"]
 
-	status, err := business.TLS.NamespaceWidemTLSStatus(namespace)
+	status, err := business.TLS.NamespaceWidemTLSStatus(r.Context(), namespace)
 	if err != nil {
 		log.Error(err)
 		RespondWithError(w, http.StatusInternalServerError, err.Error())

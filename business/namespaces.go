@@ -1,9 +1,12 @@
 package business
 
 import (
+	"context"
 	"regexp"
 
 	osproject_v1 "github.com/openshift/api/project/v1"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -12,6 +15,7 @@ import (
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
+	"github.com/kiali/kiali/tracing"
 )
 
 // Namespace deals with fetching k8s namespaces / OpenShift projects and convert to kiali model
@@ -172,7 +176,12 @@ func (in *NamespaceService) isExcludedNamespace(namespace string) bool {
 }
 
 // GetNamespace returns the definition of the specified namespace.
-func (in *NamespaceService) GetNamespace(namespace string) (*models.Namespace, error) {
+func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) (*models.Namespace, error) {
+	if config.Get().Server.TracingEnabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetNamespace")
+		defer span.End()
+	}
 	var err error
 
 	// Cache already has included/excluded namespaces applied
@@ -217,7 +226,7 @@ func (in *NamespaceService) GetNamespace(namespace string) (*models.Namespace, e
 
 func (in *NamespaceService) UpdateNamespace(namespace string, jsonPatch string) (*models.Namespace, error) {
 	// A first check to run the accessible/excluded logic and not run the Update operation on filtered namespaces
-	_, err := in.GetNamespace(namespace)
+	_, err := in.GetNamespace(context.TODO(), namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +242,7 @@ func (in *NamespaceService) UpdateNamespace(namespace string, jsonPatch string) 
 		kialiCache.RefreshTokenNamespaces()
 	}
 	// Call GetNamespace to update the caching
-	return in.GetNamespace(namespace)
+	return in.GetNamespace(context.TODO(), namespace)
 }
 
 func (in *NamespaceService) getNamespacesUsingKialiSA(labelSelector string, forwardedError error) ([]core_v1.Namespace, error) {

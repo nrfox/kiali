@@ -1,6 +1,7 @@
 package business
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -161,31 +162,31 @@ func TestGetIstioConfigDetails(t *testing.T) {
 
 	configService := mockGetIstioConfigDetails()
 
-	istioConfigDetails, err := configService.GetIstioConfigDetails("test", "gateways", "gw-1")
+	istioConfigDetails, err := configService.GetIstioConfigDetails(context.TODO(), "test", "gateways", "gw-1")
 	assert.Equal("gw-1", istioConfigDetails.Gateway.Name)
 	assert.True(istioConfigDetails.Permissions.Update)
 	assert.False(istioConfigDetails.Permissions.Delete)
 	assert.Nil(err)
 
-	istioConfigDetails, err = configService.GetIstioConfigDetails("test", "virtualservices", "reviews")
+	istioConfigDetails, err = configService.GetIstioConfigDetails(context.TODO(), "test", "virtualservices", "reviews")
 	assert.Equal("reviews", istioConfigDetails.VirtualService.Name)
 	assert.Equal("VirtualService", istioConfigDetails.VirtualService.Kind)
 	assert.Equal("networking.istio.io/v1alpha3", istioConfigDetails.VirtualService.APIVersion)
 	assert.Nil(err)
 
-	istioConfigDetails, err = configService.GetIstioConfigDetails("test", "destinationrules", "reviews-dr")
+	istioConfigDetails, err = configService.GetIstioConfigDetails(context.TODO(), "test", "destinationrules", "reviews-dr")
 	assert.Equal("reviews-dr", istioConfigDetails.DestinationRule.Name)
 	assert.Equal("DestinationRule", istioConfigDetails.DestinationRule.Kind)
 	assert.Equal("networking.istio.io/v1alpha3", istioConfigDetails.DestinationRule.APIVersion)
 	assert.Nil(err)
 
-	istioConfigDetails, err = configService.GetIstioConfigDetails("test", "serviceentries", "googleapis")
+	istioConfigDetails, err = configService.GetIstioConfigDetails(context.TODO(), "test", "serviceentries", "googleapis")
 	assert.Equal("googleapis", istioConfigDetails.ServiceEntry.Name)
 	assert.Equal("ServiceEntry", istioConfigDetails.ServiceEntry.Kind)
 	assert.Equal("networking.istio.io/v1alpha3", istioConfigDetails.ServiceEntry.APIVersion)
 	assert.Nil(err)
 
-	istioConfigDetails, err = configService.GetIstioConfigDetails("test", "rules-bad", "stdio")
+	istioConfigDetails, err = configService.GetIstioConfigDetails(context.TODO(), "test", "rules-bad", "stdio")
 	assert.Error(err)
 }
 
@@ -380,7 +381,7 @@ func mockGetIstioConfigDetails() IstioConfigService {
 
 	k8s.On("IsOpenShift").Return(true)
 	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-	k8s.On("GetSelfSubjectAccessReview", "test", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return(fakeGetSelfSubjectAccessReview(), nil)
+	k8s.On("GetSelfSubjectAccessReview", mock.Anything, "test", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return(fakeGetSelfSubjectAccessReview(), nil)
 
 	return IstioConfigService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
 }

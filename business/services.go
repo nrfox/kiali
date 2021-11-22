@@ -1,6 +1,7 @@
 package business
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -43,7 +44,7 @@ func (in *SvcService) GetServiceList(criteria ServiceCriteria) (*models.ServiceL
 	var err error
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err = in.businessLayer.Namespace.GetNamespace(criteria.Namespace); err != nil {
+	if _, err = in.businessLayer.Namespace.GetNamespace(context.TODO(), criteria.Namespace); err != nil {
 		return nil, err
 	}
 
@@ -305,7 +306,7 @@ func (in *SvcService) buildRegistryServices(rSvcs []*kubernetes.RegistryService,
 func (in *SvcService) GetServiceDetails(namespace, service, interval string, queryTime time.Time) (*models.ServiceDetails, error) {
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
 		return nil, err
 	}
 
@@ -376,7 +377,7 @@ func (in *SvcService) GetServiceDetails(namespace, service, interval string, que
 		var err2 error
 		if IsNamespaceCached(namespace) {
 			// Cache uses Kiali ServiceAccount, check if user can access to the namespace
-			if _, err = in.businessLayer.Namespace.GetNamespace(namespace); err == nil {
+			if _, err = in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err == nil {
 				eps, err = kialiCache.GetEndpoints(namespace, service)
 			}
 		} else {
@@ -400,7 +401,7 @@ func (in *SvcService) GetServiceDetails(namespace, service, interval string, que
 	go func() {
 		defer wg.Done()
 		var err2 error
-		nsmtls, err2 = in.businessLayer.TLS.NamespaceWidemTLSStatus(namespace)
+		nsmtls, err2 = in.businessLayer.TLS.NamespaceWidemTLSStatus(context.TODO(), namespace)
 		if err2 != nil {
 			errChan <- err2
 		}
@@ -434,7 +435,7 @@ func (in *SvcService) GetServiceDetails(namespace, service, interval string, que
 			Synced with:
 			https://github.com/kiali/kiali-operator/blob/master/roles/default/kiali-deploy/templates/kubernetes/role.yaml#L62
 		*/
-		vsCreate, vsUpdate, vsDelete = getPermissions(in.k8s, namespace, kubernetes.VirtualServices)
+		vsCreate, vsUpdate, vsDelete = getPermissions(context.TODO(), in.k8s, namespace, kubernetes.VirtualServices)
 	}()
 
 	wg.Wait()
@@ -497,7 +498,7 @@ func (in *SvcService) GetService(namespace, service string) (models.Service, err
 	svc := models.Service{}
 	if IsNamespaceCached(namespace) {
 		// Cache uses Kiali ServiceAccount, check if user can access to the namespace
-		if _, err = in.businessLayer.Namespace.GetNamespace(namespace); err == nil {
+		if _, err = in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err == nil {
 			kSvc, err = kialiCache.GetService(namespace, service)
 		}
 	} else {
@@ -544,7 +545,7 @@ func (in *SvcService) getServiceValidations(services []core_v1.Service, deployme
 func (in *SvcService) GetServiceAppName(namespace, service string) (string, error) {
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
 		return "", err
 	}
 
@@ -561,7 +562,7 @@ func (in *SvcService) GetServiceAppName(namespace, service string) (string, erro
 func updateService(layer *Layer, namespace string, service string, jsonPatch string) error {
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := layer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err := layer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
 		return err
 	}
 

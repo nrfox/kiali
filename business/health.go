@@ -1,6 +1,7 @@
 package business
 
 import (
+	"context"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -150,7 +151,7 @@ func (in *HealthService) GetNamespaceServiceHealth(namespace, rateInterval strin
 	var err error
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
 		return nil, err
 	}
 

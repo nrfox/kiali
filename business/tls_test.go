@@ -1,6 +1,7 @@
 package business
 
 import (
+	"context"
 	"testing"
 
 	osproject_v1 "github.com/openshift/api/project/v1"
@@ -287,7 +288,7 @@ func TestNamespaceHasDestinationRuleEnabledDifferentNs(t *testing.T) {
 
 	autoMtls := false
 	tlsService := TLSService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil), enabledAutoMtls: &autoMtls}
-	status, err := (tlsService).NamespaceWidemTLSStatus("bookinfo")
+	status, err := (tlsService).NamespaceWidemTLSStatus(context.TODO(), "bookinfo")
 
 	assert.NoError(err)
 	assert.Equal(MTLSEnabled, status.Status)
@@ -317,7 +318,7 @@ func testNamespaceScenario(exStatus string, drs []networking_v1alpha3.Destinatio
 
 	tlsService := TLSService{k8s: k8s, enabledAutoMtls: &autoMtls, businessLayer: NewWithBackends(k8s, nil, nil)}
 	tlsService.businessLayer.Namespace.isAccessibleNamespaces["**"] = true
-	status, err := (tlsService).NamespaceWidemTLSStatus("bookinfo")
+	status, err := (tlsService).NamespaceWidemTLSStatus(context.TODO(), "bookinfo")
 
 	assert.NoError(err)
 	assert.Equal(exStatus, status.Status)

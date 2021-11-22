@@ -1,6 +1,7 @@
 package business
 
 import (
+	"context"
 	"sort"
 	"strings"
 	"sync"
@@ -160,7 +161,7 @@ func (in *AppService) GetAppList(namespace string, linkIstioResources bool) (mod
 // GetApp is the API handler to fetch the details for a given namespace and app name
 func (in *AppService) GetApp(namespace string, appName string) (models.App, error) {
 	appInstance := &models.App{Namespace: models.Namespace{Name: namespace}, Name: appName}
-	ns, err := in.businessLayer.Namespace.GetNamespace(namespace)
+	ns, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace)
 	if err != nil {
 		return *appInstance, err
 	}
@@ -254,7 +255,7 @@ func fetchNamespaceApps(layer *Layer, namespace string, appName string) (namespa
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := layer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err := layer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
 		return nil, err
 	}
 

@@ -1,6 +1,7 @@
 package business
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -279,7 +280,7 @@ func convertKialiServiceToInstance(svc *core_v1.Service) KialiInstance {
 // cluster. The namespace argument specifies the namespace where a Kiali instance will be looked for.
 // The clusterName argument is for logging purposes only.
 func findKialiInNamespace(namespace string, clusterName string, layer *Layer) (instances []KialiInstance) {
-	kialiNs, getNsErr := layer.Namespace.GetNamespace(namespace)
+	kialiNs, getNsErr := layer.Namespace.GetNamespace(context.TODO(), namespace)
 	if getNsErr != nil && !errors.IsNotFound(getNsErr) {
 		log.Warningf("Discovery for Kiali instances in cluster [%s] failed: %s", clusterName, getNsErr.Error())
 		return

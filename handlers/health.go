@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"time"
@@ -244,7 +245,7 @@ func (p *workloadHealthParams) extract(r *http.Request) {
 }
 
 func adjustRateInterval(business *business.Layer, namespace, rateInterval string, queryTime time.Time) (string, error) {
-	namespaceInfo, err := business.Namespace.GetNamespace(namespace)
+	namespaceInfo, err := business.Namespace.GetNamespace(context.TODO(), namespace)
 	if err != nil {
 		return "", err
 	}

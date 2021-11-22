@@ -1,6 +1,7 @@
 package business
 
 import (
+	"context"
 	"encoding/json"
 	"regexp"
 	"strconv"
@@ -128,7 +129,7 @@ func (in *Iter8Service) GetIter8Experiment(namespace string, name string) (model
 
 	go func(errChan chan error) {
 		defer wg.Done()
-		canCreate, canUpdate, canDelete = getPermissions(in.k8s, namespace, kubernetes.Iter8Experiments)
+		canCreate, canUpdate, canDelete = getPermissions(context.TODO(), in.k8s, namespace, kubernetes.Iter8Experiments)
 	}(errChan)
 
 	wg.Wait()

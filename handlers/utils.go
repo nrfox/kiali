@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -17,7 +18,7 @@ type promClientSupplier func() (*prometheus.Client, error)
 var defaultPromClientSupplier = prometheus.NewClient
 
 func checkNamespaceAccess(nsServ business.NamespaceService, namespace string) (*models.Namespace, error) {
-	if nsInfo, err := nsServ.GetNamespace(namespace); err != nil {
+	if nsInfo, err := nsServ.GetNamespace(context.TODO(), namespace); err != nil {
 		return nil, err
 	} else {
 		return nsInfo, nil

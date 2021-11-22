@@ -74,13 +74,15 @@ var rwMutex sync.RWMutex
 // Server configuration
 type Server struct {
 	Address                    string `yaml:",omitempty"`
-	AuditLog                   bool   `yaml:"audit_log,omitempty"` // When true, allows additional audit logging on Write operations
+	AuditLog                   bool   `yaml:"audit_log,omitempty"`     // When true, allows additional audit logging on Write operations
+	CollectorURL               string `yaml:"collector_url,omitempty"` // Endpoint for Kiali server traces
 	CORSAllowAll               bool   `yaml:"cors_allow_all,omitempty"`
 	GzipEnabled                bool   `yaml:"gzip_enabled,omitempty"`
 	MetricsEnabled             bool   `yaml:"metrics_enabled,omitempty"`
 	MetricsPort                int    `yaml:"metrics_port,omitempty"`
 	Port                       int    `yaml:",omitempty"`
 	StaticContentRootDirectory string `yaml:"static_content_root_directory,omitempty"`
+	TracingEnabled             bool   `yaml:"tracing_enabled,omitempty"`
 	WebFQDN                    string `yaml:"web_fqdn,omitempty"`
 	WebPort                    string `yaml:"web_port,omitempty"`
 	WebRoot                    string `yaml:"web_root,omitempty"`
@@ -638,11 +640,13 @@ func NewConfig() (c *Config) {
 		},
 		Server: Server{
 			AuditLog:                   true,
+			CollectorURL:               "",
 			GzipEnabled:                true,
 			MetricsEnabled:             true,
 			MetricsPort:                9090,
 			Port:                       20001,
 			StaticContentRootDirectory: "/opt/kiali/console",
+			TracingEnabled:             false,
 			WebFQDN:                    "",
 			WebRoot:                    "/",
 			WebHistoryMode:             "browser",

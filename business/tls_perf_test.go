@@ -1,6 +1,7 @@
 package business
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -88,7 +89,7 @@ func testPerfScenario(exStatus string, nss []core_v1.Namespace, drs []networking
 	tlsService := TLSService{k8s: k8s, enabledAutoMtls: &autoMtls, businessLayer: NewWithBackends(k8s, nil, nil)}
 	tlsService.businessLayer.Namespace.isAccessibleNamespaces["**"] = true
 	for _, ns := range nss {
-		status, err := (tlsService).NamespaceWidemTLSStatus(ns.Name)
+		status, err := (tlsService).NamespaceWidemTLSStatus(context.TODO(), ns.Name)
 		assert.NoError(err)
 		assert.Equal(exStatus, status.Status)
 	}

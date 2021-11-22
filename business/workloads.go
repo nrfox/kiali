@@ -1,6 +1,7 @@
 package business
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"sort"
@@ -240,7 +241,7 @@ func FilterUniqueIstioReferences(refs []*models.IstioValidationKey) []*models.Is
 // GetWorkload is the API handler to fetch details of a specific workload.
 // If includeServices is set true, the Workload will fetch all services related
 func (in *WorkloadService) GetWorkload(namespace string, workloadName string, workloadType string, includeServices bool) (*models.Workload, error) {
-	ns, err := in.businessLayer.Namespace.GetNamespace(namespace)
+	ns, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +306,7 @@ func (in *WorkloadService) GetPods(namespace string, labelSelector string) (mode
 	// Check if namespace is cached
 	if IsNamespaceCached(namespace) {
 		// Cache uses Kiali ServiceAccount, check if user can access to the namespace
-		if _, err = in.businessLayer.Namespace.GetNamespace(namespace); err == nil {
+		if _, err = in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err == nil {
 			ps, err = kialiCache.GetPods(namespace, labelSelector)
 		}
 	} else {
@@ -561,7 +562,7 @@ func fetchWorkloads(layer *Layer, namespace string, labelSelector string) (model
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := layer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err := layer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
 		return nil, err
 	}
 
@@ -1124,7 +1125,7 @@ func fetchWorkload(layer *Layer, namespace string, workloadName string, workload
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := layer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err := layer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
 		return nil, err
 	}
 
@@ -1645,7 +1646,7 @@ func fetchWorkload(layer *Layer, namespace string, workloadName string, workload
 func updateWorkload(layer *Layer, namespace string, workloadName string, workloadType string, jsonPatch string) error {
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := layer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err := layer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
 		return err
 	}
 

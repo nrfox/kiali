@@ -1,24 +1,26 @@
 package business
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	networking_v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	security_v1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	api_errors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_types "k8s.io/apimachinery/pkg/types"
 
-	"context"
-
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
+	"github.com/kiali/kiali/tracing"
 )
 
 const allResources string = "*"
@@ -150,7 +152,7 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(criteria.Namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), criteria.Namespace); err != nil {
 		return models.IstioConfigList{}, err
 	}
 
@@ -401,7 +403,12 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 // - "namespace": 		namespace where configuration is stored
 // - "objectType":		type of the configuration
 // - "object":			name of the configuration
-func (in *IstioConfigService) GetIstioConfigDetails(namespace, objectType, object string) (models.IstioConfigDetails, error) {
+func (in *IstioConfigService) GetIstioConfigDetails(ctx context.Context, namespace, objectType, object string) (models.IstioConfigDetails, error) {
+	if config.Get().Server.TracingEnabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetIstioConfigDetails")
+		defer span.End()
+	}
 	var err error
 
 	istioConfigDetail := models.IstioConfigDetails{}
@@ -410,24 +417,23 @@ func (in *IstioConfigService) GetIstioConfigDetails(namespace, objectType, objec
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
 		return istioConfigDetail, err
 	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	go func() {
+	go func(ctx context.Context) {
 		defer wg.Done()
-		canCreate, canUpdate, canDelete := getPermissions(in.k8s, namespace, objectType)
+		canCreate, canUpdate, canDelete := getPermissions(ctx, in.k8s, namespace, objectType)
 		istioConfigDetail.Permissions = models.ResourcePermissions{
 			Create: canCreate,
 			Update: canUpdate,
 			Delete: canDelete,
 		}
-	}()
+	}(ctx)
 
-	ctx := context.TODO()
 	getOpts := meta_v1.GetOptions{}
 
 	switch objectType {
@@ -682,7 +688,12 @@ func (in *IstioConfigService) CreateIstioConfigDetail(namespace, resourceType st
 	return istioConfigDetail, err
 }
 
-func (in *IstioConfigService) GetIstioConfigPermissions(namespaces []string) models.IstioConfigPermissions {
+func (in *IstioConfigService) GetIstioConfigPermissions(ctx context.Context, namespaces []string) models.IstioConfigPermissions {
+	if config.Get().Server.TracingEnabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetIstioConfigPermissions")
+		defer span.End()
+	}
 	istioConfigPermissions := make(models.IstioConfigPermissions, len(namespaces))
 
 	if len(namespaces) > 0 {
@@ -705,9 +716,9 @@ func (in *IstioConfigService) GetIstioConfigPermissions(namespaces []string) mod
 				Synced with:
 				https://github.com/kiali/kiali-operator/blob/master/roles/default/kiali-deploy/templates/kubernetes/role.yaml#L62
 			*/
-			go func(namespace string, wg *sync.WaitGroup, networkingPermissions *models.ResourcesPermissions) {
+			go func(ctx context.Context, namespace string, wg *sync.WaitGroup, networkingPermissions *models.ResourcesPermissions) {
 				defer wg.Done()
-				canCreate, canUpdate, canDelete := getPermissionsApi(in.k8s, namespace, kubernetes.NetworkingGroupVersion.Group, allResources)
+				canCreate, canUpdate, canDelete := getPermissionsApi(ctx, in.k8s, namespace, kubernetes.NetworkingGroupVersion.Group, allResources)
 				for _, rs := range newNetworkingConfigTypes {
 					networkingRP[rs] = &models.ResourcePermissions{
 						Create: canCreate,
@@ -715,11 +726,11 @@ func (in *IstioConfigService) GetIstioConfigPermissions(namespaces []string) mod
 						Delete: canDelete,
 					}
 				}
-			}(ns, &wg, &networkingRP)
+			}(ctx, ns, &wg, &networkingRP)
 
-			go func(namespace string, wg *sync.WaitGroup, securityPermissions *models.ResourcesPermissions) {
+			go func(ctx context.Context, namespace string, wg *sync.WaitGroup, securityPermissions *models.ResourcesPermissions) {
 				defer wg.Done()
-				canCreate, canUpdate, canDelete := getPermissionsApi(in.k8s, namespace, kubernetes.SecurityGroupVersion.Group, allResources)
+				canCreate, canUpdate, canDelete := getPermissionsApi(ctx, in.k8s, namespace, kubernetes.SecurityGroupVersion.Group, allResources)
 				for _, rs := range newSecurityConfigTypes {
 					securityRP[rs] = &models.ResourcePermissions{
 						Create: canCreate,
@@ -727,7 +738,7 @@ func (in *IstioConfigService) GetIstioConfigPermissions(namespaces []string) mod
 						Delete: canDelete,
 					}
 				}
-			}(ns, &wg, &securityRP)
+			}(ctx, ns, &wg, &securityRP)
 		}
 		wg.Wait()
 
@@ -746,17 +757,27 @@ func (in *IstioConfigService) GetIstioConfigPermissions(namespaces []string) mod
 	return istioConfigPermissions
 }
 
-func getPermissions(k8s kubernetes.ClientInterface, namespace, objectType string) (bool, bool, bool) {
+func getPermissions(ctx context.Context, k8s kubernetes.ClientInterface, namespace, objectType string) (bool, bool, bool) {
+	if config.Get().Server.TracingEnabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "getPermissions")
+		defer span.End()
+	}
 	var canCreate, canPatch, canDelete bool
 
 	if api, ok := kubernetes.ResourceTypesToAPI[objectType]; ok {
 		resourceType := objectType
-		return getPermissionsApi(k8s, namespace, api, resourceType)
+		return getPermissionsApi(ctx, k8s, namespace, api, resourceType)
 	}
 	return canCreate, canPatch, canDelete
 }
 
-func getPermissionsApi(k8s kubernetes.ClientInterface, namespace, api, resourceType string) (bool, bool, bool) {
+func getPermissionsApi(ctx context.Context, k8s kubernetes.ClientInterface, namespace, api, resourceType string) (bool, bool, bool) {
+	if config.Get().Server.TracingEnabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "getPermissionsApi")
+		defer span.End()
+	}
 	var canCreate, canPatch, canDelete bool
 
 	// In view only mode, there is not need to check RBAC permissions, return false early
@@ -773,7 +794,7 @@ func getPermissionsApi(k8s kubernetes.ClientInterface, namespace, api, resourceT
 		Synced with:
 		https://github.com/kiali/kiali-operator/blob/master/roles/default/kiali-deploy/templates/kubernetes/role.yaml#L62
 	*/
-	ssars, permErr := k8s.GetSelfSubjectAccessReview(namespace, api, resourceType, []string{"create", "patch", "delete"})
+	ssars, permErr := k8s.GetSelfSubjectAccessReview(ctx, namespace, api, resourceType, []string{"create", "patch", "delete"})
 	if permErr == nil {
 		for _, ssar := range ssars {
 			if ssar.Spec.ResourceAttributes != nil {
