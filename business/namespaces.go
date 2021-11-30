@@ -179,7 +179,7 @@ func (in *NamespaceService) isExcludedNamespace(namespace string) bool {
 func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) (*models.Namespace, error) {
 	if config.Get().Server.TracingEnabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetNamespace")
+		_, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetNamespace")
 		defer span.End()
 	}
 	var err error

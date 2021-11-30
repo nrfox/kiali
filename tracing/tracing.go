@@ -20,7 +20,6 @@ const (
 	Service = "kiali-server"
 	// TracerName is the name of the global kiali Trace.
 	TracerName = Service
-	id         = 1
 )
 
 // InitTracer initalizes a TracerProvider that exports to jaeger.
@@ -50,6 +49,6 @@ func Stop(provider *sdktrace.TracerProvider) {
 	if provider != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
-		provider.Shutdown(ctx)
+		_ = provider.Shutdown(ctx)
 	}
 }
