@@ -1,11 +1,11 @@
-package tracing_test
+package observability_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/kiali/kiali/tracing"
+	"github.com/kiali/kiali/observability"
 )
 
 func TestInitTracer(t *testing.T) {
@@ -14,13 +14,13 @@ func TestInitTracer(t *testing.T) {
 		err := recover()
 		assert.Nil(err)
 	}()
-	tp := tracing.InitTracer("jaegerURL")
+	tp := observability.InitTracer("jaegerURL")
 	assert.NotNil(tp)
 }
 
 func TestStop(t *testing.T) {
-	tp := tracing.InitTracer("jaegerURL")
-	tracing.Stop(tp)
+	tp := observability.InitTracer("jaegerURL")
+	observability.StopTracer(tp)
 }
 
 func TestStopWithNil(t *testing.T) {
@@ -29,5 +29,5 @@ func TestStopWithNil(t *testing.T) {
 		err := recover()
 		assert.Nil(err)
 	}()
-	tracing.Stop(nil)
+	observability.StopTracer(nil)
 }

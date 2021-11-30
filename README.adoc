@@ -239,8 +239,10 @@ metadata:
 spec:
 ...
   server:
-    collector_url: http://jaeger-collector.istio-system:14268/api/traces
-    tracing_enabled: true
+    observability:
+      tracing:
+        collector_url: http://jaeger-collector.istio-system:14268/api/traces
+        enabled: true
 ...
 ----
 

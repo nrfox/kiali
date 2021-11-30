@@ -192,8 +192,8 @@ func TestSecureComm(t *testing.T) {
 	conf.Server.Address = testHostname
 	conf.Server.Port = testPort
 	conf.Server.StaticContentRootDirectory = tmpDir
-	conf.Server.MetricsEnabled = true
-	conf.Server.MetricsPort = testMetricsPort
+	conf.Server.Observability.Metrics.Enabled = true
+	conf.Server.Observability.Metrics.Port = testMetricsPort
 	conf.Auth.Strategy = "anonymous"
 	util.Clock = util.RealClock{}
 
@@ -289,7 +289,7 @@ func TestTracingConfigured(t *testing.T) {
 	conf.Server.Address = testHostname
 	conf.Server.Port = testPort
 	conf.Server.StaticContentRootDirectory = tmpDir
-	conf.Server.TracingEnabled = true
+	conf.Server.Observability.Tracing.Enabled = true
 	conf.Auth.Strategy = "anonymous"
 
 	serverURL := fmt.Sprintf("http://%v", testServerHostPort)

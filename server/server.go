@@ -14,8 +14,8 @@ import (
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/log"
+	"github.com/kiali/kiali/observability"
 	"github.com/kiali/kiali/routing"
-	"github.com/kiali/kiali/tracing"
 )
 
 type Server struct {
@@ -32,17 +32,17 @@ func NewServer() *Server {
 	// create a router that will route all incoming API server requests to different handlers
 	router := routing.NewRouter()
 	var tracingProvider *sdktrace.TracerProvider
-	if conf.Server.TracingEnabled {
-		log.Debugf("Tracing Enabled. Initializing tracer with collector url: %s", conf.Server.CollectorURL)
-		tracingProvider = tracing.InitTracer(conf.Server.CollectorURL)
+	if conf.Server.Observability.Tracing.Enabled {
+		log.Debugf("Tracing Enabled. Initializing tracer with collector url: %s", conf.Server.Observability.Tracing.CollectorURL)
+		tracingProvider = observability.InitTracer(conf.Server.Observability.Tracing.CollectorURL)
 	}
 
 	middlewares := []mux.MiddlewareFunc{}
 	if conf.Server.CORSAllowAll {
 		middlewares = append(middlewares, corsAllowed)
 	}
-	if conf.Server.TracingEnabled {
-		middlewares = append(middlewares, otelmux.Middleware(tracing.Service))
+	if conf.Server.Observability.Tracing.Enabled {
+		middlewares = append(middlewares, otelmux.Middleware(observability.TracingService))
 	}
 
 	router.Use(middlewares...)
@@ -77,7 +77,7 @@ func NewServer() *Server {
 		httpServer: httpServer,
 		router:     router,
 	}
-	if conf.Server.TracingEnabled && tracingProvider != nil {
+	if conf.Server.Observability.Tracing.Enabled && tracingProvider != nil {
 		s.tracer = tracingProvider
 	}
 	return s
@@ -103,7 +103,7 @@ func (s *Server) Start() {
 	}()
 
 	// Start the Metrics Server
-	if conf.Server.MetricsEnabled {
+	if conf.Server.Observability.Metrics.Enabled {
 		StartMetricsServer()
 	}
 }
@@ -114,7 +114,7 @@ func (s *Server) Stop() {
 	business.Stop()
 	log.Infof("Server endpoint will stop at [%v]", s.httpServer.Addr)
 	s.httpServer.Close()
-	tracing.Stop(s.tracer)
+	observability.StopTracer(s.tracer)
 }
 
 func corsAllowed(next http.Handler) http.Handler {

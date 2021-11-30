@@ -20,7 +20,7 @@ import (
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
-	"github.com/kiali/kiali/tracing"
+	"github.com/kiali/kiali/observability"
 )
 
 const allResources string = "*"
@@ -404,9 +404,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 // - "objectType":		type of the configuration
 // - "object":			name of the configuration
 func (in *IstioConfigService) GetIstioConfigDetails(ctx context.Context, namespace, objectType, object string) (models.IstioConfigDetails, error) {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetIstioConfigDetails")
+		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "GetIstioConfigDetails")
 		defer span.End()
 	}
 	var err error
@@ -689,9 +689,9 @@ func (in *IstioConfigService) CreateIstioConfigDetail(namespace, resourceType st
 }
 
 func (in *IstioConfigService) GetIstioConfigPermissions(ctx context.Context, namespaces []string) models.IstioConfigPermissions {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetIstioConfigPermissions")
+		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "GetIstioConfigPermissions")
 		defer span.End()
 	}
 	istioConfigPermissions := make(models.IstioConfigPermissions, len(namespaces))
@@ -758,9 +758,9 @@ func (in *IstioConfigService) GetIstioConfigPermissions(ctx context.Context, nam
 }
 
 func getPermissions(ctx context.Context, k8s kubernetes.ClientInterface, namespace, objectType string) (bool, bool, bool) {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "getPermissions")
+		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "getPermissions")
 		defer span.End()
 	}
 	var canCreate, canPatch, canDelete bool
@@ -773,9 +773,9 @@ func getPermissions(ctx context.Context, k8s kubernetes.ClientInterface, namespa
 }
 
 func getPermissionsApi(ctx context.Context, k8s kubernetes.ClientInterface, namespace, api, resourceType string) (bool, bool, bool) {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "getPermissionsApi")
+		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "getPermissionsApi")
 		defer span.End()
 	}
 	var canCreate, canPatch, canDelete bool

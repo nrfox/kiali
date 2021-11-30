@@ -1,7 +1,7 @@
-// The tracing package provides utilities for the Kiali server
-// to instrument itself with tracing to provide better insights
-// into server performance. Currently only integrated with Jaeger.
-package tracing
+// The observability package provides utilities for the Kiali server
+// to instrument itself with observability tools such as tracing to provide
+// better insights into server performance.
+package observability
 
 import (
 	"context"
@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	// Service is the name of the kiali tracer service.
-	Service = "kiali-server"
+	// TracingService is the name of the kiali tracer service.
+	TracingService = "kiali-server"
 	// TracerName is the name of the global kiali Trace.
-	TracerName = Service
+	TracerName = TracingService
 )
 
 // InitTracer initalizes a TracerProvider that exports to jaeger.
@@ -36,7 +36,7 @@ func InitTracer(jaegerURL string) *sdktrace.TracerProvider {
 		// Record information about this application in an Resource.
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(Service),
+			semconv.ServiceNameKey.String(TracingService),
 		)),
 	)
 	otel.SetTracerProvider(tp)
@@ -45,7 +45,7 @@ func InitTracer(jaegerURL string) *sdktrace.TracerProvider {
 }
 
 // Stop shutdown the provider.
-func Stop(provider *sdktrace.TracerProvider) {
+func StopTracer(provider *sdktrace.TracerProvider) {
 	if provider != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()

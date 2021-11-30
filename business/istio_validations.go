@@ -16,8 +16,8 @@ import (
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
+	"github.com/kiali/kiali/observability"
 	"github.com/kiali/kiali/prometheus/internalmetrics"
-	"github.com/kiali/kiali/tracing"
 )
 
 type IstioValidationsService struct {
@@ -33,9 +33,9 @@ type ObjectChecker interface {
 // all the enabled checkers. If service is "" then the whole namespace is validated.
 // If service is not empty string, then all of its associated Istio objects are validated.
 func (in *IstioValidationsService) GetValidations(ctx context.Context, namespace, service string) (models.IstioValidations, error) {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetValidations")
+		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "GetValidations")
 		defer span.End()
 	}
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or

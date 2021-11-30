@@ -13,7 +13,7 @@ import (
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/models"
-	"github.com/kiali/kiali/tracing"
+	"github.com/kiali/kiali/observability"
 	"github.com/kiali/kiali/util/mtls"
 )
 
@@ -63,9 +63,9 @@ func (in *TLSService) getMeshPeerAuthentications() ([]security_v1beta1.PeerAuthe
 }
 
 func (in *TLSService) getAllDestinationRules(ctx context.Context, namespaces []string) ([]networking_v1alpha3.DestinationRule, error) {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		_, span = otel.Tracer(tracing.TracerName).Start(ctx, "getAllDestinationRules")
+		_, span = otel.Tracer(observability.TracerName).Start(ctx, "getAllDestinationRules")
 		defer span.End()
 	}
 	drChan := make(chan []networking_v1alpha3.DestinationRule, len(namespaces))
@@ -110,9 +110,9 @@ func (in *TLSService) getAllDestinationRules(ctx context.Context, namespaces []s
 }
 
 func (in TLSService) NamespaceWidemTLSStatus(ctx context.Context, namespace string) (models.MTLSStatus, error) {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "NamespaceWidemTLSStatus")
+		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "NamespaceWidemTLSStatus")
 		defer span.End()
 	}
 	pas, err := in.getPeerAuthentications(ctx, namespace)
@@ -144,9 +144,9 @@ func (in TLSService) NamespaceWidemTLSStatus(ctx context.Context, namespace stri
 }
 
 func (in TLSService) getPeerAuthentications(ctx context.Context, namespace string) ([]security_v1beta1.PeerAuthentication, error) {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		_, span = otel.Tracer(tracing.TracerName).Start(ctx, "getPeerAuthentications")
+		_, span = otel.Tracer(observability.TracerName).Start(ctx, "getPeerAuthentications")
 		defer span.End()
 	}
 	if namespace == config.Get().IstioNamespace {
@@ -161,9 +161,9 @@ func (in TLSService) getPeerAuthentications(ctx context.Context, namespace strin
 }
 
 func (in TLSService) getNamespaces(ctx context.Context) ([]string, error) {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		_, span = otel.Tracer(tracing.TracerName).Start(ctx, "getNamespaces")
+		_, span = otel.Tracer(observability.TracerName).Start(ctx, "getNamespaces")
 		defer span.End()
 	}
 	nss, nssErr := in.businessLayer.Namespace.GetNamespaces()

@@ -15,7 +15,7 @@ import (
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
-	"github.com/kiali/kiali/tracing"
+	"github.com/kiali/kiali/observability"
 )
 
 // Namespace deals with fetching k8s namespaces / OpenShift projects and convert to kiali model
@@ -177,9 +177,9 @@ func (in *NamespaceService) isExcludedNamespace(namespace string) bool {
 
 // GetNamespace returns the definition of the specified namespace.
 func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) (*models.Namespace, error) {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		_, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetNamespace")
+		_, span = otel.Tracer(observability.TracerName).Start(ctx, "GetNamespace")
 		defer span.End()
 	}
 	var err error

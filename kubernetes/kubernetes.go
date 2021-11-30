@@ -29,7 +29,7 @@ import (
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/log"
-	"github.com/kiali/kiali/tracing"
+	"github.com/kiali/kiali/observability"
 	"github.com/kiali/kiali/util/httputil"
 )
 
@@ -476,9 +476,9 @@ func NewNotFound(name, group, resource string) error {
 
 // GetSelfSubjectAccessReview provides information on Kiali permissions
 func (in *K8SClient) GetSelfSubjectAccessReview(ctx context.Context, namespace, api, resourceType string, verbs []string) ([]*auth_v1.SelfSubjectAccessReview, error) {
-	if config.Get().Server.TracingEnabled {
+	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "GetSelfSubjectAccessReview")
+		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "GetSelfSubjectAccessReview")
 		defer span.End()
 	}
 	calls := len(verbs)
