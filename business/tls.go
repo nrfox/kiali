@@ -163,7 +163,7 @@ func (in TLSService) getPeerAuthentications(ctx context.Context, namespace strin
 func (in TLSService) getNamespaces(ctx context.Context) ([]string, error) {
 	if config.Get().Server.TracingEnabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(tracing.TracerName).Start(ctx, "getNamespaces")
+		_, span = otel.Tracer(tracing.TracerName).Start(ctx, "getNamespaces")
 		defer span.End()
 	}
 	nss, nssErr := in.businessLayer.Namespace.GetNamespaces()
