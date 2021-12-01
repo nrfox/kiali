@@ -188,6 +188,7 @@ func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) 
 		)
 		defer span.End()
 	}
+
 	var err error
 
 	// Cache already has included/excluded namespaces applied
@@ -230,9 +231,20 @@ func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) 
 	return &result, nil
 }
 
-func (in *NamespaceService) UpdateNamespace(namespace string, jsonPatch string) (*models.Namespace, error) {
+func (in *NamespaceService) UpdateNamespace(ctx context.Context, namespace string, jsonPatch string) (*models.Namespace, error) {
 	// A first check to run the accessible/excluded logic and not run the Update operation on filtered namespaces
-	_, err := in.GetNamespace(context.TODO(), namespace)
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "UpdateNamespace",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+			),
+		)
+		defer span.End()
+	}
+
+	_, err := in.GetNamespace(ctx, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +260,7 @@ func (in *NamespaceService) UpdateNamespace(namespace string, jsonPatch string) 
 		kialiCache.RefreshTokenNamespaces()
 	}
 	// Call GetNamespace to update the caching
-	return in.GetNamespace(context.TODO(), namespace)
+	return in.GetNamespace(ctx, namespace)
 }
 
 func (in *NamespaceService) getNamespacesUsingKialiSA(labelSelector string, forwardedError error) ([]core_v1.Namespace, error) {

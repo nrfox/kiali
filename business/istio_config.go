@@ -100,7 +100,15 @@ var newSecurityConfigTypes = []string{
 
 // GetIstioConfigList returns a list of Istio routing objects, Mixer Rules, (etc.)
 // per a given Namespace.
-func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (models.IstioConfigList, error) {
+func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria IstioConfigCriteria) (models.IstioConfigList, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetIstioConfigList",
+			trace.WithAttributes(attribute.String("package", "business")),
+		)
+		defer span.End()
+	}
+
 	if criteria.Namespace == "" && !criteria.AllNamespaces {
 		return models.IstioConfigList{}, errors.New("GetIstioConfigList needs a non empty Namespace")
 	}
@@ -153,7 +161,7 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), criteria.Namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(ctx, criteria.Namespace); err != nil {
 		return models.IstioConfigList{}, err
 	}
 
@@ -169,9 +177,8 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 	wg.Add(11)
 
 	listOpts := meta_v1.ListOptions{LabelSelector: criteria.LabelSelector}
-	ctx := context.TODO()
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.DestinationRules) {
 			var err error
@@ -187,9 +194,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.EnvoyFilters) {
 			var err error
@@ -208,9 +215,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.Gateways) {
 			var err error
@@ -230,9 +237,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.ServiceEntries) {
 			var err error
@@ -248,9 +255,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.Sidecars) {
 			var err error
@@ -269,9 +276,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.VirtualServices) {
 			var err error
@@ -287,9 +294,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.WorkloadEntries) {
 			var err error
@@ -304,9 +311,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.WorkloadGroups) {
 			var err error
@@ -321,9 +328,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.AuthorizationPolicies) {
 			var err error
@@ -342,9 +349,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.PeerAuthentications) {
 			var err error
@@ -363,9 +370,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.RequestAuthentications) {
 			var err error
@@ -384,7 +391,7 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
 	wg.Wait()
 
@@ -408,10 +415,16 @@ func (in *IstioConfigService) GetIstioConfigDetails(ctx context.Context, namespa
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
 		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetIstioConfigDetails",
-			trace.WithAttributes(attribute.String("package", "business")),
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("objectType", objectType),
+				attribute.String("object", object),
+			),
 		)
 		defer span.End()
 	}
+
 	var err error
 
 	istioConfigDetail := models.IstioConfigDetails{}
@@ -420,7 +433,7 @@ func (in *IstioConfigService) GetIstioConfigDetails(ctx context.Context, namespa
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(ctx, namespace); err != nil {
 		return istioConfigDetail, err
 	}
 

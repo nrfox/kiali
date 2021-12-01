@@ -44,7 +44,7 @@ func TestGetIstioObjectValidations(t *testing.T) {
 
 	vs := mockCombinedValidationService(fakeCombinedIstioConfigList(), []string{"details", "product", "customer"}, fakePods())
 
-	validations, _ := vs.GetIstioObjectValidations("test", "virtualservices", "product-vs")
+	validations, _ := vs.GetIstioObjectValidations(context.TODO(), "test", "virtualservices", "product-vs")
 
 	assert.NotEmpty(validations)
 }
@@ -55,7 +55,7 @@ func TestGatewayValidation(t *testing.T) {
 	config.Set(conf)
 
 	v := mockMultiNamespaceGatewaysValidationService()
-	validations, _ := v.GetIstioObjectValidations("test", "gateways", "second")
+	validations, _ := v.GetIstioObjectValidations(context.TODO(), "test", "gateways", "second")
 	assert.NotEmpty(validations)
 }
 

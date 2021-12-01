@@ -40,7 +40,7 @@ func TestMeshStatusEnabled(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, false)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := (tlsService).MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSEnabled, status.Status)
@@ -63,7 +63,7 @@ func TestMeshStatusEnabledAutoMtls(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, true)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := (tlsService).MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSEnabled, status.Status)
@@ -89,7 +89,7 @@ func TestMeshStatusPartiallyEnabled(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, false)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := (tlsService).MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSPartiallyEnabled, status.Status)
@@ -112,7 +112,7 @@ func TestMeshStatusNotEnabled(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, false)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := (tlsService).MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSNotEnabled, status.Status)
@@ -138,7 +138,7 @@ func TestMeshStatusDisabled(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, false)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := (tlsService).MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSDisabled, status.Status)
@@ -157,7 +157,7 @@ func TestMeshStatusNotEnabledAutoMtls(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, true)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := (tlsService).MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSNotEnabled, status.Status)

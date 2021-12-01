@@ -71,7 +71,7 @@ func Iter8ExperimentGet(w http.ResponseWriter, r *http.Request) {
 	}
 	if experiment.ExperimentItem.Kind == "Deployment" {
 		criteria := business2.WorkloadCriteria{Namespace: namespace, IncludeIstioResources: false}
-		workloadList, err := business.Workload.GetWorkloadList(criteria)
+		workloadList, err := business.Workload.GetWorkloadList(r.Context(), criteria)
 		if err != nil {
 			handleErrorResponse(w, err)
 			return
@@ -90,7 +90,7 @@ func Iter8ExperimentGet(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		serviceList, err := business.Svc.GetServiceList(criteria)
+		serviceList, err := business.Svc.GetServiceList(r.Context(), criteria)
 		if err != nil {
 			handleErrorResponse(w, err)
 			return

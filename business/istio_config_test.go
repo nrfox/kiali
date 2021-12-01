@@ -106,7 +106,7 @@ func TestGetIstioConfigList(t *testing.T) {
 
 	configService := mockGetIstioConfigList()
 
-	istioconfigList, err := configService.GetIstioConfigList(criteria)
+	istioconfigList, err := configService.GetIstioConfigList(context.TODO(), criteria)
 
 	assert.Equal(0, len(istioconfigList.Gateways))
 	assert.Equal(0, len(istioconfigList.VirtualServices))
@@ -116,7 +116,7 @@ func TestGetIstioConfigList(t *testing.T) {
 
 	criteria.IncludeGateways = true
 
-	istioconfigList, err = configService.GetIstioConfigList(criteria)
+	istioconfigList, err = configService.GetIstioConfigList(context.TODO(), criteria)
 
 	assert.Equal(2, len(istioconfigList.Gateways))
 	assert.Equal(0, len(istioconfigList.VirtualServices))
@@ -126,7 +126,7 @@ func TestGetIstioConfigList(t *testing.T) {
 
 	criteria.IncludeVirtualServices = true
 
-	istioconfigList, err = configService.GetIstioConfigList(criteria)
+	istioconfigList, err = configService.GetIstioConfigList(context.TODO(), criteria)
 
 	assert.Equal(2, len(istioconfigList.Gateways))
 	assert.Equal(2, len(istioconfigList.VirtualServices))
@@ -136,7 +136,7 @@ func TestGetIstioConfigList(t *testing.T) {
 
 	criteria.IncludeDestinationRules = true
 
-	istioconfigList, err = configService.GetIstioConfigList(criteria)
+	istioconfigList, err = configService.GetIstioConfigList(context.TODO(), criteria)
 
 	assert.Equal(2, len(istioconfigList.Gateways))
 	assert.Equal(2, len(istioconfigList.VirtualServices))
@@ -146,7 +146,7 @@ func TestGetIstioConfigList(t *testing.T) {
 
 	criteria.IncludeServiceEntries = true
 
-	istioconfigList, err = configService.GetIstioConfigList(criteria)
+	istioconfigList, err = configService.GetIstioConfigList(context.TODO(), criteria)
 
 	assert.Equal(2, len(istioconfigList.Gateways))
 	assert.Equal(2, len(istioconfigList.VirtualServices))

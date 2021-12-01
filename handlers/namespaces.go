@@ -69,7 +69,7 @@ func NamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonPatch := string(body)
 
-	ns, err := business.Namespace.UpdateNamespace(namespace, jsonPatch)
+	ns, err := business.Namespace.UpdateNamespace(r.Context(), namespace, jsonPatch)
 	if err != nil {
 		handleErrorResponse(w, err)
 		return
