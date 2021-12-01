@@ -11,6 +11,7 @@ import (
 	osproject_v1 "github.com/openshift/api/project/v1"
 	osroutes_v1 "github.com/openshift/api/route/v1"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	apps_v1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/authentication/v1"
@@ -478,7 +479,15 @@ func NewNotFound(name, group, resource string) error {
 func (in *K8SClient) GetSelfSubjectAccessReview(ctx context.Context, namespace, api, resourceType string, verbs []string) ([]*auth_v1.SelfSubjectAccessReview, error) {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "GetSelfSubjectAccessReview")
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetSelfSubjectAccessReview",
+			trace.WithAttributes(
+				attribute.String("package", "kubernetes"),
+				attribute.String("namspace", namespace),
+				attribute.String("api", api),
+				attribute.String("resourceType", resourceType),
+				attribute.StringSlice("verbs", verbs),
+			),
+		)
 		defer span.End()
 	}
 	calls := len(verbs)

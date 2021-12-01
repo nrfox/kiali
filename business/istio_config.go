@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	networking_v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	security_v1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
@@ -406,7 +407,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 func (in *IstioConfigService) GetIstioConfigDetails(ctx context.Context, namespace, objectType, object string) (models.IstioConfigDetails, error) {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "GetIstioConfigDetails")
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetIstioConfigDetails",
+			trace.WithAttributes(attribute.String("package", "business")),
+		)
 		defer span.End()
 	}
 	var err error
@@ -691,7 +694,12 @@ func (in *IstioConfigService) CreateIstioConfigDetail(namespace, resourceType st
 func (in *IstioConfigService) GetIstioConfigPermissions(ctx context.Context, namespaces []string) models.IstioConfigPermissions {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "GetIstioConfigPermissions")
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetIstioConfigPermissions",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.StringSlice("namespaces", namespaces),
+			),
+		)
 		defer span.End()
 	}
 	istioConfigPermissions := make(models.IstioConfigPermissions, len(namespaces))
@@ -760,7 +768,12 @@ func (in *IstioConfigService) GetIstioConfigPermissions(ctx context.Context, nam
 func getPermissions(ctx context.Context, k8s kubernetes.ClientInterface, namespace, objectType string) (bool, bool, bool) {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "getPermissions")
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "getPermissions",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+			),
+		)
 		defer span.End()
 	}
 	var canCreate, canPatch, canDelete bool
@@ -775,7 +788,14 @@ func getPermissions(ctx context.Context, k8s kubernetes.ClientInterface, namespa
 func getPermissionsApi(ctx context.Context, k8s kubernetes.ClientInterface, namespace, api, resourceType string) (bool, bool, bool) {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "getPermissionsApi")
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "getPermissionsApi",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("api", api),
+				attribute.String("resourceType", resourceType),
+			),
+		)
 		defer span.End()
 	}
 	var canCreate, canPatch, canDelete bool

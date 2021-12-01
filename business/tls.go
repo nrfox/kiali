@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	networking_v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	security_v1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
@@ -65,7 +66,12 @@ func (in *TLSService) getMeshPeerAuthentications() ([]security_v1beta1.PeerAuthe
 func (in *TLSService) getAllDestinationRules(ctx context.Context, namespaces []string) ([]networking_v1alpha3.DestinationRule, error) {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		_, span = otel.Tracer(observability.TracerName).Start(ctx, "getAllDestinationRules")
+		_, span = otel.Tracer(observability.TracerName()).Start(ctx, "getAllDestinationRules",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.StringSlice("namespaces", namespaces),
+			),
+		)
 		defer span.End()
 	}
 	drChan := make(chan []networking_v1alpha3.DestinationRule, len(namespaces))
@@ -112,7 +118,12 @@ func (in *TLSService) getAllDestinationRules(ctx context.Context, namespaces []s
 func (in TLSService) NamespaceWidemTLSStatus(ctx context.Context, namespace string) (models.MTLSStatus, error) {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "NamespaceWidemTLSStatus")
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "NamespaceWidemTLSStatus",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+			),
+		)
 		defer span.End()
 	}
 	pas, err := in.getPeerAuthentications(ctx, namespace)
@@ -146,7 +157,12 @@ func (in TLSService) NamespaceWidemTLSStatus(ctx context.Context, namespace stri
 func (in TLSService) getPeerAuthentications(ctx context.Context, namespace string) ([]security_v1beta1.PeerAuthentication, error) {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		_, span = otel.Tracer(observability.TracerName).Start(ctx, "getPeerAuthentications")
+		_, span = otel.Tracer(observability.TracerName()).Start(ctx, "getPeerAuthentications",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+			),
+		)
 		defer span.End()
 	}
 	if config.IsRootNamespace(namespace) {
@@ -163,7 +179,9 @@ func (in TLSService) getPeerAuthentications(ctx context.Context, namespace strin
 func (in TLSService) getNamespaces(ctx context.Context) ([]string, error) {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		_, span = otel.Tracer(observability.TracerName).Start(ctx, "getNamespaces")
+		_, span = otel.Tracer(observability.TracerName()).Start(ctx, "getNamespaces",
+			trace.WithAttributes(attribute.String("package", "business")),
+		)
 		defer span.End()
 	}
 	nss, nssErr := in.businessLayer.Namespace.GetNamespaces()

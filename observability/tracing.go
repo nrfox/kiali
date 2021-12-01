@@ -13,14 +13,19 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+
+	"github.com/kiali/kiali/config"
 )
 
 const (
 	// TracingService is the name of the kiali tracer service.
 	TracingService = "kiali-server"
-	// TracerName is the name of the global kiali Trace.
-	TracerName = TracingService
 )
+
+// TracerName is the name of the global kiali Trace.
+func TracerName() string {
+	return TracingService + "." + config.Get().Deployment.Namespace
+}
 
 // InitTracer initalizes a TracerProvider that exports to jaeger.
 // This will panic if there's an error in setup.
@@ -31,7 +36,7 @@ func InitTracer(jaegerURL string) *sdktrace.TracerProvider {
 	}
 
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(0.5))), // Sample half of traces. 
 		sdktrace.WithBatcher(exporter),
 		// Record information about this application in an Resource.
 		sdktrace.WithResource(resource.NewWithAttributes(

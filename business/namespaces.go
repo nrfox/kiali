@@ -6,6 +6,7 @@ import (
 
 	osproject_v1 "github.com/openshift/api/project/v1"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -179,7 +180,12 @@ func (in *NamespaceService) isExcludedNamespace(namespace string) bool {
 func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) (*models.Namespace, error) {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		_, span = otel.Tracer(observability.TracerName).Start(ctx, "GetNamespace")
+		_, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetNamespace",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+			),
+		)
 		defer span.End()
 	}
 	var err error

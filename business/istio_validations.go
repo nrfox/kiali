@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	networking_v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	core_v1 "k8s.io/api/core/v1"
@@ -35,7 +36,13 @@ type ObjectChecker interface {
 func (in *IstioValidationsService) GetValidations(ctx context.Context, namespace, service string) (models.IstioValidations, error) {
 	if config.Get().Server.Observability.Tracing.Enabled {
 		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName).Start(ctx, "GetValidations")
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetValidations",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("service", service),
+			),
+		)
 		defer span.End()
 	}
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or

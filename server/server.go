@@ -33,7 +33,7 @@ func NewServer() *Server {
 	router := routing.NewRouter()
 	var tracingProvider *sdktrace.TracerProvider
 	if conf.Server.Observability.Tracing.Enabled {
-		log.Debugf("Tracing Enabled. Initializing tracer with collector url: %s", conf.Server.Observability.Tracing.CollectorURL)
+		log.Infof("Tracing Enabled. Initializing tracer with collector url: %s", conf.Server.Observability.Tracing.CollectorURL)
 		tracingProvider = observability.InitTracer(conf.Server.Observability.Tracing.CollectorURL)
 	}
 
