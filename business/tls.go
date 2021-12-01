@@ -55,7 +55,7 @@ func (in *TLSService) MeshWidemTLSStatus(namespaces []string) (models.MTLSStatus
 
 func (in *TLSService) getMeshPeerAuthentications() ([]security_v1beta1.PeerAuthentication, error) {
 	criteria := IstioConfigCriteria{
-		Namespace:                  config.Get().IstioNamespace,
+		Namespace:                  config.Get().ExternalServices.Istio.RootNamespace,
 		IncludePeerAuthentications: true,
 	}
 	istioConfigList, err := in.businessLayer.IstioConfig.GetIstioConfigList(criteria)
@@ -149,7 +149,7 @@ func (in TLSService) getPeerAuthentications(ctx context.Context, namespace strin
 		_, span = otel.Tracer(observability.TracerName).Start(ctx, "getPeerAuthentications")
 		defer span.End()
 	}
-	if namespace == config.Get().IstioNamespace {
+	if config.IsRootNamespace(namespace) {
 		return []security_v1beta1.PeerAuthentication{}, nil
 	}
 	criteria := IstioConfigCriteria{
