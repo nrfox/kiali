@@ -55,7 +55,7 @@ func MeshTls(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get mtls status given the whole namespaces
-	globalmTLSStatus, err := business.TLS.MeshWidemTLSStatus(nsNames)
+	globalmTLSStatus, err := business.TLS.MeshWidemTLSStatus(r.Context(), nsNames)
 	if err != nil {
 		log.Error(err)
 		RespondWithError(w, http.StatusInternalServerError, err.Error())

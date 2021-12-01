@@ -1,10 +1,14 @@
 package business
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -12,11 +16,16 @@ import (
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
+	"github.com/kiali/kiali/observability"
 	"github.com/kiali/kiali/util/httputil"
 )
 
 // SvcService deals with fetching istio/kubernetes services related content and convert to kiali model
-type IstioStatusService struct {
+type IstioStatusService interface {
+	GetStatus(ctx context.Context) (IstioComponentStatus, error)
+}
+
+type istioStatusService struct {
 	k8s           kubernetes.ClientInterface
 	businessLayer *Layer
 }
@@ -56,12 +65,12 @@ const (
 	Unreachable string = "Unreachable"
 )
 
-func (iss *IstioStatusService) GetStatus() (IstioComponentStatus, error) {
+func (iss *istioStatusService) GetStatus(ctx context.Context) (IstioComponentStatus, error) {
 	if !config.Get().ExternalServices.Istio.ComponentStatuses.Enabled {
 		return IstioComponentStatus{}, nil
 	}
 
-	ics, err := iss.getIstioComponentStatus()
+	ics, err := iss.getIstioComponentStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -69,9 +78,9 @@ func (iss *IstioStatusService) GetStatus() (IstioComponentStatus, error) {
 	return ics.merge(iss.getAddonComponentStatus()), nil
 }
 
-func (iss *IstioStatusService) getIstioComponentStatus() (IstioComponentStatus, error) {
+func (iss *istioStatusService) getIstioComponentStatus(ctx context.Context) (IstioComponentStatus, error) {
 	// Fetching workloads from component namespaces
-	workloads, err := iss.getComponentNamespacesWorkloads()
+	workloads, err := iss.getComponentNamespacesWorkloads(ctx)
 	if err != nil {
 		return IstioComponentStatus{}, err
 	}
@@ -89,7 +98,7 @@ func (iss *IstioStatusService) getIstioComponentStatus() (IstioComponentStatus, 
 	return deploymentStatus.merge(istiodStatus), nil
 }
 
-func (iss *IstioStatusService) getComponentNamespacesWorkloads() ([]*models.Workload, error) {
+func (iss *istioStatusService) getComponentNamespacesWorkloads(ctx context.Context) ([]*models.Workload, error) {
 	var wg sync.WaitGroup
 
 	nss := map[string]bool{}
@@ -105,14 +114,14 @@ func (iss *IstioStatusService) getComponentNamespacesWorkloads() ([]*models.Work
 			wg.Add(1)
 			nss[n] = true
 
-			go func(n string, wliChan chan []*models.Workload, errChan chan error) {
+			go func(ctx context.Context, n string, wliChan chan []*models.Workload, errChan chan error) {
 				defer wg.Done()
 				var wls models.Workloads
 				var err error
-				wls, err = fetchWorkloads(iss.businessLayer, n, "")
+				wls, err = fetchWorkloads(ctx, iss.businessLayer, n, "")
 				wliChan <- wls
 				errChan <- err
-			}(n, wlChan, errChan)
+			}(ctx, n, wlChan, errChan)
 		}
 	}
 
@@ -161,7 +170,7 @@ func istioCoreComponents() map[string]bool {
 	return components
 }
 
-func (iss *IstioStatusService) getStatusOf(workloads []*models.Workload) (IstioComponentStatus, error) {
+func (iss *istioStatusService) getStatusOf(workloads []*models.Workload) (IstioComponentStatus, error) {
 	statusComponents := istioCoreComponents()
 	isc := IstioComponentStatus{}
 	cf := map[string]bool{}
@@ -227,7 +236,7 @@ func GetWorkloadStatus(wl models.Workload) string {
 	return status
 }
 
-func (iss *IstioStatusService) getAddonComponentStatus() IstioComponentStatus {
+func (iss *istioStatusService) getAddonComponentStatus() IstioComponentStatus {
 	var wg sync.WaitGroup
 	wg.Add(4)
 
@@ -256,7 +265,7 @@ func (iss *IstioStatusService) getAddonComponentStatus() IstioComponentStatus {
 	return ics
 }
 
-func (iss *IstioStatusService) getIstiodReachingCheck() (IstioComponentStatus, error) {
+func (iss *istioStatusService) getIstiodReachingCheck() (IstioComponentStatus, error) {
 	cfg := config.Get()
 
 	istiods, err := iss.k8s.GetPods(cfg.IstioNamespace, labels.Set(map[string]string{"app": "istiod"}).String())
@@ -339,7 +348,7 @@ func getAddonStatus(name string, enabled bool, isCore bool, auth *config.Auth, u
 	}
 }
 
-func (iss *IstioStatusService) getTracingStatus(name string, enabled bool, isCore bool, staChan chan<- IstioComponentStatus, wg *sync.WaitGroup) {
+func (iss *istioStatusService) getTracingStatus(name string, enabled bool, isCore bool, staChan chan<- IstioComponentStatus, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	if !enabled {
@@ -356,4 +365,22 @@ func (iss *IstioStatusService) getTracingStatus(name string, enabled bool, isCor
 			},
 		}
 	}
+}
+
+type istioStatusServiceWithTracing struct {
+	IstioStatusService
+}
+
+func (in *istioStatusServiceWithTracing) GetStatus(ctx context.Context) (IstioComponentStatus, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetStatus",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.IstioStatusService.GetStatus(ctx)
 }

@@ -40,7 +40,7 @@ func TestMeshStatusEnabled(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, false)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := tlsService.MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSEnabled, status.Status)
@@ -63,7 +63,7 @@ func TestMeshStatusEnabledAutoMtls(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, true)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := tlsService.MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSEnabled, status.Status)
@@ -89,7 +89,7 @@ func TestMeshStatusPartiallyEnabled(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, false)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := tlsService.MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSPartiallyEnabled, status.Status)
@@ -112,7 +112,7 @@ func TestMeshStatusNotEnabled(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, false)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := tlsService.MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSNotEnabled, status.Status)
@@ -138,7 +138,7 @@ func TestMeshStatusDisabled(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, false)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := tlsService.MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSDisabled, status.Status)
@@ -157,7 +157,7 @@ func TestMeshStatusNotEnabledAutoMtls(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 
 	tlsService := getTLSService(k8s, true)
-	status, err := (tlsService).MeshWidemTLSStatus([]string{"test"})
+	status, err := tlsService.MeshWidemTLSStatus(context.TODO(), []string{"test"})
 
 	assert.NoError(err)
 	assert.Equal(MTLSNotEnabled, status.Status)
@@ -287,8 +287,8 @@ func TestNamespaceHasDestinationRuleEnabledDifferentNs(t *testing.T) {
 	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&projects[0], nil)
 
 	autoMtls := false
-	tlsService := TLSService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil), enabledAutoMtls: &autoMtls}
-	status, err := (tlsService).NamespaceWidemTLSStatus(context.TODO(), "bookinfo")
+	tlsService := &tlsService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil), enabledAutoMtls: &autoMtls}
+	status, err := tlsService.NamespaceWidemTLSStatus(context.TODO(), "bookinfo")
 
 	assert.NoError(err)
 	assert.Equal(MTLSEnabled, status.Status)
@@ -314,10 +314,11 @@ func testNamespaceScenario(exStatus string, drs []networking_v1alpha3.Destinatio
 	k8s.On("GetProjects", mock.AnythingOfType("string")).Return(projects, nil)
 	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&projects[0], nil)
 
-	config.Set(config.NewConfig())
+	conf = config.NewConfig()
+	conf.Deployment.AccessibleNamespaces = []string{"**"}
+	config.Set(conf)
 
-	tlsService := TLSService{k8s: k8s, enabledAutoMtls: &autoMtls, businessLayer: NewWithBackends(k8s, nil, nil)}
-	tlsService.businessLayer.Namespace.isAccessibleNamespaces["**"] = true
+	tlsService := &tlsService{k8s: k8s, enabledAutoMtls: &autoMtls, businessLayer: NewWithBackends(k8s, nil, nil)}
 	status, err := (tlsService).NamespaceWidemTLSStatus(context.TODO(), "bookinfo")
 
 	assert.NoError(err)
@@ -359,8 +360,8 @@ func fakePeerAuthn(name, namespace string, peers *api_security_v1beta1.PeerAuthe
 	return []security_v1beta1.PeerAuthentication{*data.CreateEmptyPeerAuthentication(name, namespace, peers)}
 }
 
-func getTLSService(k8s kubernetes.ClientInterface, autoMtls bool) *TLSService {
-	return &TLSService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil), enabledAutoMtls: &autoMtls}
+func getTLSService(k8s kubernetes.ClientInterface, autoMtls bool) *tlsService {
+	return &tlsService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil), enabledAutoMtls: &autoMtls}
 }
 
 func fakeStrictMeshPeerAuthentication(name string) []security_v1beta1.PeerAuthentication {

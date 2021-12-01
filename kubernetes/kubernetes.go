@@ -490,6 +490,7 @@ func (in *K8SClient) GetSelfSubjectAccessReview(ctx context.Context, namespace, 
 		)
 		defer span.End()
 	}
+
 	calls := len(verbs)
 	ch := make(chan *auth_v1.SelfSubjectAccessReview, calls)
 	errChan := make(chan error)

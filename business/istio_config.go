@@ -26,13 +26,23 @@ import (
 
 const allResources string = "*"
 
-type IstioConfigService struct {
+
+type IstioConfigService interface {
+	GetIstioConfigList(ctx context.Context, criteria IstioConfigCriteria) (models.IstioConfigList, error)
+	GetIstioConfigDetails(ctx context.Context, namespace, objectType, object string) (models.IstioConfigDetails, error)
+	DeleteIstioConfigDetail(namespace, resourceType, name string) error
+	UpdateIstioConfigDetail(namespace, resourceType, name, jsonPatch string) (models.IstioConfigDetails, error)
+	CreateIstioConfigDetail(namespace, resourceType string, body []byte) (models.IstioConfigDetails, error)
+	GetIstioConfigPermissions(ctx context.Context, namespaces []string) models.IstioConfigPermissions
+}
+
+type istioConfigService struct {
 	k8s           kubernetes.ClientInterface
 	businessLayer *Layer
 }
 
 type IstioConfigCriteria struct {
-	// When AllNamespaces is true the IstioConfigService will use the Istio registry to return the configuration
+	// When AllNamespaces is true the istioConfigService will use the Istio registry to return the configuration
 	// from all namespaces directly from the Istio registry instead of the individual API
 	// This usecase should be reserved for validations use cases only where cross-namespace validation may create a
 	// penalty
@@ -100,7 +110,7 @@ var newSecurityConfigTypes = []string{
 
 // GetIstioConfigList returns a list of Istio routing objects, Mixer Rules, (etc.)
 // per a given Namespace.
-func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (models.IstioConfigList, error) {
+func (in *istioConfigService) GetIstioConfigList(ctx context.Context, criteria IstioConfigCriteria) (models.IstioConfigList, error) {
 	if criteria.Namespace == "" && !criteria.AllNamespaces {
 		return models.IstioConfigList{}, errors.New("GetIstioConfigList needs a non empty Namespace")
 	}
@@ -153,7 +163,7 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), criteria.Namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(ctx, criteria.Namespace); err != nil {
 		return models.IstioConfigList{}, err
 	}
 
@@ -169,9 +179,8 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 	wg.Add(11)
 
 	listOpts := meta_v1.ListOptions{LabelSelector: criteria.LabelSelector}
-	ctx := context.TODO()
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.DestinationRules) {
 			var err error
@@ -187,9 +196,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.EnvoyFilters) {
 			var err error
@@ -208,9 +217,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.Gateways) {
 			var err error
@@ -230,9 +239,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.ServiceEntries) {
 			var err error
@@ -248,9 +257,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.Sidecars) {
 			var err error
@@ -269,9 +278,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.VirtualServices) {
 			var err error
@@ -287,9 +296,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.WorkloadEntries) {
 			var err error
@@ -304,9 +313,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.WorkloadGroups) {
 			var err error
@@ -321,9 +330,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.AuthorizationPolicies) {
 			var err error
@@ -342,9 +351,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.PeerAuthentications) {
 			var err error
@@ -363,9 +372,9 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
-	go func(errChan chan error) {
+	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.RequestAuthentications) {
 			var err error
@@ -384,7 +393,7 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 				errChan <- err
 			}
 		}
-	}(errChan)
+	}(ctx, errChan)
 
 	wg.Wait()
 
@@ -404,14 +413,7 @@ func (in *IstioConfigService) GetIstioConfigList(criteria IstioConfigCriteria) (
 // - "namespace": 		namespace where configuration is stored
 // - "objectType":		type of the configuration
 // - "object":			name of the configuration
-func (in *IstioConfigService) GetIstioConfigDetails(ctx context.Context, namespace, objectType, object string) (models.IstioConfigDetails, error) {
-	if config.Get().Server.Observability.Tracing.Enabled {
-		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetIstioConfigDetails",
-			trace.WithAttributes(attribute.String("package", "business")),
-		)
-		defer span.End()
-	}
+func (in *istioConfigService) GetIstioConfigDetails(ctx context.Context, namespace, objectType, object string) (models.IstioConfigDetails, error) {
 	var err error
 
 	istioConfigDetail := models.IstioConfigDetails{}
@@ -420,7 +422,7 @@ func (in *IstioConfigService) GetIstioConfigDetails(ctx context.Context, namespa
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(ctx, namespace); err != nil {
 		return istioConfigDetail, err
 	}
 
@@ -500,7 +502,7 @@ func GetIstioAPI(resourceType string) bool {
 }
 
 // DeleteIstioConfigDetail deletes the given Istio resource
-func (in *IstioConfigService) DeleteIstioConfigDetail(namespace, resourceType, name string) error {
+func (in *istioConfigService) DeleteIstioConfigDetail(namespace, resourceType, name string) error {
 	var err error
 	delOpts := meta_v1.DeleteOptions{}
 	ctx := context.TODO()
@@ -538,7 +540,7 @@ func (in *IstioConfigService) DeleteIstioConfigDetail(namespace, resourceType, n
 	return err
 }
 
-func (in *IstioConfigService) UpdateIstioConfigDetail(namespace, resourceType, name, jsonPatch string) (models.IstioConfigDetails, error) {
+func (in *istioConfigService) UpdateIstioConfigDetail(namespace, resourceType, name, jsonPatch string) (models.IstioConfigDetails, error) {
 	istioConfigDetail := models.IstioConfigDetails{}
 	istioConfigDetail.Namespace = models.Namespace{Name: namespace}
 	istioConfigDetail.ObjectType = resourceType
@@ -594,7 +596,7 @@ func (in *IstioConfigService) UpdateIstioConfigDetail(namespace, resourceType, n
 	return istioConfigDetail, err
 }
 
-func (in *IstioConfigService) CreateIstioConfigDetail(namespace, resourceType string, body []byte) (models.IstioConfigDetails, error) {
+func (in *istioConfigService) CreateIstioConfigDetail(namespace, resourceType string, body []byte) (models.IstioConfigDetails, error) {
 	istioConfigDetail := models.IstioConfigDetails{}
 	istioConfigDetail.Namespace = models.Namespace{Name: namespace}
 	istioConfigDetail.ObjectType = resourceType
@@ -691,17 +693,7 @@ func (in *IstioConfigService) CreateIstioConfigDetail(namespace, resourceType st
 	return istioConfigDetail, err
 }
 
-func (in *IstioConfigService) GetIstioConfigPermissions(ctx context.Context, namespaces []string) models.IstioConfigPermissions {
-	if config.Get().Server.Observability.Tracing.Enabled {
-		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetIstioConfigPermissions",
-			trace.WithAttributes(
-				attribute.String("package", "business"),
-				attribute.StringSlice("namespaces", namespaces),
-			),
-		)
-		defer span.End()
-	}
+func (in *istioConfigService) GetIstioConfigPermissions(ctx context.Context, namespaces []string) models.IstioConfigPermissions {
 	istioConfigPermissions := make(models.IstioConfigPermissions, len(namespaces))
 
 	if len(namespaces) > 0 {
@@ -766,16 +758,6 @@ func (in *IstioConfigService) GetIstioConfigPermissions(ctx context.Context, nam
 }
 
 func getPermissions(ctx context.Context, k8s kubernetes.ClientInterface, namespace, objectType string) (bool, bool, bool) {
-	if config.Get().Server.Observability.Tracing.Enabled {
-		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "getPermissions",
-			trace.WithAttributes(
-				attribute.String("package", "business"),
-				attribute.String("namespace", namespace),
-			),
-		)
-		defer span.End()
-	}
 	var canCreate, canPatch, canDelete bool
 
 	if api, ok := kubernetes.ResourceTypesToAPI[objectType]; ok {
@@ -786,18 +768,6 @@ func getPermissions(ctx context.Context, k8s kubernetes.ClientInterface, namespa
 }
 
 func getPermissionsApi(ctx context.Context, k8s kubernetes.ClientInterface, namespace, api, resourceType string) (bool, bool, bool) {
-	if config.Get().Server.Observability.Tracing.Enabled {
-		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "getPermissionsApi",
-			trace.WithAttributes(
-				attribute.String("package", "business"),
-				attribute.String("namespace", namespace),
-				attribute.String("api", api),
-				attribute.String("resourceType", resourceType),
-			),
-		)
-		defer span.End()
-	}
 	var canCreate, canPatch, canDelete bool
 
 	// In view only mode, there is not need to check RBAC permissions, return false early
@@ -900,4 +870,54 @@ func ParseIstioConfigCriteria(namespace, objects, labelSelector, workloadSelecto
 		criteria.IncludeEnvoyFilters = true
 	}
 	return criteria
+}
+
+type istioConfigServiceWithTracing struct {
+	IstioConfigService
+}
+
+func (in *istioConfigServiceWithTracing) GetIstioConfigList(ctx context.Context, criteria IstioConfigCriteria) (models.IstioConfigList, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetIstioConfigList",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.IstioConfigService.GetIstioConfigList(ctx, criteria)
+}
+
+func (in *istioConfigServiceWithTracing) GetIstioConfigDetails(ctx context.Context, namespace, objectType, object string) (models.IstioConfigDetails, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetIstioConfigDetails",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("objectType", objectType),
+				attribute.String("object", object),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.IstioConfigService.GetIstioConfigDetails(ctx, namespace, objectType, object)
+}
+
+func (in *istioConfigServiceWithTracing) GetIstioConfigPermissions(ctx context.Context, namespaces []string) models.IstioConfigPermissions {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetIstioConfigPermissions",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.StringSlice("namespaces", namespaces),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.IstioConfigService.GetIstioConfigPermissions(ctx, namespaces)
 }

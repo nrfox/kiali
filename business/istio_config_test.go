@@ -106,7 +106,7 @@ func TestGetIstioConfigList(t *testing.T) {
 
 	configService := mockGetIstioConfigList()
 
-	istioconfigList, err := configService.GetIstioConfigList(criteria)
+	istioconfigList, err := configService.GetIstioConfigList(context.TODO(), criteria)
 
 	assert.Equal(0, len(istioconfigList.Gateways))
 	assert.Equal(0, len(istioconfigList.VirtualServices))
@@ -116,7 +116,7 @@ func TestGetIstioConfigList(t *testing.T) {
 
 	criteria.IncludeGateways = true
 
-	istioconfigList, err = configService.GetIstioConfigList(criteria)
+	istioconfigList, err = configService.GetIstioConfigList(context.TODO(), criteria)
 
 	assert.Equal(2, len(istioconfigList.Gateways))
 	assert.Equal(0, len(istioconfigList.VirtualServices))
@@ -126,7 +126,7 @@ func TestGetIstioConfigList(t *testing.T) {
 
 	criteria.IncludeVirtualServices = true
 
-	istioconfigList, err = configService.GetIstioConfigList(criteria)
+	istioconfigList, err = configService.GetIstioConfigList(context.TODO(), criteria)
 
 	assert.Equal(2, len(istioconfigList.Gateways))
 	assert.Equal(2, len(istioconfigList.VirtualServices))
@@ -136,7 +136,7 @@ func TestGetIstioConfigList(t *testing.T) {
 
 	criteria.IncludeDestinationRules = true
 
-	istioconfigList, err = configService.GetIstioConfigList(criteria)
+	istioconfigList, err = configService.GetIstioConfigList(context.TODO(), criteria)
 
 	assert.Equal(2, len(istioconfigList.Gateways))
 	assert.Equal(2, len(istioconfigList.VirtualServices))
@@ -146,7 +146,7 @@ func TestGetIstioConfigList(t *testing.T) {
 
 	criteria.IncludeServiceEntries = true
 
-	istioconfigList, err = configService.GetIstioConfigList(criteria)
+	istioconfigList, err = configService.GetIstioConfigList(context.TODO(), criteria)
 
 	assert.Equal(2, len(istioconfigList.Gateways))
 	assert.Equal(2, len(istioconfigList.VirtualServices))
@@ -190,7 +190,7 @@ func TestGetIstioConfigDetails(t *testing.T) {
 	assert.Error(err)
 }
 
-func mockGetIstioConfigList() IstioConfigService {
+func mockGetIstioConfigList() istioConfigService {
 	k8s := new(kubetest.K8SClientMock)
 	k8s.On("IsOpenShift").Return(true)
 	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
@@ -209,7 +209,7 @@ func mockGetIstioConfigList() IstioConfigService {
 		fakeIstioObjects = append(fakeIstioObjects, s.DeepCopyObject())
 	}
 	k8s.MockIstio(fakeIstioObjects...)
-	return IstioConfigService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
+	return istioConfigService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
 }
 
 func fakeGetGateways() []networking_v1alpha3.Gateway {
@@ -370,7 +370,7 @@ func fakeGetSelfSubjectAccessReview() []*auth_v1.SelfSubjectAccessReview {
 	return []*auth_v1.SelfSubjectAccessReview{&create, &update, &delete}
 }
 
-func mockGetIstioConfigDetails() IstioConfigService {
+func mockGetIstioConfigDetails() istioConfigService {
 	k8s := new(kubetest.K8SClientMock)
 	fakeIstioObjects := []runtime.Object{}
 	fakeIstioObjects = append(fakeIstioObjects, &fakeGetGateways()[0])
@@ -383,7 +383,7 @@ func mockGetIstioConfigDetails() IstioConfigService {
 	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
 	k8s.On("GetSelfSubjectAccessReview", mock.Anything, "test", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return(fakeGetSelfSubjectAccessReview(), nil)
 
-	return IstioConfigService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
+	return istioConfigService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
 }
 
 func TestIsValidHost(t *testing.T) {
@@ -457,10 +457,10 @@ func TestDeleteIstioConfigDetails(t *testing.T) {
 	assert.Nil(err)
 }
 
-func mockDeleteIstioConfigDetails() IstioConfigService {
+func mockDeleteIstioConfigDetails() istioConfigService {
 	k8s := new(kubetest.K8SClientMock)
 	k8s.MockIstio(data.CreateEmptyVirtualService("reviews-to-delete", "test", []string{"reviews"}))
-	return IstioConfigService{k8s: k8s}
+	return istioConfigService{k8s: k8s}
 }
 
 func TestUpdateIstioConfigDetails(t *testing.T) {
@@ -474,17 +474,17 @@ func TestUpdateIstioConfigDetails(t *testing.T) {
 	assert.Nil(err)
 }
 
-func mockUpdateIstioConfigDetails() IstioConfigService {
+func mockUpdateIstioConfigDetails() istioConfigService {
 	k8s := new(kubetest.K8SClientMock)
 	k8s.MockIstio(data.CreateEmptyVirtualService("reviews-to-update", "test", []string{"reviews"}))
-	return IstioConfigService{k8s: k8s}
+	return istioConfigService{k8s: k8s}
 }
 
 // mockCreateIstioConfigDetails to verify the behavior of API calls is the same for create and update
-func mockCreateIstioConfigDetails() IstioConfigService {
+func mockCreateIstioConfigDetails() istioConfigService {
 	k8s := new(kubetest.K8SClientMock)
 	k8s.MockIstio()
-	return IstioConfigService{k8s: k8s}
+	return istioConfigService{k8s: k8s}
 }
 
 func TestCreateIstioConfigDetails(t *testing.T) {

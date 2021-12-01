@@ -6,6 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	networking_v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	apps_v1 "k8s.io/api/apps/v1"
 	core_v1 "k8s.io/api/core/v1"
@@ -17,15 +20,25 @@ import (
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
+	"github.com/kiali/kiali/observability"
 	"github.com/kiali/kiali/prometheus"
 )
 
 // SvcService deals with fetching istio/kubernetes services related content and convert to kiali model
-type SvcService struct {
+type SvcService interface {
+	GetServiceList(ctx context.Context, criteria ServiceCriteria) (*models.ServiceList, error)
+	GetServiceDetails(ctx context.Context, namespace, service, interval string, queryTime time.Time) (*models.ServiceDetails, error)
+	UpdateService(ctx context.Context, namespace, service string, interval string, queryTime time.Time, jsonPatch string) (*models.ServiceDetails, error)
+	GetService(ctx context.Context, namespace, service string) (models.Service, error)
+	GetServiceAppName(ctx context.Context, namespace, service string) (string, error)
+}
+
+type svcService struct {
 	prom          prometheus.ClientInterface
 	k8s           kubernetes.ClientInterface
 	businessLayer *Layer
 }
+
 
 type ServiceCriteria struct {
 	Namespace              string
@@ -35,7 +48,7 @@ type ServiceCriteria struct {
 }
 
 // GetServiceList returns a list of all services for a given criteria
-func (in *SvcService) GetServiceList(criteria ServiceCriteria) (*models.ServiceList, error) {
+func (in *svcService) GetServiceList(ctx context.Context, criteria ServiceCriteria) (*models.ServiceList, error) {
 	var svcs []core_v1.Service
 	var rSvcs []*kubernetes.RegistryService
 	var pods []core_v1.Pod
@@ -44,7 +57,7 @@ func (in *SvcService) GetServiceList(criteria ServiceCriteria) (*models.ServiceL
 	var err error
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err = in.businessLayer.Namespace.GetNamespace(context.TODO(), criteria.Namespace); err != nil {
+	if _, err = in.businessLayer.Namespace.GetNamespace(ctx, criteria.Namespace); err != nil {
 		return nil, err
 	}
 
@@ -145,7 +158,7 @@ func (in *SvcService) GetServiceList(criteria ServiceCriteria) (*models.ServiceL
 		go func() {
 			defer wg.Done()
 			var err2 error
-			istioConfigList, err2 = in.businessLayer.IstioConfig.GetIstioConfigList(criteria)
+			istioConfigList, err2 = in.businessLayer.IstioConfig.GetIstioConfigList(ctx, criteria)
 			if err2 != nil {
 				log.Errorf("Error fetching IstioConfigList per namespace %s: %s", criteria.Namespace, err2)
 				errChan <- err2
@@ -183,7 +196,7 @@ func getDRKialiScenario(dr []networking_v1alpha3.DestinationRule) string {
 	return scenario
 }
 
-func (in *SvcService) buildServiceList(namespace models.Namespace, svcs []core_v1.Service, rSvcs []*kubernetes.RegistryService, pods []core_v1.Pod, deployments []apps_v1.Deployment, istioConfigList models.IstioConfigList) *models.ServiceList {
+func (in *svcService) buildServiceList(namespace models.Namespace, svcs []core_v1.Service, rSvcs []*kubernetes.RegistryService, pods []core_v1.Pod, deployments []apps_v1.Deployment, istioConfigList models.IstioConfigList) *models.ServiceList {
 	var services []models.ServiceOverview
 	validations := in.getServiceValidations(svcs, deployments, pods)
 
@@ -198,7 +211,7 @@ func (in *SvcService) buildServiceList(namespace models.Namespace, svcs []core_v
 	return &models.ServiceList{Namespace: namespace, Services: services, Validations: validations}
 }
 
-func (in *SvcService) buildKubernetesServices(svcs []core_v1.Service, pods []core_v1.Pod, istioConfigList models.IstioConfigList) []models.ServiceOverview {
+func (in *svcService) buildKubernetesServices(svcs []core_v1.Service, pods []core_v1.Pod, istioConfigList models.IstioConfigList) []models.ServiceOverview {
 	services := make([]models.ServiceOverview, len(svcs))
 	conf := config.Get()
 
@@ -252,7 +265,7 @@ func (in *SvcService) buildKubernetesServices(svcs []core_v1.Service, pods []cor
 	return services
 }
 
-func (in *SvcService) buildRegistryServices(rSvcs []*kubernetes.RegistryService, istioConfigList models.IstioConfigList) []models.ServiceOverview {
+func (in *svcService) buildRegistryServices(rSvcs []*kubernetes.RegistryService, istioConfigList models.IstioConfigList) []models.ServiceOverview {
 	services := make([]models.ServiceOverview, len(rSvcs))
 	conf := config.Get()
 
@@ -303,14 +316,14 @@ func (in *SvcService) buildRegistryServices(rSvcs []*kubernetes.RegistryService,
 }
 
 // GetService returns a single service and associated data using the interval and queryTime
-func (in *SvcService) GetServiceDetails(namespace, service, interval string, queryTime time.Time) (*models.ServiceDetails, error) {
+func (in *svcService) GetServiceDetails(ctx context.Context, namespace, service, interval string, queryTime time.Time) (*models.ServiceDetails, error) {
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(ctx, namespace); err != nil {
 		return nil, err
 	}
 
-	svc, err := in.GetService(namespace, service)
+	svc, err := in.GetService(ctx, namespace, service)
 	if err != nil {
 		return nil, err
 	}
@@ -347,15 +360,15 @@ func (in *SvcService) GetServiceDetails(namespace, service, interval string, que
 			}
 		}()
 
-		go func() {
+		go func(ctx context.Context) {
 			defer wg.Done()
 			var err2 error
-			ws, err2 = fetchWorkloads(in.businessLayer, namespace, labelsSelector)
+			ws, err2 = fetchWorkloads(ctx, in.businessLayer, namespace, labelsSelector)
 			if err2 != nil {
 				log.Errorf("Error fetching Workloads per namespace %s and service %s: %s", namespace, service, err2)
 				errChan <- err2
 			}
-		}()
+		}(ctx)
 	}
 
 	go func() {
@@ -372,12 +385,12 @@ func (in *SvcService) GetServiceDetails(namespace, service, interval string, que
 		}
 	}()
 
-	go func() {
+	go func(ctx context.Context) {
 		defer wg.Done()
 		var err2 error
 		if IsNamespaceCached(namespace) {
 			// Cache uses Kiali ServiceAccount, check if user can access to the namespace
-			if _, err = in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err == nil {
+			if _, err = in.businessLayer.Namespace.GetNamespace(ctx, namespace); err == nil {
 				eps, err = kialiCache.GetEndpoints(namespace, service)
 			}
 		} else {
@@ -387,27 +400,27 @@ func (in *SvcService) GetServiceDetails(namespace, service, interval string, que
 			log.Errorf("Error fetching Endpoints namespace %s and service %s: %s", namespace, service, err2)
 			errChan <- err2
 		}
-	}()
+	}(ctx)
 
-	go func() {
+	go func(ctx context.Context) {
 		defer wg.Done()
 		var err2 error
-		hth, err2 = in.businessLayer.Health.GetServiceHealth(namespace, service, interval, queryTime)
+		hth, err2 = in.businessLayer.Health.GetServiceHealth(ctx, namespace, service, interval, queryTime)
 		if err2 != nil {
 			errChan <- err2
 		}
-	}()
+	}(ctx)
 
-	go func() {
+	go func(ctx context.Context) {
 		defer wg.Done()
 		var err2 error
-		nsmtls, err2 = in.businessLayer.TLS.NamespaceWidemTLSStatus(context.TODO(), namespace)
+		nsmtls, err2 = in.businessLayer.TLS.NamespaceWidemTLSStatus(ctx, namespace)
 		if err2 != nil {
 			errChan <- err2
 		}
-	}()
+	}(ctx)
 
-	go func() {
+	go func(ctx context.Context) {
 		defer wg.Done()
 		var err2 error
 		criteria := IstioConfigCriteria{
@@ -419,12 +432,12 @@ func (in *SvcService) GetServiceDetails(namespace, service, interval string, que
 			IncludeServiceEntries:  true,
 			IncludeVirtualServices: true,
 		}
-		istioConfigList, err2 = in.businessLayer.IstioConfig.GetIstioConfigList(criteria)
+		istioConfigList, err2 = in.businessLayer.IstioConfig.GetIstioConfigList(ctx, criteria)
 		if err2 != nil {
 			log.Errorf("Error fetching IstioConfigList per namespace %s: %s", criteria.Namespace, err2)
 			errChan <- err2
 		}
-	}()
+	}(ctx)
 
 	var vsCreate, vsUpdate, vsDelete bool
 	go func() {
@@ -476,7 +489,7 @@ func (in *SvcService) GetServiceDetails(namespace, service, interval string, que
 	return &s, nil
 }
 
-func (in *SvcService) UpdateService(namespace, service string, interval string, queryTime time.Time, jsonPatch string) (*models.ServiceDetails, error) {
+func (in *svcService) UpdateService(ctx context.Context, namespace, service string, interval string, queryTime time.Time, jsonPatch string) (*models.ServiceDetails, error) {
 	// Identify controller and apply patch to workload
 	err := updateService(in.businessLayer, namespace, service, jsonPatch)
 	if err != nil {
@@ -489,16 +502,16 @@ func (in *SvcService) UpdateService(namespace, service string, interval string, 
 	}
 
 	// After the update we fetch the whole workload
-	return in.GetServiceDetails(namespace, service, interval, queryTime)
+	return in.GetServiceDetails(ctx, namespace, service, interval, queryTime)
 }
 
-func (in *SvcService) GetService(namespace, service string) (models.Service, error) {
+func (in *svcService) GetService(ctx context.Context, namespace, service string) (models.Service, error) {
 	var err error
 	var kSvc *core_v1.Service
 	svc := models.Service{}
 	if IsNamespaceCached(namespace) {
 		// Cache uses Kiali ServiceAccount, check if user can access to the namespace
-		if _, err = in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err == nil {
+		if _, err = in.businessLayer.Namespace.GetNamespace(ctx, namespace); err == nil {
 			kSvc, err = kialiCache.GetService(namespace, service)
 		}
 	} else {
@@ -530,7 +543,7 @@ func (in *SvcService) GetService(namespace, service string) (models.Service, err
 	return svc, err
 }
 
-func (in *SvcService) getServiceValidations(services []core_v1.Service, deployments []apps_v1.Deployment, pods []core_v1.Pod) models.IstioValidations {
+func (in *svcService) getServiceValidations(services []core_v1.Service, deployments []apps_v1.Deployment, pods []core_v1.Pod) models.IstioValidations {
 	validations := checkers.ServiceChecker{
 		Services:    services,
 		Deployments: deployments,
@@ -542,14 +555,14 @@ func (in *SvcService) getServiceValidations(services []core_v1.Service, deployme
 
 // GetServiceAppName returns the "Application" name (app label) that relates to a service
 // This label is taken from the service selector, which means it is assumed that pods are selected using that label
-func (in *SvcService) GetServiceAppName(namespace, service string) (string, error) {
+func (in *svcService) GetServiceAppName(ctx context.Context, namespace, service string) (string, error) {
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
+	if _, err := in.businessLayer.Namespace.GetNamespace(ctx, namespace); err != nil {
 		return "", err
 	}
 
-	svc, err := in.GetService(namespace, service)
+	svc, err := in.GetService(ctx, namespace, service)
 	if err != nil {
 		return "", fmt.Errorf("Service [namespace: %s] [name: %s] doesn't exist.", namespace, service)
 	}
@@ -567,4 +580,89 @@ func updateService(layer *Layer, namespace string, service string, jsonPatch str
 	}
 
 	return layer.k8s.UpdateService(namespace, service, jsonPatch)
+}
+
+type svcServiceWithTracing struct {
+	SvcService
+}
+
+func (in *svcServiceWithTracing) GetServiceList(ctx context.Context, criteria ServiceCriteria) (*models.ServiceList, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetServiceList",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.SvcService.GetServiceList(ctx, criteria)
+}
+
+func (in *svcServiceWithTracing) GetServiceDetails(ctx context.Context, namespace, service, interval string, queryTime time.Time) (*models.ServiceDetails, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetServiceDetails",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("service", service),
+				attribute.String("interval", interval),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.SvcService.GetServiceDetails(ctx, namespace, service, interval, queryTime)
+}
+
+func (in *svcServiceWithTracing) UpdateService(ctx context.Context, namespace, service string, interval string, queryTime time.Time, jsonPatch string) (*models.ServiceDetails, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "UpdateService",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("service", service),
+				attribute.String("interval", interval),
+				attribute.String("jsonPatch", jsonPatch),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.SvcService.UpdateService(ctx, namespace, service, interval, queryTime, jsonPatch)
+}
+
+func (in *svcServiceWithTracing) GetService(ctx context.Context, namespace, service string) (models.Service, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetService",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("service", service),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.SvcService.GetService(ctx, namespace, service)
+}
+
+func (in *svcServiceWithTracing) GetServiceAppName(ctx context.Context, namespace, service string) (string, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetServiceAppName",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("service", service),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.SvcService.GetServiceAppName(ctx, namespace, service)
 }

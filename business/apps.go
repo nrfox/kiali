@@ -6,17 +6,26 @@ import (
 	"strings"
 	"sync"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
+	"github.com/kiali/kiali/observability"
 	"github.com/kiali/kiali/prometheus"
 )
 
 // AppService deals with fetching Workloads group by "app" label, which will be identified as an "application"
-type AppService struct {
+type AppService interface {
+	GetAppList(ctx context.Context, namespace string, linkIstioResources bool) (models.AppList, error)
+	GetApp(ctx context.Context, namespace string, appName string) (models.App, error)
+}
+
+type appService struct {
 	prom          prometheus.ClientInterface
 	k8s           kubernetes.ClientInterface
 	businessLayer *Layer
@@ -47,7 +56,7 @@ func buildFinalLabels(m map[string][]string) map[string]string {
 }
 
 // GetAppList is the API handler to fetch the list of applications in a given namespace
-func (in *AppService) GetAppList(namespace string, linkIstioResources bool) (models.AppList, error) {
+func (in *appService) GetAppList(ctx context.Context, namespace string, linkIstioResources bool) (models.AppList, error) {
 	appList := &models.AppList{
 		Namespace: models.Namespace{Name: namespace},
 		Apps:      []models.AppListItem{},
@@ -65,15 +74,15 @@ func (in *AppService) GetAppList(namespace string, linkIstioResources bool) (mod
 	wg.Add(nFetches)
 	errChan := make(chan error, nFetches)
 
-	go func() {
+	go func(ctx context.Context) {
 		defer wg.Done()
 		var err2 error
-		apps, err2 = fetchNamespaceApps(in.businessLayer, namespace, "")
+		apps, err2 = fetchNamespaceApps(ctx, in.businessLayer, namespace, "")
 		if err2 != nil {
 			log.Errorf("Error fetching Applications per namespace %s: %s", namespace, err2)
 			errChan <- err2
 		}
-	}()
+	}(ctx)
 
 	criteria := IstioConfigCriteria{
 		Namespace:                     namespace,
@@ -89,15 +98,15 @@ func (in *AppService) GetAppList(namespace string, linkIstioResources bool) (mod
 	var istioConfigList models.IstioConfigList
 
 	if linkIstioResources {
-		go func() {
+		go func(ctx context.Context) {
 			defer wg.Done()
 			var err2 error
-			istioConfigList, err2 = in.businessLayer.IstioConfig.GetIstioConfigList(criteria)
+			istioConfigList, err2 = in.businessLayer.IstioConfig.GetIstioConfigList(ctx, criteria)
 			if err2 != nil {
 				log.Errorf("Error fetching Istio Config per namespace %s: %s", namespace, err2)
 				errChan <- err2
 			}
-		}()
+		}(ctx)
 	}
 
 	wg.Wait()
@@ -159,14 +168,14 @@ func (in *AppService) GetAppList(namespace string, linkIstioResources bool) (mod
 }
 
 // GetApp is the API handler to fetch the details for a given namespace and app name
-func (in *AppService) GetApp(namespace string, appName string) (models.App, error) {
+func (in *appService) GetApp(ctx context.Context, namespace string, appName string) (models.App, error) {
 	appInstance := &models.App{Namespace: models.Namespace{Name: namespace}, Name: appName}
-	ns, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace)
+	ns, err := in.businessLayer.Namespace.GetNamespace(ctx, namespace)
 	if err != nil {
 		return *appInstance, err
 	}
 	appInstance.Namespace = *ns
-	namespaceApps, err := fetchNamespaceApps(in.businessLayer, namespace, appName)
+	namespaceApps, err := fetchNamespaceApps(ctx, in.businessLayer, namespace, appName)
 	if err != nil {
 		return *appInstance, err
 	}
@@ -242,7 +251,7 @@ func castAppDetails(ss *models.ServiceList, ws models.Workloads) namespaceApps {
 // Helper method to fetch all applications for a given namespace.
 // Optionally if appName parameter is provided, it filters apps for that name.
 // Return an error on any problem.
-func fetchNamespaceApps(layer *Layer, namespace string, appName string) (namespaceApps, error) {
+func fetchNamespaceApps(ctx context.Context, layer *Layer, namespace string, appName string) (namespaceApps, error) {
 	var ss *models.ServiceList
 	var ws models.Workloads
 	cfg := config.Get()
@@ -255,7 +264,7 @@ func fetchNamespaceApps(layer *Layer, namespace string, appName string) (namespa
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := layer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
+	if _, err := layer.Namespace.GetNamespace(ctx, namespace); err != nil {
 		return nil, err
 	}
 
@@ -263,7 +272,7 @@ func fetchNamespaceApps(layer *Layer, namespace string, appName string) (namespa
 	wg.Add(2)
 	errChan := make(chan error, 2)
 
-	go func() {
+	go func(ctx context.Context) {
 		defer wg.Done()
 		var err error
 		// Check if namespace is cached
@@ -273,22 +282,22 @@ func fetchNamespaceApps(layer *Layer, namespace string, appName string) (namespa
 			IncludeOnlyDefinitions: true,
 			ServiceSelector:        appNameSelector,
 		}
-		ss, err = layer.Svc.GetServiceList(criteria)
+		ss, err = layer.Svc.GetServiceList(ctx, criteria)
 		if err != nil {
 			log.Errorf("Error fetching Services per namespace %s: %s", namespace, err)
 			errChan <- err
 		}
-	}()
+	}(ctx)
 
-	go func() {
+	go func(ctx context.Context) {
 		defer wg.Done()
 		var err error
-		ws, err = fetchWorkloads(layer, namespace, appNameSelector)
+		ws, err = fetchWorkloads(ctx, layer, namespace, appNameSelector)
 		if err != nil {
 			log.Errorf("Error fetching Workload per namespace %s: %s", namespace, err)
 			errChan <- err
 		}
-	}()
+	}(ctx)
 
 	wg.Wait()
 	if len(errChan) != 0 {
@@ -297,4 +306,38 @@ func fetchNamespaceApps(layer *Layer, namespace string, appName string) (namespa
 	}
 
 	return castAppDetails(ss, ws), nil
+}
+
+type appServiceWithTracing struct {
+	AppService
+}
+
+func (in *appServiceWithTracing) GetAppList(ctx context.Context, namespace string, linkIstioResources bool) (models.AppList, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetAppList",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.Bool("linkIstioResources", linkIstioResources),
+			),
+		)
+		defer span.End()
+	}
+	return in.AppService.GetAppList(ctx, namespace, linkIstioResources)
+}
+
+func (in *appServiceWithTracing) GetApp(ctx context.Context, namespace string, appName string) (models.App, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetApp",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("appName", appName),
+			),
+		)
+		defer span.End()
+	}
+	return in.AppService.GetApp(ctx, namespace, appName)
 }

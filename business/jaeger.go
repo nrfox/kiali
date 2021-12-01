@@ -1,28 +1,47 @@
 package business
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
 
 	jaegerModels "github.com/kiali/kiali/jaeger/model/json"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
+	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/jaeger"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
+	"github.com/kiali/kiali/observability"
 )
 
 type JaegerLoader = func() (jaeger.ClientInterface, error)
 type SpanFilter = func(span *jaegerModels.Span) bool
 
-type JaegerService struct {
+type JaegerService interface {
+	GetAppSpans(ns, app string, query models.TracingQuery) ([]jaeger.JaegerSpan, error) 
+	GetServiceSpans(ctx context.Context, ns, service string, query models.TracingQuery) ([]jaeger.JaegerSpan, error)
+	GetWorkloadSpans(ctx context.Context, ns, workload string, query models.TracingQuery) ([]jaeger.JaegerSpan, error)
+	GetAppTraces(ns, app string, query models.TracingQuery) (*jaeger.JaegerResponse, error)
+	GetServiceTraces(ctx context.Context, ns, service string, query models.TracingQuery) (*jaeger.JaegerResponse, error)
+	GetWorkloadTraces(ctx context.Context, ns, workload string, query models.TracingQuery) (*jaeger.JaegerResponse, error)
+	GetJaegerTraceDetail(traceID string) (trace *jaeger.JaegerSingleTrace, err error)
+	GetErrorTraces(ns, app string, duration time.Duration) (errorTraces int, err error)
+	GetStatus() (accessible bool, err error)
+}
+
+
+type jaegerService struct {
 	loader        JaegerLoader
 	loaderErr     error
 	jaeger        jaeger.ClientInterface
 	businessLayer *Layer
 }
 
-func (in *JaegerService) client() (jaeger.ClientInterface, error) {
+func (in *jaegerService) client() (jaeger.ClientInterface, error) {
 	if in.jaeger != nil {
 		return in.jaeger, nil
 	} else if in.loaderErr != nil {
@@ -32,7 +51,7 @@ func (in *JaegerService) client() (jaeger.ClientInterface, error) {
 	return in.jaeger, in.loaderErr
 }
 
-func (in *JaegerService) getFilteredSpans(ns, app string, query models.TracingQuery, filter SpanFilter) ([]jaeger.JaegerSpan, error) {
+func (in *jaegerService) getFilteredSpans(ns, app string, query models.TracingQuery, filter SpanFilter) ([]jaeger.JaegerSpan, error) {
 	r, err := in.GetAppTraces(ns, app, query)
 	if err != nil {
 		return []jaeger.JaegerSpan{}, err
@@ -56,12 +75,12 @@ func mergeResponses(dest *jaeger.JaegerResponse, src *jaeger.JaegerResponse) {
 	}
 }
 
-func (in *JaegerService) GetAppSpans(ns, app string, query models.TracingQuery) ([]jaeger.JaegerSpan, error) {
+func (in *jaegerService) GetAppSpans(ns, app string, query models.TracingQuery) ([]jaeger.JaegerSpan, error) {
 	return in.getFilteredSpans(ns, app, query, nil /*no post-filtering for apps*/)
 }
 
-func (in *JaegerService) GetServiceSpans(ns, service string, query models.TracingQuery) ([]jaeger.JaegerSpan, error) {
-	app, err := in.businessLayer.Svc.GetServiceAppName(ns, service)
+func (in *jaegerService) GetServiceSpans(ctx context.Context, ns, service string, query models.TracingQuery) ([]jaeger.JaegerSpan, error) {
+	app, err := in.businessLayer.Svc.GetServiceAppName(ctx, ns, service)
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +101,8 @@ func operationSpanFilter(ns, service string) SpanFilter {
 	}
 }
 
-func (in *JaegerService) GetWorkloadSpans(ns, workload string, query models.TracingQuery) ([]jaeger.JaegerSpan, error) {
-	app, err := in.businessLayer.Workload.GetWorkloadAppName(ns, workload)
+func (in *jaegerService) GetWorkloadSpans(ctx context.Context, ns, workload string, query models.TracingQuery) ([]jaeger.JaegerSpan, error) {
+	app, err := in.businessLayer.Workload.GetWorkloadAppName(ctx, ns, workload)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +116,7 @@ func wkdSpanFilter(ns, workload string) SpanFilter {
 	}
 }
 
-func (in *JaegerService) GetAppTraces(ns, app string, query models.TracingQuery) (*jaeger.JaegerResponse, error) {
+func (in *jaegerService) GetAppTraces(ns, app string, query models.TracingQuery) (*jaeger.JaegerResponse, error) {
 	client, err := in.client()
 	if err != nil {
 		return nil, err
@@ -121,8 +140,8 @@ func (in *JaegerService) GetAppTraces(ns, app string, query models.TracingQuery)
 	return r, nil
 }
 
-func (in *JaegerService) GetServiceTraces(ns, service string, query models.TracingQuery) (*jaeger.JaegerResponse, error) {
-	app, err := in.businessLayer.Svc.GetServiceAppName(ns, service)
+func (in *jaegerService) GetServiceTraces(ctx context.Context, ns, service string, query models.TracingQuery) (*jaeger.JaegerResponse, error) {
+	app, err := in.businessLayer.Svc.GetServiceAppName(ctx, ns, service)
 	if err != nil {
 		return nil, err
 	}
@@ -152,8 +171,8 @@ func (in *JaegerService) GetServiceTraces(ns, service string, query models.Traci
 	return r, err
 }
 
-func (in *JaegerService) GetWorkloadTraces(ns, workload string, query models.TracingQuery) (*jaeger.JaegerResponse, error) {
-	app, err := in.businessLayer.Workload.GetWorkloadAppName(ns, workload)
+func (in *jaegerService) GetWorkloadTraces(ctx context.Context, ns, workload string, query models.TracingQuery) (*jaeger.JaegerResponse, error) {
+	app, err := in.businessLayer.Workload.GetWorkloadAppName(ctx, ns, workload)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +195,7 @@ func (in *JaegerService) GetWorkloadTraces(ns, workload string, query models.Tra
 	return r, err
 }
 
-func (in *JaegerService) getAppTracesSlicedInterval(ns, app string, query models.TracingQuery) (*jaeger.JaegerResponse, error) {
+func (in *jaegerService) getAppTracesSlicedInterval(ns, app string, query models.TracingQuery) (*jaeger.JaegerResponse, error) {
 	client, err := in.client()
 	if err != nil {
 		return nil, err
@@ -223,7 +242,7 @@ func (in *JaegerService) getAppTracesSlicedInterval(ns, app string, query models
 	return merged, err
 }
 
-func (in *JaegerService) GetJaegerTraceDetail(traceID string) (trace *jaeger.JaegerSingleTrace, err error) {
+func (in *jaegerService) GetJaegerTraceDetail(traceID string) (trace *jaeger.JaegerSingleTrace, err error) {
 	client, err := in.client()
 	if err != nil {
 		return nil, err
@@ -231,7 +250,7 @@ func (in *JaegerService) GetJaegerTraceDetail(traceID string) (trace *jaeger.Jae
 	return client.GetTraceDetail(traceID)
 }
 
-func (in *JaegerService) GetErrorTraces(ns, app string, duration time.Duration) (errorTraces int, err error) {
+func (in *jaegerService) GetErrorTraces(ns, app string, duration time.Duration) (errorTraces int, err error) {
 	client, err := in.client()
 	if err != nil {
 		return 0, err
@@ -239,7 +258,7 @@ func (in *JaegerService) GetErrorTraces(ns, app string, duration time.Duration) 
 	return client.GetErrorTraces(ns, app, duration)
 }
 
-func (in *JaegerService) GetStatus() (accessible bool, err error) {
+func (in *jaegerService) GetStatus() (accessible bool, err error) {
 	client, err := in.client()
 	if err != nil {
 		return false, err
@@ -312,4 +331,72 @@ func tracesToSpans(app string, r *jaeger.JaegerResponse, filter SpanFilter) []ja
 	}
 	log.Tracef("Found %d spans in the %d traces for app %s", len(spans), len(r.Data), app)
 	return spans
+}
+
+type jaegerServiceWithTracing struct {
+	JaegerService
+}
+
+func (in *jaegerServiceWithTracing) GetServiceSpans(ctx context.Context, ns, service string, query models.TracingQuery) ([]jaeger.JaegerSpan, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetServiceSpans",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("ns", ns),
+				attribute.String("service", service),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.JaegerService.GetServiceSpans(ctx, ns, service, query)
+}
+
+func (in *jaegerServiceWithTracing) GetWorkloadSpans(ctx context.Context, ns, workload string, query models.TracingQuery) ([]jaeger.JaegerSpan, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetWorkloadSpans",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("ns", ns),
+				attribute.String("workload", workload),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.JaegerService.GetWorkloadSpans(ctx, ns, workload, query)
+}
+
+func (in *jaegerServiceWithTracing) GetServiceTraces(ctx context.Context, ns, service string, query models.TracingQuery) (*jaeger.JaegerResponse, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetServiceTraces",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("ns", ns),
+				attribute.String("service", service),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.JaegerService.GetServiceTraces(ctx, ns, service, query)
+}
+
+func (in *jaegerServiceWithTracing) GetWorkloadTraces(ctx context.Context, ns, workload string, query models.TracingQuery) (*jaeger.JaegerResponse, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetWorkloadTraces",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("ns", ns),
+				attribute.String("workload", workload),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.JaegerService.GetWorkloadTraces(ctx, ns, workload, query)
 }

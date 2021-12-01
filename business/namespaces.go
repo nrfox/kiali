@@ -19,12 +19,19 @@ import (
 	"github.com/kiali/kiali/observability"
 )
 
-// Namespace deals with fetching k8s namespaces / OpenShift projects and convert to kiali model
-type NamespaceService struct {
+// NamespaceService deals with fetching k8s namespaces / OpenShift projects and convert to kiali model
+type NamespaceService interface {
+	GetNamespaces() ([]models.Namespace, error)
+	GetNamespace(ctx context.Context, namespace string) (*models.Namespace, error)
+	UpdateNamespace(ctx context.Context, namespace string, jsonPatch string) (*models.Namespace, error)
+}
+
+type namespaceService struct {
 	k8s                    kubernetes.ClientInterface
 	hasProjects            bool
 	isAccessibleNamespaces map[string]bool
 }
+
 
 type AccessibleNamespaceError struct {
 	msg string
@@ -55,7 +62,7 @@ func NewNamespaceService(k8s kubernetes.ClientInterface) NamespaceService {
 		isAccessibleNamespaces[ns] = true
 	}
 
-	return NamespaceService{
+	return &namespaceService{
 		k8s:                    k8s,
 		hasProjects:            hasProjects,
 		isAccessibleNamespaces: isAccessibleNamespaces,
@@ -63,7 +70,7 @@ func NewNamespaceService(k8s kubernetes.ClientInterface) NamespaceService {
 }
 
 // Returns a list of the given namespaces / projects
-func (in *NamespaceService) GetNamespaces() ([]models.Namespace, error) {
+func (in *namespaceService) GetNamespaces() ([]models.Namespace, error) {
 	if kialiCache != nil {
 		if ns := kialiCache.GetNamespaces(in.k8s.GetToken()); ns != nil {
 			return ns, nil
@@ -154,7 +161,7 @@ func (in *NamespaceService) GetNamespaces() ([]models.Namespace, error) {
 	return result, nil
 }
 
-func (in *NamespaceService) isAccessibleNamespace(namespace string) bool {
+func (in *namespaceService) isAccessibleNamespace(namespace string) bool {
 	_, queryAllNamespaces := in.isAccessibleNamespaces["**"]
 	if queryAllNamespaces {
 		return true
@@ -163,7 +170,7 @@ func (in *NamespaceService) isAccessibleNamespace(namespace string) bool {
 	return isAccessible
 }
 
-func (in *NamespaceService) isExcludedNamespace(namespace string) bool {
+func (in *namespaceService) isExcludedNamespace(namespace string) bool {
 	excludes := config.Get().API.Namespaces.Exclude
 	if len(excludes) == 0 {
 		return false
@@ -177,17 +184,7 @@ func (in *NamespaceService) isExcludedNamespace(namespace string) bool {
 }
 
 // GetNamespace returns the definition of the specified namespace.
-func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) (*models.Namespace, error) {
-	if config.Get().Server.Observability.Tracing.Enabled {
-		var span trace.Span
-		_, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetNamespace",
-			trace.WithAttributes(
-				attribute.String("package", "business"),
-				attribute.String("namespace", namespace),
-			),
-		)
-		defer span.End()
-	}
+func (in *namespaceService) GetNamespace(ctx context.Context, namespace string) (*models.Namespace, error) {
 	var err error
 
 	// Cache already has included/excluded namespaces applied
@@ -230,9 +227,9 @@ func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) 
 	return &result, nil
 }
 
-func (in *NamespaceService) UpdateNamespace(namespace string, jsonPatch string) (*models.Namespace, error) {
+func (in *namespaceService) UpdateNamespace(ctx context.Context, namespace string, jsonPatch string) (*models.Namespace, error) {
 	// A first check to run the accessible/excluded logic and not run the Update operation on filtered namespaces
-	_, err := in.GetNamespace(context.TODO(), namespace)
+	_, err := in.GetNamespace(ctx, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -248,10 +245,10 @@ func (in *NamespaceService) UpdateNamespace(namespace string, jsonPatch string) 
 		kialiCache.RefreshTokenNamespaces()
 	}
 	// Call GetNamespace to update the caching
-	return in.GetNamespace(context.TODO(), namespace)
+	return in.GetNamespace(ctx, namespace)
 }
 
-func (in *NamespaceService) getNamespacesUsingKialiSA(labelSelector string, forwardedError error) ([]core_v1.Namespace, error) {
+func (in *namespaceService) getNamespacesUsingKialiSA(labelSelector string, forwardedError error) ([]core_v1.Namespace, error) {
 	// Check if we already are using the Kiali ServiceAccount token. If we are, no need to do further processing, since
 	// this would just circle back to the same results.
 	if kialiToken, err := kubernetes.GetKialiToken(); err != nil {
@@ -304,4 +301,39 @@ func getNamespacesForKialiSA(labelSelector string) ([]core_v1.Namespace, error) 
 	}
 
 	return nss, nil
+}
+
+type namespaceServiceWithTracing struct {
+	NamespaceService
+}
+
+func (in *namespaceServiceWithTracing) GetNamespace(ctx context.Context, namespace string) (*models.Namespace, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetNamespace",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.NamespaceService.GetNamespace(ctx, namespace)
+}
+
+func (in *namespaceServiceWithTracing) UpdateNamespace(ctx context.Context, namespace string, jsonPatch string) (*models.Namespace, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "UpdateNamespace",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("jsonPatch", jsonPatch),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.NamespaceService.UpdateNamespace(ctx, namespace, jsonPatch)
 }

@@ -72,7 +72,7 @@ func IstioConfigList(w http.ResponseWriter, r *http.Request) {
 		}(namespace, &istioConfigValidations, &err)
 	}
 
-	istioConfig, err := business.IstioConfig.GetIstioConfigList(criteria)
+	istioConfig, err := business.IstioConfig.GetIstioConfigList(r.Context(), criteria)
 	if includeValidations {
 		// Add validation results to the IstioConfigList once they're available (previously done in the UI layer)
 		wg.Wait()
@@ -118,7 +118,7 @@ func IstioConfigDetails(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func(istioConfigValidations *models.IstioValidations, err *error) {
 			defer wg.Done()
-			istioConfigValidationResults, errValidations := business.Validations.GetIstioObjectValidations(namespace, objectType, object)
+			istioConfigValidationResults, errValidations := business.Validations.GetIstioObjectValidations(r.Context(), namespace, objectType, object)
 			if errValidations != nil && *err == nil {
 				*err = errValidations
 			} else {

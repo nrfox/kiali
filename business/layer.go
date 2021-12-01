@@ -127,26 +127,26 @@ func SetWithBackends(cf kubernetes.ClientFactory, prom prometheus.ClientInterfac
 // NewWithBackends creates the business layer using the passed k8s and prom clients
 func NewWithBackends(k8s kubernetes.ClientInterface, prom prometheus.ClientInterface, jaegerClient JaegerLoader) *Layer {
 	temporaryLayer := &Layer{}
-	temporaryLayer.App = AppService{prom: prom, k8s: k8s, businessLayer: temporaryLayer}
-	temporaryLayer.Health = HealthService{prom: prom, k8s: k8s, businessLayer: temporaryLayer}
-	temporaryLayer.IstioConfig = IstioConfigService{k8s: k8s, businessLayer: temporaryLayer}
-	temporaryLayer.IstioStatus = IstioStatusService{k8s: k8s, businessLayer: temporaryLayer}
+	temporaryLayer.App = &appServiceWithTracing{AppService: &appService{prom: prom, k8s: k8s, businessLayer: temporaryLayer}}
+	temporaryLayer.Health = &healthServiceWithTracing{HealthService: &healthService{prom: prom, k8s: k8s, businessLayer: temporaryLayer}}
+	temporaryLayer.IstioConfig = &istioConfigServiceWithTracing{IstioConfigService: &istioConfigService{k8s: k8s, businessLayer: temporaryLayer}}
+	temporaryLayer.IstioStatus = &istioStatusServiceWithTracing{IstioStatusService: &istioStatusService{k8s: k8s, businessLayer: temporaryLayer}}
 	temporaryLayer.IstioCerts = IstioCertsService{k8s: k8s, businessLayer: temporaryLayer}
 	temporaryLayer.Iter8 = Iter8Service{k8s: k8s, businessLayer: temporaryLayer}
-	temporaryLayer.Jaeger = JaegerService{loader: jaegerClient, businessLayer: temporaryLayer}
+	temporaryLayer.Jaeger = &jaegerServiceWithTracing{JaegerService: &jaegerService{loader: jaegerClient, businessLayer: temporaryLayer}}
 	temporaryLayer.k8s = k8s
 	temporaryLayer.Mesh = NewMeshService(k8s, temporaryLayer, nil)
-	temporaryLayer.Namespace = NewNamespaceService(k8s)
+	temporaryLayer.Namespace = &namespaceServiceWithTracing{NamespaceService: NewNamespaceService(k8s)}
 	temporaryLayer.OpenshiftOAuth = OpenshiftOAuthService{k8s: k8s}
 	temporaryLayer.ProxyStatus = ProxyStatusService{k8s: k8s, businessLayer: temporaryLayer}
 	// Out of order because it relies on ProxyStatus
 	temporaryLayer.ProxyLogging = ProxyLoggingService{k8s: k8s, proxyStatus: &temporaryLayer.ProxyStatus}
 	temporaryLayer.RegistryStatus = RegistryStatusService{k8s: k8s, businessLayer: temporaryLayer}
-	temporaryLayer.Svc = SvcService{prom: prom, k8s: k8s, businessLayer: temporaryLayer}
-	temporaryLayer.TLS = TLSService{k8s: k8s, businessLayer: temporaryLayer}
+	temporaryLayer.Svc = &svcServiceWithTracing{SvcService: &svcService{prom: prom, k8s: k8s, businessLayer: temporaryLayer}}
+	temporaryLayer.TLS = &tlsServiceWithTracing{TLSService: &tlsService{k8s: k8s, businessLayer: temporaryLayer}}
 	temporaryLayer.TokenReview = NewTokenReview(k8s)
-	temporaryLayer.Validations = IstioValidationsService{k8s: k8s, businessLayer: temporaryLayer}
-	temporaryLayer.Workload = WorkloadService{k8s: k8s, prom: prom, businessLayer: temporaryLayer}
+	temporaryLayer.Validations = &istioValidationsServiceWithTracing{IstioValidationsService: &istioValidationsService{k8s: k8s, businessLayer: temporaryLayer}}
+	temporaryLayer.Workload = &workloadService{k8s: k8s, prom: prom, businessLayer: temporaryLayer}
 
 	return temporaryLayer
 }

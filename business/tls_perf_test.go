@@ -84,10 +84,11 @@ func testPerfScenario(exStatus string, nss []core_v1.Namespace, drs []networking
 	for _, ns := range nss {
 		k8s.On("GetNamespace", ns.Name).Return(&ns, nil)
 	}
-	config.Set(config.NewConfig())
+	conf = config.NewConfig()
+	conf.Deployment.AccessibleNamespaces = []string{"**"}
+	config.Set(conf)
 
-	tlsService := TLSService{k8s: k8s, enabledAutoMtls: &autoMtls, businessLayer: NewWithBackends(k8s, nil, nil)}
-	tlsService.businessLayer.Namespace.isAccessibleNamespaces["**"] = true
+	tlsService := tlsService{k8s: k8s, enabledAutoMtls: &autoMtls, businessLayer: NewWithBackends(k8s, nil, nil)}
 	for _, ns := range nss {
 		status, err := (tlsService).NamespaceWidemTLSStatus(context.TODO(), ns.Name)
 		assert.NoError(err)

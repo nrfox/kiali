@@ -12,6 +12,9 @@ import (
 
 	"github.com/nitishm/engarde/pkg/parser"
 	osapps_v1 "github.com/openshift/api/apps/v1"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	apps_v1 "k8s.io/api/apps/v1"
 	batch_v1 "k8s.io/api/batch/v1"
 	batch_v1beta1 "k8s.io/api/batch/v1beta1"
@@ -24,11 +27,23 @@ import (
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
+	"github.com/kiali/kiali/observability"
 	"github.com/kiali/kiali/prometheus"
 )
 
 // WorkloadService deals with fetching istio/kubernetes workloads related content and convert to kiali model
-type WorkloadService struct {
+type WorkloadService interface {
+	GetWorkloadList(ctx context.Context, criteria WorkloadCriteria) (models.WorkloadList, error)
+	GetWorkload(ctx context.Context, namespace string, workloadName string, workloadType string, includeServices bool) (*models.Workload, error)
+	UpdateWorkload(ctx context.Context, namespace string, workloadName string, workloadType string, includeServices bool, jsonPatch string) (*models.Workload, error)
+	GetPods(ctx context.Context, namespace string, labelSelector string) (models.Pods, error)
+	GetPod(namespace, name string) (*models.Pod, error)
+	BuildLogOptionsCriteria(container, duration, isProxy, sinceTime, tailLines string) (*LogOptions, error)
+	GetPodLogs(namespace, name string, opts *LogOptions) (*PodLog, error)
+	GetWorkloadAppName(ctx context.Context, namespace, workload string) (string, error)
+}
+
+type workloadService struct {
 	prom          prometheus.ClientInterface
 	k8s           kubernetes.ClientInterface
 	businessLayer *Layer
@@ -81,7 +96,7 @@ func isWorkloadIncluded(workload string) bool {
 }
 
 // GetWorkloadList is the API handler to fetch the list of workloads in a given namespace.
-func (in *WorkloadService) GetWorkloadList(criteria WorkloadCriteria) (models.WorkloadList, error) {
+func (in *workloadService) GetWorkloadList(ctx context.Context, criteria WorkloadCriteria) (models.WorkloadList, error) {
 	workloadList := &models.WorkloadList{
 		Namespace: models.Namespace{Name: criteria.Namespace, CreationTimestamp: time.Time{}},
 		Workloads: []models.WorkloadListItem{},
@@ -98,15 +113,15 @@ func (in *WorkloadService) GetWorkloadList(criteria WorkloadCriteria) (models.Wo
 	wg.Add(nFetches)
 	errChan := make(chan error, nFetches)
 
-	go func() {
+	go func(ctx context.Context) {
 		defer wg.Done()
 		var err2 error
-		ws, err2 = fetchWorkloads(in.businessLayer, criteria.Namespace, "")
+		ws, err2 = fetchWorkloads(ctx, in.businessLayer, criteria.Namespace, "")
 		if err2 != nil {
 			log.Errorf("Error fetching Workloads per namespace %s: %s", criteria.Namespace, err2)
 			errChan <- err2
 		}
-	}()
+	}(ctx)
 
 	istioConfigCriteria := IstioConfigCriteria{
 		Namespace:                     criteria.Namespace,
@@ -120,15 +135,15 @@ func (in *WorkloadService) GetWorkloadList(criteria WorkloadCriteria) (models.Wo
 	var istioConfigList models.IstioConfigList
 
 	if criteria.IncludeIstioResources {
-		go func() {
+		go func(ctx context.Context) {
 			defer wg.Done()
 			var err2 error
-			istioConfigList, err2 = in.businessLayer.IstioConfig.GetIstioConfigList(istioConfigCriteria)
+			istioConfigList, err2 = in.businessLayer.IstioConfig.GetIstioConfigList(ctx, istioConfigCriteria)
 			if err2 != nil {
 				log.Errorf("Error fetching Istio Config per namespace %s: %s", criteria.Namespace, err2)
 				errChan <- err2
 			}
-		}()
+		}(ctx)
 	}
 
 	wg.Wait()
@@ -240,13 +255,13 @@ func FilterUniqueIstioReferences(refs []*models.IstioValidationKey) []*models.Is
 
 // GetWorkload is the API handler to fetch details of a specific workload.
 // If includeServices is set true, the Workload will fetch all services related
-func (in *WorkloadService) GetWorkload(namespace string, workloadName string, workloadType string, includeServices bool) (*models.Workload, error) {
-	ns, err := in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace)
+func (in *workloadService) GetWorkload(ctx context.Context, namespace string, workloadName string, workloadType string, includeServices bool) (*models.Workload, error) {
+	ns, err := in.businessLayer.Namespace.GetNamespace(ctx, namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	workload, err2 := fetchWorkload(in.businessLayer, namespace, workloadName, workloadType)
+	workload, err2 := fetchWorkload(ctx, in.businessLayer, namespace, workloadName, workloadType)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -271,7 +286,7 @@ func (in *WorkloadService) GetWorkload(namespace string, workloadName string, wo
 			ServiceSelector:        labels.Set(workload.Labels).String(),
 			IncludeOnlyDefinitions: true,
 		}
-		services, err = in.businessLayer.Svc.GetServiceList(criteria)
+		services, err = in.businessLayer.Svc.GetServiceList(ctx, criteria)
 		if err != nil {
 			return nil, err
 		}
@@ -284,7 +299,7 @@ func (in *WorkloadService) GetWorkload(namespace string, workloadName string, wo
 	return workload, nil
 }
 
-func (in *WorkloadService) UpdateWorkload(namespace string, workloadName string, workloadType string, includeServices bool, jsonPatch string) (*models.Workload, error) {
+func (in *workloadService) UpdateWorkload(ctx context.Context, namespace string, workloadName string, workloadType string, includeServices bool, jsonPatch string) (*models.Workload, error) {
 	// Identify controller and apply patch to workload
 	err := updateWorkload(in.businessLayer, namespace, workloadName, workloadType, jsonPatch)
 	if err != nil {
@@ -297,16 +312,16 @@ func (in *WorkloadService) UpdateWorkload(namespace string, workloadName string,
 	}
 
 	// After the update we fetch the whole workload
-	return in.GetWorkload(namespace, workloadName, workloadType, includeServices)
+	return in.GetWorkload(ctx, namespace, workloadName, workloadType, includeServices)
 }
 
-func (in *WorkloadService) GetPods(namespace string, labelSelector string) (models.Pods, error) {
+func (in *workloadService) GetPods(ctx context.Context, namespace string, labelSelector string) (models.Pods, error) {
 	var err error
 	var ps []core_v1.Pod
 	// Check if namespace is cached
 	if IsNamespaceCached(namespace) {
 		// Cache uses Kiali ServiceAccount, check if user can access to the namespace
-		if _, err = in.businessLayer.Namespace.GetNamespace(context.TODO(), namespace); err == nil {
+		if _, err = in.businessLayer.Namespace.GetNamespace(ctx, namespace); err == nil {
 			ps, err = kialiCache.GetPods(namespace, labelSelector)
 		}
 	} else {
@@ -321,7 +336,7 @@ func (in *WorkloadService) GetPods(namespace string, labelSelector string) (mode
 	return pods, nil
 }
 
-func (in *WorkloadService) GetPod(namespace, name string) (*models.Pod, error) {
+func (in *workloadService) GetPod(namespace, name string) (*models.Pod, error) {
 	p, err := in.k8s.GetPod(namespace, name)
 	if err != nil {
 		return nil, err
@@ -331,7 +346,7 @@ func (in *WorkloadService) GetPod(namespace, name string) (*models.Pod, error) {
 	return &pod, nil
 }
 
-func (in *WorkloadService) BuildLogOptionsCriteria(container, duration, isProxy, sinceTime, tailLines string) (*LogOptions, error) {
+func (in *workloadService) BuildLogOptionsCriteria(container, duration, isProxy, sinceTime, tailLines string) (*LogOptions, error) {
 	opts := &LogOptions{}
 	opts.PodLogOptions = core_v1.PodLogOptions{Timestamps: true}
 
@@ -374,7 +389,7 @@ func (in *WorkloadService) BuildLogOptionsCriteria(container, duration, isProxy,
 	return opts, nil
 }
 
-func (in *WorkloadService) getParsedLogs(namespace, name string, opts *LogOptions) (*PodLog, error) {
+func (in *workloadService) getParsedLogs(namespace, name string, opts *LogOptions) (*PodLog, error) {
 	k8sOpts := opts.PodLogOptions
 	// the k8s API does not support "endTime/beforeTime". So for bounded time ranges we need to
 	// 1) discard the logs after sinceTime+duration
@@ -511,7 +526,7 @@ func (in *WorkloadService) getParsedLogs(namespace, name string, opts *LogOption
 }
 
 // GetPodLogs returns pod logs given the provided options
-func (in *WorkloadService) GetPodLogs(namespace, name string, opts *LogOptions) (*PodLog, error) {
+func (in *workloadService) GetPodLogs(namespace, name string, opts *LogOptions) (*PodLog, error) {
 	return in.getParsedLogs(namespace, name, opts)
 }
 
@@ -547,7 +562,7 @@ func isAccessLogEmpty(al *parser.AccessLog) bool {
 		al.UserAgent == "")
 }
 
-func fetchWorkloads(layer *Layer, namespace string, labelSelector string) (models.Workloads, error) {
+func fetchWorkloads(ctx context.Context, layer *Layer, namespace string, labelSelector string) (models.Workloads, error) {
 	var pods []core_v1.Pod
 	var repcon []core_v1.ReplicationController
 	var dep []apps_v1.Deployment
@@ -562,7 +577,7 @@ func fetchWorkloads(layer *Layer, namespace string, labelSelector string) (model
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := layer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
+	if _, err := layer.Namespace.GetNamespace(ctx, namespace); err != nil {
 		return nil, err
 	}
 
@@ -1105,7 +1120,7 @@ func fetchWorkloads(layer *Layer, namespace string, labelSelector string) (model
 	return ws, nil
 }
 
-func fetchWorkload(layer *Layer, namespace string, workloadName string, workloadType string) (*models.Workload, error) {
+func fetchWorkload(ctx context.Context, layer *Layer, namespace string, workloadName string, workloadType string) (*models.Workload, error) {
 	var pods []core_v1.Pod
 	var repcon []core_v1.ReplicationController
 	var dep *apps_v1.Deployment
@@ -1125,7 +1140,7 @@ func fetchWorkload(layer *Layer, namespace string, workloadName string, workload
 
 	// Check if user has access to the namespace (RBAC) in cache scenarios and/or
 	// if namespace is accessible from Kiali (Deployment.AccessibleNamespaces)
-	if _, err := layer.Namespace.GetNamespace(context.TODO(), namespace); err != nil {
+	if _, err := layer.Namespace.GetNamespace(ctx, namespace); err != nil {
 		return nil, err
 	}
 
@@ -1740,8 +1755,8 @@ func controllerPriority(type1, type2 string) string {
 }
 
 // GetWorkloadAppName returns the "Application" name (app label) that relates to a workload
-func (in *WorkloadService) GetWorkloadAppName(namespace, workload string) (string, error) {
-	wkd, err := fetchWorkload(in.businessLayer, namespace, workload, "")
+func (in *workloadService) GetWorkloadAppName(ctx context.Context, namespace, workload string) (string, error) {
+	wkd, err := fetchWorkload(ctx, in.businessLayer, namespace, workload, "")
 	if err != nil {
 		return "", err
 	}
@@ -1749,4 +1764,91 @@ func (in *WorkloadService) GetWorkloadAppName(namespace, workload string) (strin
 	appLabelName := config.Get().IstioLabels.AppLabelName
 	app := wkd.Labels[appLabelName]
 	return app, nil
+}
+
+type workloadServiceWithTracing struct {
+	WorkloadService
+}
+
+func (in *workloadServiceWithTracing) GetWorkloadList(ctx context.Context, criteria WorkloadCriteria) (models.WorkloadList, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetWorkloadList",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.WorkloadService.GetWorkloadList(ctx, criteria)
+}
+
+func (in *workloadServiceWithTracing) GetWorkload(ctx context.Context, namespace string, workloadName string, workloadType string, includeServices bool) (*models.Workload, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetWorkload",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("workloadName", workloadName),
+				attribute.String("workloadType", workloadType),
+				attribute.Bool("includeServices", includeServices),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.WorkloadService.GetWorkload(ctx, namespace, workloadName, workloadType, includeServices)
+}
+
+func (in *workloadServiceWithTracing) UpdateWorkload(ctx context.Context, namespace string, workloadName string, workloadType string, includeServices bool, jsonPatch string) (*models.Workload, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "UpdateWorkload",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("workloadName", workloadName),
+				attribute.String("workloadType", workloadType),
+				attribute.Bool("includeServices", includeServices),
+				attribute.String("jsonPatch", jsonPatch),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.WorkloadService.UpdateWorkload(ctx, namespace, workloadName, workloadType, includeServices, jsonPatch)
+}
+
+func (in *workloadServiceWithTracing) GetPods(ctx context.Context, namespace string, labelSelector string) (models.Pods, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetPods",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("labelSelector", labelSelector),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.WorkloadService.GetPods(ctx, namespace, labelSelector)
+}
+
+func (in *workloadServiceWithTracing) GetWorkloadAppName(ctx context.Context, namespace, workload string) (string, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetWorkloadAppName",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+				attribute.String("workload", workload),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.WorkloadService.GetWorkloadAppName(ctx, namespace, workload)
 }

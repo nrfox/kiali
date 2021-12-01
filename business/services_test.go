@@ -1,6 +1,7 @@
 package business
 
 import (
+	"context"
 	"io/ioutil"
 	"testing"
 
@@ -25,10 +26,10 @@ func TestServiceListParsing(t *testing.T) {
 	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
 	conf := config.NewConfig()
 	config.Set(conf)
-	svc := SvcService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
+	svc := svcService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
 
 	criteria := ServiceCriteria{Namespace: "Namespace", IncludeIstioResources: false}
-	serviceList, _ := svc.GetServiceList(criteria)
+	serviceList, _ := svc.GetServiceList(context.TODO(), criteria)
 
 	assert.Equal("Namespace", serviceList.Namespace.Name)
 	assert.Len(serviceList.Services, 2)
@@ -44,7 +45,7 @@ func TestParseRegistryServices(t *testing.T) {
 
 	conf := config.NewConfig()
 	config.Set(conf)
-	svc := SvcService{k8s: nil, businessLayer: nil}
+	svc := svcService{k8s: nil, businessLayer: nil}
 
 	servicesz := "../tests/data/registry/services-registryz.json"
 	bServicesz, err := ioutil.ReadFile(servicesz)

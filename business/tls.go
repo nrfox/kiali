@@ -18,7 +18,13 @@ import (
 	"github.com/kiali/kiali/util/mtls"
 )
 
-type TLSService struct {
+type TLSService interface {
+	MeshWidemTLSStatus(ctx context.Context, namespaces []string) (models.MTLSStatus, error)
+	NamespaceWidemTLSStatus(ctx context.Context, namespace string) (models.MTLSStatus, error)
+	GetAllDestinationRules(ctx context.Context, namespaces []string) ([]networking_v1alpha3.DestinationRule, error)
+}
+
+type tlsService struct {
 	k8s             kubernetes.ClientInterface
 	businessLayer   *Layer
 	enabledAutoMtls *bool
@@ -31,13 +37,13 @@ const (
 	MTLSDisabled         = "MTLS_DISABLED"
 )
 
-func (in *TLSService) MeshWidemTLSStatus(namespaces []string) (models.MTLSStatus, error) {
-	pas, error := in.getMeshPeerAuthentications()
+func (in *tlsService) MeshWidemTLSStatus(ctx context.Context, namespaces []string) (models.MTLSStatus, error) {
+	pas, error := in.getMeshPeerAuthentications(ctx)
 	if error != nil {
 		return models.MTLSStatus{}, error
 	}
 
-	drs, error := in.getAllDestinationRules(context.TODO(), namespaces)
+	drs, error := in.GetAllDestinationRules(ctx, namespaces)
 	if error != nil {
 		return models.MTLSStatus{}, error
 	}
@@ -54,26 +60,16 @@ func (in *TLSService) MeshWidemTLSStatus(namespaces []string) (models.MTLSStatus
 	}, nil
 }
 
-func (in *TLSService) getMeshPeerAuthentications() ([]security_v1beta1.PeerAuthentication, error) {
+func (in *tlsService) getMeshPeerAuthentications(ctx context.Context) ([]security_v1beta1.PeerAuthentication, error) {
 	criteria := IstioConfigCriteria{
 		Namespace:                  config.Get().ExternalServices.Istio.RootNamespace,
 		IncludePeerAuthentications: true,
 	}
-	istioConfigList, err := in.businessLayer.IstioConfig.GetIstioConfigList(criteria)
+	istioConfigList, err := in.businessLayer.IstioConfig.GetIstioConfigList(ctx, criteria)
 	return istioConfigList.PeerAuthentications, err
 }
 
-func (in *TLSService) getAllDestinationRules(ctx context.Context, namespaces []string) ([]networking_v1alpha3.DestinationRule, error) {
-	if config.Get().Server.Observability.Tracing.Enabled {
-		var span trace.Span
-		_, span = otel.Tracer(observability.TracerName()).Start(ctx, "getAllDestinationRules",
-			trace.WithAttributes(
-				attribute.String("package", "business"),
-				attribute.StringSlice("namespaces", namespaces),
-			),
-		)
-		defer span.End()
-	}
+func (in *tlsService) GetAllDestinationRules(ctx context.Context, namespaces []string) ([]networking_v1alpha3.DestinationRule, error) {
 	drChan := make(chan []networking_v1alpha3.DestinationRule, len(namespaces))
 	errChan := make(chan error, 1)
 	wg := sync.WaitGroup{}
@@ -81,20 +77,20 @@ func (in *TLSService) getAllDestinationRules(ctx context.Context, namespaces []s
 	wg.Add(len(namespaces))
 
 	for _, namespace := range namespaces {
-		go func(ns string) {
+		go func(ctx context.Context, ns string) {
 			defer wg.Done()
 			criteria := IstioConfigCriteria{
 				Namespace:               ns,
 				IncludeDestinationRules: true,
 			}
-			istioConfigList, err := in.businessLayer.IstioConfig.GetIstioConfigList(criteria)
+			istioConfigList, err := in.businessLayer.IstioConfig.GetIstioConfigList(ctx, criteria)
 			if err != nil {
 				errChan <- err
 				return
 			}
 
 			drChan <- istioConfigList.DestinationRules
-		}(namespace)
+		}(ctx, namespace)
 	}
 
 	wg.Wait()
@@ -115,17 +111,7 @@ func (in *TLSService) getAllDestinationRules(ctx context.Context, namespaces []s
 	return allDestinationRules, nil
 }
 
-func (in TLSService) NamespaceWidemTLSStatus(ctx context.Context, namespace string) (models.MTLSStatus, error) {
-	if config.Get().Server.Observability.Tracing.Enabled {
-		var span trace.Span
-		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "NamespaceWidemTLSStatus",
-			trace.WithAttributes(
-				attribute.String("package", "business"),
-				attribute.String("namespace", namespace),
-			),
-		)
-		defer span.End()
-	}
+func (in *tlsService) NamespaceWidemTLSStatus(ctx context.Context, namespace string) (models.MTLSStatus, error) {
 	pas, err := in.getPeerAuthentications(ctx, namespace)
 	if err != nil {
 		return models.MTLSStatus{}, nil
@@ -136,7 +122,7 @@ func (in TLSService) NamespaceWidemTLSStatus(ctx context.Context, namespace stri
 		return models.MTLSStatus{}, nil
 	}
 
-	drs, err := in.getAllDestinationRules(ctx, nss)
+	drs, err := in.GetAllDestinationRules(ctx, nss)
 	if err != nil {
 		return models.MTLSStatus{}, nil
 	}
@@ -154,17 +140,7 @@ func (in TLSService) NamespaceWidemTLSStatus(ctx context.Context, namespace stri
 	}, nil
 }
 
-func (in TLSService) getPeerAuthentications(ctx context.Context, namespace string) ([]security_v1beta1.PeerAuthentication, error) {
-	if config.Get().Server.Observability.Tracing.Enabled {
-		var span trace.Span
-		_, span = otel.Tracer(observability.TracerName()).Start(ctx, "getPeerAuthentications",
-			trace.WithAttributes(
-				attribute.String("package", "business"),
-				attribute.String("namespace", namespace),
-			),
-		)
-		defer span.End()
-	}
+func (in *tlsService) getPeerAuthentications(ctx context.Context, namespace string) ([]security_v1beta1.PeerAuthentication, error) {
 	if config.IsRootNamespace(namespace) {
 		return []security_v1beta1.PeerAuthentication{}, nil
 	}
@@ -172,18 +148,11 @@ func (in TLSService) getPeerAuthentications(ctx context.Context, namespace strin
 		Namespace:                  namespace,
 		IncludePeerAuthentications: true,
 	}
-	istioConfigList, err := in.businessLayer.IstioConfig.GetIstioConfigList(criteria)
+	istioConfigList, err := in.businessLayer.IstioConfig.GetIstioConfigList(ctx, criteria)
 	return istioConfigList.PeerAuthentications, err
 }
 
-func (in TLSService) getNamespaces(ctx context.Context) ([]string, error) {
-	if config.Get().Server.Observability.Tracing.Enabled {
-		var span trace.Span
-		_, span = otel.Tracer(observability.TracerName()).Start(ctx, "getNamespaces",
-			trace.WithAttributes(attribute.String("package", "business")),
-		)
-		defer span.End()
-	}
+func (in *tlsService) getNamespaces(ctx context.Context) ([]string, error) {
 	nss, nssErr := in.businessLayer.Namespace.GetNamespaces()
 	if nssErr != nil {
 		return nil, nssErr
@@ -196,7 +165,7 @@ func (in TLSService) getNamespaces(ctx context.Context) ([]string, error) {
 	return nsNames, nil
 }
 
-func (in *TLSService) hasAutoMTLSEnabled() bool {
+func (in *tlsService) hasAutoMTLSEnabled() bool {
 	if in.enabledAutoMtls != nil {
 		return *in.enabledAutoMtls
 	}
@@ -219,4 +188,53 @@ func (in *TLSService) hasAutoMTLSEnabled() bool {
 	autoMtls := mc.GetEnableAutoMtls()
 	in.enabledAutoMtls = &autoMtls
 	return autoMtls
+}
+
+type tlsServiceWithTracing struct {
+	TLSService
+}
+
+func (in *tlsServiceWithTracing) MeshWidemTLSStatus(ctx context.Context, namespaces []string) (models.MTLSStatus, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "MeshWidemTLSStatus",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.StringSlice("namespaces", namespaces),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.TLSService.MeshWidemTLSStatus(ctx, namespaces)
+}
+
+func (in *tlsServiceWithTracing) NamespaceWidemTLSStatus(ctx context.Context, namespace string) (models.MTLSStatus, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "NamespaceWidemTLSStatus",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.String("namespace", namespace),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.TLSService.NamespaceWidemTLSStatus(ctx, namespace)
+}
+
+func (in *tlsServiceWithTracing) GetAllDestinationRules(ctx context.Context, namespaces []string) ([]networking_v1alpha3.DestinationRule, error) {
+	if config.Get().Server.Observability.Tracing.Enabled {
+		var span trace.Span
+		ctx, span = otel.Tracer(observability.TracerName()).Start(ctx, "GetAllDestinationRules",
+			trace.WithAttributes(
+				attribute.String("package", "business"),
+				attribute.StringSlice("namespaces", namespaces),
+			),
+		)
+		defer span.End()
+	}
+
+	return in.TLSService.GetAllDestinationRules(ctx, namespaces)
 }
