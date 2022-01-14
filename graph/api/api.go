@@ -7,6 +7,7 @@ import (
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/graph"
 	"github.com/kiali/kiali/graph/config/cytoscape"
+	"github.com/kiali/kiali/graph/generator"
 	"github.com/kiali/kiali/graph/telemetry/istio"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/prometheus"
@@ -94,6 +95,14 @@ func generateGraph(trafficMap graph.TrafficMap, o graph.Options) (int, interface
 	switch o.ConfigVendor {
 	case graph.VendorCytoscape:
 		vendorConfig = cytoscape.NewConfig(trafficMap, o.ConfigOptions)
+	case "cytoscape-generator":
+		g := generator.Generator{
+			Cluster:   o.Cluster,
+			NumberOfApps: 10,
+			PopulationStrategy: generator.Dense,
+			IncludeBoxing: true,
+		}
+		vendorConfig = g.Generate()
 	default:
 		graph.Error(fmt.Sprintf("ConfigVendor [%s] not supported", o.ConfigVendor))
 	}

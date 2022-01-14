@@ -23,7 +23,8 @@ import (
 const (
 	VendorCytoscape        string = "cytoscape"
 	VendorIstio            string = "istio"
-	defaultConfigVendor    string = VendorCytoscape
+	defaultConfigVendor    string = "cytoscape-generator"
+	// defaultConfigVendor    string = VendorCytoscape
 	defaultTelemetryVendor string = VendorIstio
 )
 
