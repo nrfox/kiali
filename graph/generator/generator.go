@@ -96,11 +96,29 @@ func New(opts Options) (*Generator, error) {
 	if opts.NumberOfApps != nil {
 		g.NumberOfApps = *opts.NumberOfApps
 	}
+	if opts.NumberOfIngress != nil {
+		g.NumberOfIngress = *opts.NumberOfIngress
+	}
 	if opts.PopulationStrategy != nil {
 		g.PopulationStrategy = *opts.PopulationStrategy
 	}
 
 	return &g, nil
+}
+
+// EnsureNamespaces makes sure a kube namespace exists for the nodes. 
+// The namespaces need to actually exist in order for the UI to render the graph.
+// Does nothing if a kubeclient is not configured.
+func (g *Generator) EnsureNamespaces(cyGraph cytoscape.Config) error {
+	if g.kubeClient != nil {
+		log.Info("Ensuring namespaces exist for graph...")
+		for _, node := range cyGraph.Elements.Nodes {
+			if err := g.ensureNamespace(node.Data.Namespace); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Generate produces cytoscape data that can be used by the UI.
@@ -117,24 +135,29 @@ func (g *Generator) Generate() cytoscape.Config {
 		elements.Edges = append(elements.Edges, wrapper)
 	}
 
-	// If the kube client is configured, make sure a kube namespace exists for the nodes.
-	// The namespaces need to actually exist in order for the UI to render the graph.
-	if g.kubeClient != nil {
-		for _, node := range nodes {
-			if err := g.ensureNamespace(node.Namespace); err != nil {
-				log.Errorf("unable to ensure namespace exists. Err: %s", err)
-			}
-		}
-	}
-
 	// Hard coding some of these for now. In the future, the generator can
 	// support multiple graph types.
-	return cytoscape.Config{
+	cyGraph := cytoscape.Config{
 		Elements:  elements,
 		Timestamp: time.Now().Unix(),
 		Duration:  int64(15),
 		GraphType: graph.GraphTypeVersionedApp,
 	}
+	
+	if err := g.EnsureNamespaces(cyGraph); err != nil {
+		log.Errorf("unable to ensure namespaces exist. Err: %s", err)
+	}
+
+	return cyGraph
+}
+
+func (g *Generator) UpdateGraph(cyGraph cytoscape.Config) cytoscape.Config {
+	return cytoscape.Config{
+		Elements: cyGraph.Elements,
+		Timestamp: time.Now().Unix(),
+		Duration: int64(15),
+		GraphType: graph.GraphTypeVersionedApp,
+	}	
 }
 
 func (g *Generator) strategyLimit() int {
