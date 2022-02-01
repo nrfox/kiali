@@ -45,14 +45,17 @@ type Generator struct {
 	// Cluster is the name of the cluster all nodes will live in.
 	Cluster string
 
+	// IncludeBoxing determines whether nodes will include boxing or not.
+	IncludeBoxing bool
+
 	// NumberOfApps sets how many apps to create.
 	NumberOfApps int
 
+	// NumberOfIngress sets how many ingress to create.
+	NumberOfIngress int
+
 	// PopulationStrategy determines how many connections from ingress i.e. dense or sparse.
 	PopulationStrategy string
-
-	// IncludeBoxing determines whether nodes will include boxing or not.
-	IncludeBoxing bool
 
 	kubeClient      kubernetes.Interface
 	namespaceLister corev1listers.NamespaceLister
@@ -64,6 +67,7 @@ func New(opts Options) (*Generator, error) {
 		Cluster:            "test",
 		IncludeBoxing:      true,
 		NumberOfApps:       10,
+		NumberOfIngress:    1,
 		PopulationStrategy: Dense,
 	}
 
@@ -156,23 +160,20 @@ func (g *Generator) nodeID() string {
 // 1. Workloads send requests to services.
 // 2. Services send requests to the workloads in their app.
 // 3. Ingress workloads are root nodes.
-func (g *Generator) generate() ([]cytoscape.NodeData, []cytoscape.EdgeData) {
-	rand.Seed(time.Now().UnixNano())
-
+func (g *Generator) genAppsWithIngress(index int, numApps int) ([]cytoscape.NodeData, []cytoscape.EdgeData) {
 	var nodes []cytoscape.NodeData
 	var edges []cytoscape.EdgeData
 
 	// Create ingress workload first.
-	// TODO: Variable number of ingress.
 	ingress := app{
-		Name:      "istio-ingressgateway",
+		Name:      fmt.Sprintf("istio-ingressgateway-%d", index),
 		Namespace: "istio-system",
 		IsIngress: true,
 	}
 	iNodes := []cytoscape.NodeData{g.genWorkload(ingress, "latest")}
 
 	// Then create the rest of them.
-	for i := 1; i <= g.NumberOfApps; i++ {
+	for i := 1; i <= numApps; i++ {
 		app := app{
 			Name: fmt.Sprintf("app-%d", i),
 			// Creates at most a namespace per app.
@@ -218,9 +219,25 @@ func (g *Generator) generate() ([]cytoscape.NodeData, []cytoscape.EdgeData) {
 		}
 	}
 
-	// TODO: Random connections to other services
-
 	nodes = append(nodes, iNodes...)
+
+	return nodes, edges
+}
+
+func (g *Generator) generate() ([]cytoscape.NodeData, []cytoscape.EdgeData) {
+	rand.Seed(time.Now().UnixNano())
+
+	var nodes []cytoscape.NodeData
+	var edges []cytoscape.EdgeData
+
+	// TODO: Random connections, port number variable, instructions page for the proxy, handle some URL options changing along with namespace boxing.
+	appsPerIngress := g.NumberOfApps / g.NumberOfIngress
+	for i := 0; i < g.NumberOfIngress; i++ {
+		n, e := g.genAppsWithIngress(i, appsPerIngress)
+		nodes = append(nodes, n...)
+		edges = append(edges, e...)
+	}
+	// TODO: Random connections to other services
 
 	return nodes, edges
 }
@@ -233,17 +250,24 @@ func (g *Generator) genApp(app app) ([]cytoscape.NodeData, []cytoscape.EdgeData)
 	var edges []cytoscape.EdgeData
 
 	if g.IncludeBoxing {
-		// TODO: namespace boxing
-		box := cytoscape.NodeData{
+		namespaceBox := cytoscape.NodeData{
+			ID:        g.nodeID(),
+			IsBox:     "namespace",
+			Cluster:   g.Cluster,
+			Namespace: app.Namespace,
+			NodeType:  graph.NodeTypeBox,
+		}
+		appBox := cytoscape.NodeData{
 			ID:        g.nodeID(),
 			IsBox:     "app",
 			App:       app.Name,
 			Cluster:   g.Cluster,
 			Namespace: app.Namespace,
 			NodeType:  graph.NodeTypeBox,
+			Parent:    namespaceBox.ID,
 		}
-		nodes = append(nodes, box)
-		app.Box = box.ID
+		nodes = append(nodes, namespaceBox, appBox)
+		app.Box = appBox.ID
 	}
 
 	svc := g.genSVC(app)
