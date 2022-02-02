@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import (
 	"crypto/tls"
@@ -9,7 +9,9 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -18,6 +20,44 @@ import (
 	"github.com/kiali/kiali/graph/config/cytoscape"
 	"github.com/kiali/kiali/graph/generator"
 	"github.com/kiali/kiali/log"
+)
+
+type popStratValue string
+
+func (p *popStratValue) String() string {
+	return fmt.Sprint(*p)
+}
+
+func (i *popStratValue) Set(value string) error {
+	if value != generator.Dense && value != generator.Sparse {
+		return fmt.Errorf("%s is not valid. Use: '%s' or '%s'", value, generator.Dense, generator.Sparse)
+	}
+	return nil
+}
+
+var (
+	boxFlag      bool
+	clusterFlag  string
+	numAppsFlag  int
+	numIngressesFlag  int
+	outputFlag   string
+	popStratFlag popStratValue = generator.Sparse
+)
+
+const (
+	defaultOutputLocation = "../kiali-ui/cypress/fixtures/generated"
+)
+
+var (
+	// Adapted from: https://stackoverflow.com/a/38644571
+	_, b, _, _ = runtime.Caller(0)
+	basepath   = filepath.Dir(b)
+	// This works so long as the current dir structure stays the same.
+	kialiProjectRoot = path.Dir(path.Dir(path.Dir(basepath)))
+)
+
+var (
+	ProxyFlags = flag.NewFlagSet("proxy", flag.ExitOnError)
 )
 
 var (
@@ -29,12 +69,18 @@ var (
 )
 
 func init() {
-	flag.StringVar(&certFileFlag, "cert-file", "", "path to cert file for https. Default is '~/.minikube/ca.crt'")
-	flag.StringVar(&dataDirFlag, "data-dir", "", "path to dir where json graph data is.")
-	flag.BoolVar(&httpsFlag, "https", false, "use https. Uses minikube certs by default")
+	ProxyFlags.StringVar(&certFileFlag, "cert-file", "", "path to cert file for https. Default is '~/.minikube/ca.crt'")
+	ProxyFlags.StringVar(&dataDirFlag, "data-dir", "", "path to dir where json graph data is.")
+	ProxyFlags.BoolVar(&httpsFlag, "https", false, "use https. Uses minikube certs by default")
 	// TODO: Fix flag bool
-	flag.StringVar(&keyFileFlag, "key-file", "", "path to key file for https. Default is '~/.minikube/ca.key'")
-	flag.StringVar(&urlFlag, "kiali-url", "", "Required. url for the kiali api. Example: 'https://192.168.39.57/kiali'")
+	ProxyFlags.StringVar(&keyFileFlag, "key-file", "", "path to key file for https. Default is '~/.minikube/ca.key'")
+	ProxyFlags.StringVar(&urlFlag, "kiali-url", "", "Required. url for the kiali api. Example: 'https://192.168.39.57/kiali'")
+	ProxyFlags.BoolVar(&boxFlag, "box", false, "adds boxing to the graph")
+	ProxyFlags.StringVar(&clusterFlag, "cluster", "test", "nodes' cluster name")
+	ProxyFlags.IntVar(&numAppsFlag, "apps", 5, "number of apps to create")
+	ProxyFlags.IntVar(&numIngressesFlag, "ingresses", 1, "number of ingresses to create")
+	ProxyFlags.StringVar(&outputFlag, "output", path.Join(kialiProjectRoot, defaultOutputLocation), "path to output the generated json")
+	ProxyFlags.Var(&popStratFlag, "population-strategy", "whether the graph should have many or few connections")
 }
 
 func loadGraphFromFile(filename string) (*cytoscape.Config, error) {
@@ -100,8 +146,7 @@ func restConfigOrDie() *rest.Config {
 	return restConfig
 }
 
-func main() {
-	flag.Parse()
+func RunProxy() {
 	if urlFlag == "" {
 		log.Fatal("KIALI url required")
 	}
@@ -125,9 +170,12 @@ func main() {
 	}
 
 	kubeClient := kubernetes.NewForConfigOrDie(restConfigOrDie())
-	apps := 30
-	ingresses := 3
-	opts := generator.Options{KubeClient: kubeClient, NumberOfApps: &apps, NumberOfIngress: &ingresses}
+	opts := generator.Options{
+		KubeClient: kubeClient, 
+		NumberOfApps: &numAppsFlag, 
+		NumberOfIngress: &numIngressesFlag,
+		IncludeBoxing: &boxFlag,
+	}
 	gen, err := generator.New(opts)
 	if err != nil {
 		log.Fatal(err)

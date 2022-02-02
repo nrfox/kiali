@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/kiali/kiali/graph/generator/cmd/generate"
+	"github.com/kiali/kiali/graph/generator/cmd/proxy"
 )
 
 func main() {
@@ -17,10 +18,13 @@ func main() {
 	}
 
 	switch os.Args[1] {
-	case generate.GenerateCmd:
+	case "generate":
 		generate.GenerateFlags.Parse(os.Args[2:])
 		generate.RunGenerate()
-	default:
+	case "proxy":
+		proxy.ProxyFlags.Parse(os.Args[2:])
+		proxy.RunProxy()
+	default :
 		fmt.Printf("Unrecognized subcommand: '%s'", os.Args[1])
 		os.Exit(1)
 	}
