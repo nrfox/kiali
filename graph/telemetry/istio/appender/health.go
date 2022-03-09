@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/graph"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
@@ -154,24 +155,29 @@ func (a *HealthAppender) attachHealth(trafficMap graph.TrafficMap, globalInfo *g
 		for kind := range kinds {
 			wg.Add(1)
 			go func(namespace, kind string) {
+				criteria := business.HealthCriteria{
+					QueryTime: time.Unix(a.QueryTime, 0),
+					RateInterval: duration.String(),
+					WithTelemetry: false,
+				}
 				defer wg.Done()
 				switch kind {
 				case graph.NodeTypeApp:
-					health, err := bs.Health.GetNamespaceAppHealth(ctx, namespace, duration.String(), time.Unix(a.QueryTime, 0))
+					health, err := bs.Health.GetNamespaceAppHealth(ctx, namespace, criteria)
 					healthCh <- result{
 						namespace: namespace,
 						appHealth: &health,
 						err:       err,
 					}
 				case graph.NodeTypeService:
-					health, err := bs.Health.GetNamespaceServiceHealth(ctx, namespace, duration.String(), time.Unix(a.QueryTime, 0))
+					health, err := bs.Health.GetNamespaceServiceHealth(ctx, namespace, criteria)
 					healthCh <- result{
 						namespace:     namespace,
 						serviceHealth: &health,
 						err:           err,
 					}
 				case graph.NodeTypeWorkload:
-					health, err := bs.Health.GetNamespaceWorkloadHealth(ctx, namespace, duration.String(), time.Unix(a.QueryTime, 0))
+					health, err := bs.Health.GetNamespaceWorkloadHealth(ctx, namespace, criteria)
 					healthCh <- result{
 						namespace:      namespace,
 						workloadHealth: &health,

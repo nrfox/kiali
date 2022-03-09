@@ -187,6 +187,10 @@ func ParseAppenders(o graph.TelemetryOptions) (appenders []graph.Appender, final
 		}
 		appenders = append(appenders, a)
 	}
+	if _, ok := requestedAppenders[HealthAppenderName]; ok || o.Appenders.All {
+		a := HealthAppender{}
+		appenders = append(appenders, a)
+	}
 
 	// The finalizer order is important
 	// always run the outsider finalizer

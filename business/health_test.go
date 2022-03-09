@@ -234,7 +234,12 @@ func TestGetNamespaceAppHealthWithoutIstio(t *testing.T) {
 
 	hs := HealthService{k8s: k8s, prom: prom, businessLayer: NewWithBackends(k8s, prom, nil)}
 
-	_, _ = hs.GetNamespaceAppHealth(context.TODO(), "ns", "1m", time.Date(2017, 01, 15, 0, 0, 0, 0, time.UTC))
+	criteria := HealthCriteria{
+		RateInterval:  "1m",
+		QueryTime:     time.Date(2017, 01, 15, 0, 0, 0, 0, time.UTC),
+		WithTelemetry: true,
+	}
+	_, _ = hs.GetNamespaceAppHealth(context.TODO(), "ns", criteria)
 
 	// Make sure unnecessary call isn't performed
 	prom.AssertNumberOfCalls(t, "GetAllRequestRates", 0)
@@ -256,7 +261,12 @@ func TestGetNamespaceServiceHealthWithNA(t *testing.T) {
 
 	hs := HealthService{k8s: k8s, prom: prom, businessLayer: NewWithBackends(k8s, prom, nil)}
 
-	health, err := hs.GetNamespaceServiceHealth(context.TODO(), "tutorial", "1m", time.Date(2017, 01, 15, 0, 0, 0, 0, time.UTC))
+	criteria := HealthCriteria{
+		RateInterval:  "1m",
+		QueryTime:     time.Date(2017, 01, 15, 0, 0, 0, 0, time.UTC),
+		WithTelemetry: true,
+	}
+	health, err := hs.GetNamespaceServiceHealth(context.TODO(), "tutorial", criteria)
 
 	assert.Nil(err)
 	// Make sure we get services with N/A health
