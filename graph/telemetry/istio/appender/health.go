@@ -1,11 +1,13 @@
 package appender
 
 import (
+	"context"
 	"time"
 
 	"github.com/kiali/kiali/graph"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
+	"github.com/kiali/kiali/observability"
 )
 
 const HealthAppenderName = "health"
@@ -32,12 +34,16 @@ func (a HealthAppender) IsFinalizer() bool {
 
 // AppendGraph implements Appender
 func (a HealthAppender) AppendGraph(trafficMap graph.TrafficMap, globalInfo *graph.AppenderGlobalInfo, _ *graph.AppenderNamespaceInfo) {
+	ctx, end := observability.StartSpan(globalInfo.Context, "HealthAppender",
+		observability.Attribute("package", "appender"),
+	)
+	defer end()
 	if len(trafficMap) == 0 {
 		return
 	}
 
 	a.attachHealthConfig(trafficMap, globalInfo)
-	a.attachHealth(trafficMap, globalInfo)
+	a.attachHealth(ctx, trafficMap, globalInfo)
 }
 
 func (a *HealthAppender) attachHealthConfig(trafficMap graph.TrafficMap, globalInfo *graph.AppenderGlobalInfo) {
@@ -64,7 +70,7 @@ func (a *HealthAppender) attachHealthConfig(trafficMap graph.TrafficMap, globalI
 	}
 }
 
-func (a *HealthAppender) attachHealth(trafficMap graph.TrafficMap, globalInfo *graph.AppenderGlobalInfo) {
+func (a *HealthAppender) attachHealth(ctx context.Context, trafficMap graph.TrafficMap, globalInfo *graph.AppenderGlobalInfo) {
 	healthReqs := make(map[string]map[string][]*graph.Node)
 
 	// Limit health fetches to only the necessary namespaces for the necessary types
@@ -104,7 +110,6 @@ func (a *HealthAppender) attachHealth(trafficMap graph.TrafficMap, globalInfo *g
 
 	// Execute health fetches and attach retrieved health data to nodes
 	bs := globalInfo.Business
-	ctx := globalInfo.Context
 	for namespace, kinds := range healthReqs {
 		// use RequestedDuration as a default (for outsider nodes), otherwise use the safe duration for the requested namespace
 		duration := a.RequestedDuration
