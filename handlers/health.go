@@ -38,7 +38,7 @@ func NamespaceHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	criteria := business.HealthCriteria{QueryTime: p.QueryTime, RateInterval: rateInterval, WithTelemetry: true}
+	criteria := business.HealthCriteria{QueryTime: p.QueryTime, Duration: rateInterval, IncludeTelemetry: true}
 	switch p.Type {
 	case "app":
 		health, err := businessLayer.Health.GetNamespaceAppHealth(r.Context(), p.Namespace, criteria)

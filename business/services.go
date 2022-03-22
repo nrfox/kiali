@@ -177,7 +177,11 @@ func (in *SvcService) GetServiceList(ctx context.Context, criteria ServiceCriter
 
 	if criteria.Health {
 		for i, sv := range services.Services {
-			services.Services[i].Health, err = in.businessLayer.Health.GetServiceHealth(ctx, criteria.Namespace, sv.Name, criteria.RateInterval, criteria.QueryTime, sv.ParseToService())
+			healthCriteria := HealthCriteria{
+				Duration: criteria.RateInterval,
+				QueryTime: criteria.QueryTime,
+			}
+			services.Services[i].Health, err = in.businessLayer.Health.GetServiceHealth(ctx, sv.ParseToService(), healthCriteria)
 			if err != nil {
 				log.Errorf("Error fetching health per service %s: %s", sv.Name, err)
 			}
@@ -488,7 +492,11 @@ func (in *SvcService) GetServiceDetails(ctx context.Context, namespace, service,
 	go func(ctx context.Context) {
 		defer wg.Done()
 		var err2 error
-		hth, err2 = in.businessLayer.Health.GetServiceHealth(ctx, namespace, service, interval, queryTime, &svc)
+		criteria := HealthCriteria{
+			QueryTime: queryTime,
+			Duration: interval,
+		}
+		hth, err2 = in.businessLayer.Health.GetServiceHealth(ctx, &svc, criteria)
 		if err2 != nil {
 			errChan <- err2
 		}

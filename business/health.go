@@ -23,15 +23,22 @@ type HealthService struct {
 
 // HealthCriteria stores options for health methods.
 type HealthCriteria struct {
+	// Duration is the period of time to look at health data e.g. 60s.
+	Duration string
+	
+	// IncludeTelemetry enables querying prometheus directly to include
+	// traffic rates with the health data.
+	// If this is false, then RateInterval and QueryTime are ignored.
+	IncludeTelemetry bool
+
+	// Namespace indicates which namespace to query health data in.
+	// This is used where the namespace to get health data from differs
+	// from the model's namespace. Otherwise, if this is blank, the model's
+	// namespace is used.
+	Namespace string
+
 	// QueryTime is the time range to look at health data.
 	QueryTime time.Time
-
-	// RateInterval is the period of time to look at health data e.g. 60s.
-	RateInterval string
-
-	// WithTelemetry enables the return of health data from prometheus with the result.
-	// If this is false, then RateInterval and Querytime are ignored.
-	WithTelemetry bool
 }
 
 // String implements fmt.Stringer.
@@ -40,24 +47,24 @@ func (hc *HealthCriteria) String() string {
 		return ""
 	}
 
-	return fmt.Sprintf("QueryTime: %s\tRateInterval: %s\tWithTelemetry: %t", hc.QueryTime, hc.RateInterval, hc.WithTelemetry)
+	return fmt.Sprintf("QueryTime: %s\tDuration: %s\tIncludeTelemetry: %t\tNamespace: %s", hc.QueryTime, hc.Duration, hc.IncludeTelemetry, hc.Namespace)
 }
 
 // Annotation Filter for Health
 var HealthAnnotation = []models.AnnotationKey{models.RateHealthAnnotation}
 
 // GetServiceHealth returns a service health (service request error rate)
-func (in *HealthService) GetServiceHealth(ctx context.Context, namespace, service, rateInterval string, queryTime time.Time, svc *models.Service) (models.ServiceHealth, error) {
+// namespace could be different from the svc namespace.
+func (in *HealthService) GetServiceHealth(ctx context.Context, svc *models.Service, criteria HealthCriteria) (models.ServiceHealth, error) {
 	var end observability.EndFunc
 	_, end = observability.StartSpan(ctx, "GetServiceHealth",
 		observability.Attribute("package", "business"),
-		observability.Attribute("namespace", namespace),
-		observability.Attribute("service", service),
-		// observability.Attribute("criteria", criteria),
+		observability.Attribute("service", svc),
+		observability.Attribute("criteria", criteria),
 	)
 	defer end()
 
-	rqHealth, err := in.getServiceRequestsHealth(namespace, service, rateInterval, queryTime, svc)
+	rqHealth, err := in.getServiceRequestsHealth(svc, criteria)
 	return models.ServiceHealth{Requests: rqHealth}, err
 }
 
@@ -145,7 +152,7 @@ func (in *HealthService) GetNamespaceAppHealth(ctx context.Context, namespace st
 		return nil, err
 	}
 
-	return in.getNamespaceAppHealth(namespace, appEntities, criteria.RateInterval, criteria.QueryTime, criteria.WithTelemetry)
+	return in.getNamespaceAppHealth(namespace, appEntities, criteria.Duration, criteria.QueryTime, criteria.IncludeTelemetry)
 }
 
 func (in *HealthService) getNamespaceAppHealth(namespace string, appEntities namespaceApps, rateInterval string, queryTime time.Time, withTelemetry bool) (models.NamespaceAppHealth, error) {
@@ -227,9 +234,9 @@ func (in *HealthService) getNamespaceServiceHealth(namespace string, services *m
 		}
 	}
 
-	if criteria.WithTelemetry {
+	if criteria.IncludeTelemetry {
 		// Fetch services requests rates
-		rates, _ := in.prom.GetNamespaceServicesRequestRates(namespace, criteria.RateInterval, criteria.QueryTime)
+		rates, _ := in.prom.GetNamespaceServicesRequestRates(namespace, criteria.Duration, criteria.QueryTime)
 		// Fill with collected request rates
 		lblDestSvc := model.LabelName("destination_service_name")
 		for _, sample := range rates {
@@ -277,9 +284,9 @@ func (in *HealthService) getNamespaceWorkloadHealth(namespace string, ws models.
 		}
 	}
 
-	if hasSidecar && criteria.WithTelemetry {
+	if hasSidecar && criteria.IncludeTelemetry {
 		// Fetch services requests rates
-		rates, err := in.prom.GetAllRequestRates(namespace, criteria.RateInterval, criteria.QueryTime)
+		rates, err := in.prom.GetAllRequestRates(namespace, criteria.Duration, criteria.QueryTime)
 		if err != nil {
 			return allHealth, errors.NewServiceUnavailable(err.Error())
 		}
@@ -329,14 +336,15 @@ func fillWorkloadRequestRates(allHealth models.NamespaceWorkloadHealth, rates mo
 	}
 }
 
-func (in *HealthService) getServiceRequestsHealth(namespace, service, rateInterval string, queryTime time.Time, svc *models.Service) (models.RequestHealth, error) {
+func (in *HealthService) getServiceRequestsHealth(svc *models.Service, criteria HealthCriteria) (models.RequestHealth, error) {
 	rqHealth := models.NewEmptyRequestHealth()
+	namespace := svc.Namespace.Name
 	if svc.Type == "External" {
 		// ServiceEntry from Istio Registry
 		// Telemetry doesn't collect a namespace
 		namespace = "unknown"
 	}
-	inbound, err := in.prom.GetServiceRequestRates(namespace, service, rateInterval, queryTime)
+	inbound, err := in.prom.GetServiceRequestRates(namespace, svc.Name, criteria.Duration, criteria.QueryTime)
 	if err != nil {
 		return rqHealth, errors.NewServiceUnavailable(err.Error())
 	}

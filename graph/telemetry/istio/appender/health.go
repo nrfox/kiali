@@ -19,6 +19,7 @@ const HealthAppenderName = "health"
 type HealthAppender struct {
 	Namespaces        graph.NamespaceInfoMap
 	QueryTime         int64 // unix time in seconds
+	Rates              graph.RequestedRates
 	RequestedDuration time.Duration
 }
 
@@ -157,8 +158,11 @@ func (a *HealthAppender) attachHealth(trafficMap graph.TrafficMap, globalInfo *g
 			go func(namespace, kind string) {
 				criteria := business.HealthCriteria{
 					QueryTime: time.Unix(a.QueryTime, 0),
-					RateInterval: duration.String(),
-					WithTelemetry: false,
+					Duration: duration.String(),
+					// Graphs without any throughput requested won't have rates
+					// so traffic won't be used to calculate health and instead
+					// workload health will boil down to the number of pods healthy.
+					IncludeTelemetry: false,
 				}
 				defer wg.Done()
 				switch kind {

@@ -166,42 +166,6 @@ func AddToMetadata(protocol string, val float64, code, flags, host string, sourc
 	default:
 		log.Tracef("Ignore unhandled metadata protocol [%s]", protocol)
 	}
-
-	if sourceMetadata != nil {
-		if _, ok := sourceMetadata["outbound"]; !ok {
-			sourceMetadata["outbound"] = map[string]map[string]float64{}
-		}
-
-		if _, ok := sourceMetadata["outbound"].(map[string]map[string]float64)[protocol]; !ok {
-			sourceMetadata["outbound"].(map[string]map[string]float64)[protocol] = map[string]float64{
-				code: val,
-			}
-		} else {
-			if _, ok := sourceMetadata["outbound"].(map[string]map[string]float64)[protocol][code]; !ok {
-				sourceMetadata["outbound"].(map[string]map[string]float64)[protocol][code] = val
-			} else {
-				sourceMetadata["outbound"].(map[string]map[string]float64)[protocol][code] += val
-			}
-		}
-	}
-
-	if destMetadata != nil {
-		if _, ok := destMetadata["inbound"]; !ok {
-			destMetadata["inbound"] = map[string]map[string]float64{}
-		}
-
-		if _, ok := destMetadata["inbound"].(map[string]map[string]float64)[protocol]; !ok {
-			destMetadata["inbound"].(map[string]map[string]float64)[protocol] = map[string]float64{
-				code: val,
-			}
-		} else {
-			if _, ok := destMetadata["inbound"].(map[string]map[string]float64)[protocol][code]; !ok {
-				destMetadata["inbound"].(map[string]map[string]float64)[protocol][code] = val
-			} else {
-				destMetadata["inbound"].(map[string]map[string]float64)[protocol][code] += val
-			}
-		}
-	}
 }
 
 func addToMetadataGrpc(val float64, code, flags, host string, sourceMetadata, destMetadata, edgeMetadata Metadata) {

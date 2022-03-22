@@ -42,8 +42,13 @@ func TestGetServiceHealth(t *testing.T) {
 
 	mockSvc := models.Service{}
 	mockSvc.Name = "httpbin"
+	mockSvc.Namespace.Name = "ns"
 
-	health, _ := hs.GetServiceHealth(context.TODO(), "ns", "httpbin", "1m", queryTime, &mockSvc)
+	criteria := HealthCriteria{
+		QueryTime: queryTime,	
+		Duration: "1m",
+	}
+	health, _ := hs.GetServiceHealth(context.TODO(), &mockSvc, criteria)
 
 	prom.AssertNumberOfCalls(t, "GetServiceRequestRates", 1)
 	var result = map[string]map[string]float64{
@@ -235,9 +240,9 @@ func TestGetNamespaceAppHealthWithoutIstio(t *testing.T) {
 	hs := HealthService{k8s: k8s, prom: prom, businessLayer: NewWithBackends(k8s, prom, nil)}
 
 	criteria := HealthCriteria{
-		RateInterval:  "1m",
+		Duration:  "1m",
 		QueryTime:     time.Date(2017, 01, 15, 0, 0, 0, 0, time.UTC),
-		WithTelemetry: true,
+		IncludeTelemetry: true,
 	}
 	_, _ = hs.GetNamespaceAppHealth(context.TODO(), "ns", criteria)
 
@@ -262,9 +267,9 @@ func TestGetNamespaceServiceHealthWithNA(t *testing.T) {
 	hs := HealthService{k8s: k8s, prom: prom, businessLayer: NewWithBackends(k8s, prom, nil)}
 
 	criteria := HealthCriteria{
-		RateInterval:  "1m",
+		Duration:  "1m",
 		QueryTime:     time.Date(2017, 01, 15, 0, 0, 0, 0, time.UTC),
-		WithTelemetry: true,
+		IncludeTelemetry: true,
 	}
 	health, err := hs.GetNamespaceServiceHealth(context.TODO(), "tutorial", criteria)
 
