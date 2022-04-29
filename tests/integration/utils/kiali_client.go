@@ -522,12 +522,8 @@ func ObjectDashboard(namespace, name, objectType string) (*models.MonitoringDash
 	body, _, _, err := httputil.HttpGet(url, client.GetAuth(), TIMEOUT, nil, client.kialiCookies)
 	if err == nil {
 		response := new(models.MonitoringDashboard)
-		err = json.Unmarshal(body, &response)
-		if err == nil {
-			return response, nil
-		} else {
-			return nil, err
-		}
+		json.Unmarshal(body, &response)
+		return response, nil
 	} else {
 		return nil, err
 	}
