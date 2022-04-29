@@ -522,7 +522,8 @@ func ObjectDashboard(namespace, name, objectType string) (*models.MonitoringDash
 	body, _, _, err := httputil.HttpGet(url, client.GetAuth(), TIMEOUT, nil, client.kialiCookies)
 	if err == nil {
 		response := new(models.MonitoringDashboard)
-		json.Unmarshal(body, &response)
+		// tests are checking only common response for different object types, ignore the error
+		_ = json.Unmarshal(body, &response)
 		return response, nil
 	} else {
 		return nil, err
