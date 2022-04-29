@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,6 +41,9 @@ func TestIstioPermissions(t *testing.T) {
 }
 
 func TestJaeger(t *testing.T) {
+	if os.Getenv("TEST_JAEGER") != "true" {
+		return
+	}
 	assert := assert.New(t)
 	response, statusCode, err := utils.Jaeger()
 
@@ -55,6 +59,9 @@ func TestJaeger(t *testing.T) {
 }
 
 func TestGrafana(t *testing.T) {
+	if os.Getenv("TEST_GRAFANA") != "true" {
+		return
+	}
 	assert := assert.New(t)
 	response, statusCode, err := utils.Grafana()
 

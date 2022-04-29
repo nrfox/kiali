@@ -80,4 +80,5 @@ $ make test-integration -e URL="http://localhost:20001/kiali" -e TOKEN="$(kubect
 * The Bookinfo namespace is cleaned of pre-existing Circuit Breakers and Virtual Services.
   Therefore, ignore any errors during the clean-up that follow the message:
     "Cleanning up (Note: ignore messages: "Error from server..."
-
+* By default, checking Jaeger and Grafana endpoints in tests is disable.
+  For enabling those tests, the environment variables "TEST_GRAFANA" and "TEST_JAEGER" should be set to "true".
