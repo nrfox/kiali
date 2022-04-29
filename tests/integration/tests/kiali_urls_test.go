@@ -67,7 +67,7 @@ func TestGrafana(t *testing.T) {
 			assert.NotEmpty(extLink.URL)
 		}
 	} else {
-		assert.Fail(fmt.Sprintf("Status code should be '200' but was: %d and error: %s", statusCode, err.Error()))
+		assert.Fail(fmt.Sprintf("Status code should be '200' but was: %d and error: %s", statusCode, err))
 	}
 }
 
