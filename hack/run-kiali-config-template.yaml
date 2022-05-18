@@ -19,7 +19,7 @@ auth:
   strategy: "anonymous"
 
 deployment:
-  accessible_namespaces: ['**']
+  accessible_namespaces: ["**"]
 
 external_services:
   custom_dashboards:
@@ -47,14 +47,7 @@ kubernetes_config:
   cache_enabled: true
 
 login_token:
-   signing_key: "notsecure"
-
-kiali_plugins:
-  openshift:
-    address: ''
-    enabled: ${PLUGIN_OPENSHIFT_ENABLED}
-    port: 9001
-    static_content_root_directory: "${PLUGIN_OPENSHIFT_DIR}"
+  signing_key: "notsecure"
 
 server:
   static_content_root_directory: "${UI_CONSOLE_DIR}"

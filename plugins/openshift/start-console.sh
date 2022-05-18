@@ -26,7 +26,7 @@ echo "Console URL: http://localhost:${CONSOLE_PORT}"
 
 if [ -x "$(command -v podman)" ]; then
     echo "Using Podman"
-    BRIDGE_PLUGINS="${npm_package_consolePlugin_name}=http://host.containers.internal:9001"
+    BRIDGE_PLUGINS="${npm_package_consolePlugin_name}=http://host.containers.internal:20001/plugin"
     podman run --add-host=host.containers.internal:172.17.0.1 --rm -p "$CONSOLE_PORT":9000 --env-file <(set | grep BRIDGE) $CONSOLE_IMAGE
 else
     echo "Using Docker"

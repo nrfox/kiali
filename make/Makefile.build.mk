@@ -48,8 +48,8 @@ build-linux-multi-arch:
 	done
 
 ## build-plugins-openshift: Build Kiali Plugin for OpenShift
-build-plugin-openshift:
-	@cd ${ROOTDIR}/plugins/openshift && yarn run clean && yarn install && yarn run build
+build-plugin-openshift: build-ui
+	@cd ${ROOTDIR}/plugins/openshift && yarn run clean && yarn install && yarn run build && mv dist/ ${ROOTDIR}/frontend/build/plugin
 
 ## install: Install missing dependencies. Runs `go install` internally
 install:
