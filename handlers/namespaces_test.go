@@ -23,6 +23,7 @@ import (
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/prometheus"
 	"github.com/kiali/kiali/prometheus/prometheustest"
@@ -164,7 +165,6 @@ func setupNamespaceMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheust
 
 func setupMocked() (*prometheus.Client, *prometheustest.PromAPIMock, *kubetest.K8SClientMock, error) {
 	conf := config.NewConfig()
-	conf.KubernetesConfig.CacheEnabled = false
 	config.Set(conf)
 	k8s := new(kubetest.K8SClientMock)
 
@@ -210,7 +210,8 @@ func setupMocked() (*prometheus.Client, *prometheustest.PromAPIMock, *kubetest.K
 	client.Inject(api)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, nil)
+	cache := cache.NewFakeKialiCache(nil, nil)
+	business.SetWithBackends(mockClientFactory, nil, cache)
 
 	return client, api, k8s, nil
 }

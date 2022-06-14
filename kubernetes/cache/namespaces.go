@@ -7,15 +7,15 @@ import (
 )
 
 type (
-	NamespacesCache interface {
-		SetNamespaces(token string, namespaces []models.Namespace)
-		GetNamespaces(token string) []models.Namespace
-		GetNamespace(token string, namespace string) *models.Namespace
-		RefreshTokenNamespaces()
-	}
+// NamespacesCache interface {
+// 	SetNamespaces(token string, namespaces []models.Namespace)
+// 	GetNamespaces(token string) []models.Namespace
+// 	GetNamespace(token string, namespace string) *models.Namespace
+// 	RefreshTokenNamespaces()
+// }
 )
 
-func (c *kialiCacheImpl) SetNamespaces(token string, namespaces []models.Namespace) {
+func (c *KialiCache) SetNamespaces(token string, namespaces []models.Namespace) {
 	defer c.tokenLock.Unlock()
 	c.tokenLock.Lock()
 	nameNamespace := make(map[string]models.Namespace, len(namespaces))
@@ -29,7 +29,7 @@ func (c *kialiCacheImpl) SetNamespaces(token string, namespaces []models.Namespa
 	}
 }
 
-func (c *kialiCacheImpl) GetNamespaces(token string) []models.Namespace {
+func (c *KialiCache) GetNamespaces(token string) []models.Namespace {
 	defer c.tokenLock.RUnlock()
 	c.tokenLock.RLock()
 	if nsToken, existToken := c.tokenNamespaces[token]; !existToken {
@@ -43,7 +43,7 @@ func (c *kialiCacheImpl) GetNamespaces(token string) []models.Namespace {
 	}
 }
 
-func (c *kialiCacheImpl) GetNamespace(token string, namespace string) *models.Namespace {
+func (c *KialiCache) GetNamespace(token string, namespace string) *models.Namespace {
 	defer c.tokenLock.RUnlock()
 	c.tokenLock.RLock()
 	if nsToken, existToken := c.tokenNamespaces[token]; !existToken {
@@ -61,7 +61,7 @@ func (c *kialiCacheImpl) GetNamespace(token string, namespace string) *models.Na
 	}
 }
 
-func (c *kialiCacheImpl) RefreshTokenNamespaces() {
+func (c *KialiCache) RefreshTokenNamespaces() {
 	defer c.tokenLock.Unlock()
 	c.tokenLock.Lock()
 	c.tokenNamespaces = make(map[string]namespaceCache)

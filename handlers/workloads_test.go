@@ -11,30 +11,33 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	osapps_v1 "github.com/openshift/api/apps/v1"
 	osproject_v1 "github.com/openshift/api/project/v1"
 	prom_v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	apps_v1 "k8s.io/api/apps/v1"
-	batch_v1 "k8s.io/api/batch/v1"
-	core_v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
+	"github.com/kiali/kiali/kubernetes"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/prometheus"
 	"github.com/kiali/kiali/prometheus/prometheustest"
 )
 
-func setupWorkloadList() (*httptest.Server, *kubetest.K8SClientMock, *prometheustest.PromClientMock) {
-	k8s := kubetest.NewK8SClientMock()
+// TODO: Combine client and cache
+func setupWorkloadList(t *testing.T, k8s kubernetes.ClientInterface, objects ...runtime.Object) (*httptest.Server, *prometheustest.PromClientMock) {
 	prom := new(prometheustest.PromClientMock)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, prom)
+	cache := cache.NewFakeKialiCache(objects, nil)
+	cache.Refresh("")
+	business.SetWithBackends(mockClientFactory, prom, cache)
 
 	mr := mux.NewRouter()
 
@@ -45,26 +48,31 @@ func setupWorkloadList() (*httptest.Server, *kubetest.K8SClientMock, *prometheus
 		}))
 
 	ts := httptest.NewServer(mr)
-	return ts, k8s, prom
+	t.Cleanup(ts.Close)
+	return ts, prom
 }
 
 func TestWorkloadsEndpoint(t *testing.T) {
 	conf := config.NewConfig()
 	config.Set(conf)
-	ts, k8s, _ := setupWorkloadList()
-	k8s.MockIstio()
-	defer ts.Close()
 
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-	k8s.On("GetDeployments", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(business.FakeDepSyncedWithRS(), nil)
-	k8s.On("GetReplicaSets", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(business.FakeRSSyncedWithPods(), nil)
-	k8s.On("GetDeploymentConfigs", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]osapps_v1.DeploymentConfig{}, nil)
-	k8s.On("GetReplicationControllers", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]core_v1.ReplicationController{}, nil)
-	k8s.On("GetStatefulSets", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]apps_v1.StatefulSet{}, nil)
-	k8s.On("GetDaemonSets", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]apps_v1.DaemonSet{}, nil)
-	k8s.On("GetJobs", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]batch_v1.Job{}, nil)
-	k8s.On("GetCronJobs", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]batch_v1.CronJob{}, nil)
-	k8s.On("GetPods", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(business.FakePodsSyncedWithDeployments(), nil)
+	kubeObjects := []runtime.Object{&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns"}}}
+	for _, obj := range business.FakeDepSyncedWithRS() {
+		o := obj
+		kubeObjects = append(kubeObjects, &o)
+	}
+	for _, obj := range business.FakeRSSyncedWithPods() {
+		o := obj
+		kubeObjects = append(kubeObjects, &o)
+	}
+	for _, obj := range business.FakePodsSyncedWithDeployments() {
+		o := obj
+		kubeObjects = append(kubeObjects, &o)
+	}
+	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
+	// TODO: Get rid of clock mocking side effect
+	newProject()
+	ts, _ := setupWorkloadList(t, k8s, kubeObjects...)
 
 	url := ts.URL + "/api/namespaces/ns/workloads"
 
@@ -76,7 +84,6 @@ func TestWorkloadsEndpoint(t *testing.T) {
 
 	assert.NotEmpty(t, actual)
 	assert.Equal(t, 200, resp.StatusCode, string(actual))
-	k8s.AssertNumberOfCalls(t, "GetDeployments", 1)
 }
 
 func TestWorkloadMetricsDefault(t *testing.T) {
@@ -335,7 +342,8 @@ func setupWorkloadMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheuste
 	ts := httptest.NewServer(mr)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, prom)
+	cache := cache.NewFakeKialiCache(nil, nil)
+	business.SetWithBackends(mockClientFactory, prom, cache)
 
 	return ts, xapi, k8s
 }

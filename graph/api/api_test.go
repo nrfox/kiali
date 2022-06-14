@@ -25,6 +25,7 @@ import (
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/graph"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/prometheus"
 	"github.com/kiali/kiali/prometheus/prometheustest"
@@ -34,7 +35,6 @@ import (
 
 func setupMocked() (*prometheus.Client, *prometheustest.PromAPIMock, *kubetest.K8SClientMock, error) {
 	conf := config.NewConfig()
-	conf.KubernetesConfig.CacheEnabled = false
 	config.Set(conf)
 
 	k8s := new(kubetest.K8SClientMock)
@@ -72,6 +72,7 @@ func setupMocked() (*prometheus.Client, *prometheustest.PromAPIMock, *kubetest.K
 
 	k8s.On("IsOpenShift").Return(true)
 	k8s.On("IsGatewayAPI").Return(false)
+	k8s.On("GetToken").Return("token")
 
 	api := new(prometheustest.PromAPIMock)
 	client, err := prometheus.NewClient()
@@ -81,14 +82,14 @@ func setupMocked() (*prometheus.Client, *prometheustest.PromAPIMock, *kubetest.K
 	client.Inject(api)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, nil)
+	cache := cache.NewFakeKialiCache(nil, nil)
+	business.SetWithBackends(mockClientFactory, nil, cache)
 
 	return client, api, k8s, nil
 }
 
 func setupMockedWithIstioComponentNamespaces(meshId string) (*prometheus.Client, *prometheustest.PromAPIMock, *kubetest.K8SClientMock, error) {
 	testConfig := config.NewConfig()
-	testConfig.KubernetesConfig.CacheEnabled = false
 	if meshId != "" {
 		testConfig.ExternalServices.Prometheus.QueryScope = map[string]string{"mesh_id": meshId}
 	}
@@ -157,7 +158,8 @@ func setupMockedWithIstioComponentNamespaces(meshId string) (*prometheus.Client,
 	client.Inject(api)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, nil)
+	cache := cache.NewFakeKialiCache(nil, nil)
+	business.SetWithBackends(mockClientFactory, nil, cache)
 
 	return client, api, k8s, nil
 }
@@ -198,7 +200,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m1 := model.Metric{
 		"source_workload_namespace":      "unknown",
 		"source_workload":                "unknown",
@@ -214,7 +217,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m2 := model.Metric{
 		"source_workload_namespace":      "unknown",
 		"source_workload":                "unknown",
@@ -230,7 +234,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m3 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -246,7 +251,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m4 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -262,7 +268,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m5 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -278,7 +285,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m6 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -293,7 +301,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "300",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m7 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -308,7 +317,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "400",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m8 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -323,7 +333,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "500",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m9 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -339,7 +350,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m10 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -355,7 +367,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m11 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v2",
@@ -371,7 +384,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m12 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v2",
@@ -386,7 +400,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "500",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m13 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v2",
@@ -402,7 +417,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m14 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v3",
@@ -418,7 +434,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m15 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v3",
@@ -433,7 +450,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "500",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m16 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v3",
@@ -449,59 +467,78 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v1 := model.Vector{
 		&model.Sample{
 			Metric: q1m0,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q1m1,
-			Value:  50},
+			Value:  50,
+		},
 		&model.Sample{
 			Metric: q1m2,
-			Value:  50},
+			Value:  50,
+		},
 		&model.Sample{
 			Metric: q1m3,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m4,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m5,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m6,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m7,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m8,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m9,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m10,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m11,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m12,
-			Value:  10},
+			Value:  10,
+		},
 		&model.Sample{
 			Metric: q1m13,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m14,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m15,
-			Value:  10},
+			Value:  10,
+		},
 		&model.Sample{
 			Metric: q1m16,
-			Value:  20}}
+			Value:  20,
+		},
+	}
 
 	q2 := `round(sum(rate(istio_requests_total{reporter="source",source_workload_namespace="bookinfo"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,request_protocol,response_code,grpc_response_status,response_flags) > 0,0.001)`
 	q2m0 := model.Metric{
@@ -519,7 +556,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m1 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -535,7 +573,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m2 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -551,7 +590,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m3 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -566,7 +606,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "300",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m4 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -581,7 +622,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "400",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m5 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -596,7 +638,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "500",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m6 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -612,7 +655,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m7 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -628,7 +672,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m8 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v2",
@@ -644,7 +689,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m9 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v2",
@@ -659,7 +705,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "500",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m10 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v2",
@@ -675,7 +722,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m11 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v3",
@@ -691,7 +739,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m12 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v3",
@@ -706,7 +755,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "500",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m13 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v3",
@@ -722,7 +772,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m14 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v3",
@@ -738,7 +789,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q2m15 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v3",
@@ -753,7 +805,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "404",
-		"response_flags":                 "NR"}
+		"response_flags":                 "NR",
+	}
 	q2m16 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "reviews-v3",
@@ -769,59 +822,78 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"request_protocol":               "grpc",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v2 := model.Vector{
 		&model.Sample{
 			Metric: q2m0,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m1,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m2,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m3,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m4,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m5,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m6,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m7,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m8,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m9,
-			Value:  10},
+			Value:  10,
+		},
 		&model.Sample{
 			Metric: q2m10,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m11,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m12,
-			Value:  10},
+			Value:  10,
+		},
 		&model.Sample{
 			Metric: q2m13,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m14,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q2m15,
-			Value:  4},
+			Value:  4,
+		},
 		&model.Sample{
 			Metric: q2m16,
-			Value:  50}}
+			Value:  50,
+		},
+	}
 
 	q3 := `round(sum(rate(istio_tcp_sent_bytes_total{reporter="source",source_workload_namespace!="bookinfo",destination_workload_namespace="unknown",destination_workload="unknown",destination_service=~"^.+\\.bookinfo\\..+$"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
 	v3 := model.Vector{}
@@ -839,7 +911,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q4m1 := model.Metric{
 		"source_workload_namespace":      "unknown",
 		"source_workload":                "unknown",
@@ -852,7 +925,8 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q4m2 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -865,17 +939,22 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v4 := model.Vector{
 		&model.Sample{
 			Metric: q4m0,
-			Value:  150},
+			Value:  150,
+		},
 		&model.Sample{
 			Metric: q4m1,
-			Value:  400},
+			Value:  400,
+		},
 		&model.Sample{
 			Metric: q4m2,
-			Value:  31}}
+			Value:  31,
+		},
+	}
 
 	q5 := `round(sum(rate(istio_tcp_sent_bytes_total{reporter="source",source_workload_namespace="bookinfo"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
 	q5m0 := model.Metric{
@@ -890,12 +969,16 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v5 := model.Vector{
 		&model.Sample{
 			Metric: q5m0,
-			Value:  31}}
+			Value:  31,
+		},
+	}
 
+	// TODO: Here is where the mock is being setup.
 	client, api, _, err := setupMocked()
 	if err != nil {
 		return client, api, err
@@ -936,7 +1019,8 @@ func mockNamespaceRatesGraph(t *testing.T) (*prometheus.Client, *prometheustest.
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q7m1 := model.Metric{
 		"source_workload_namespace":      "unknown",
 		"source_workload":                "unknown",
@@ -949,7 +1033,8 @@ func mockNamespaceRatesGraph(t *testing.T) (*prometheus.Client, *prometheustest.
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q7m2 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -962,17 +1047,22 @@ func mockNamespaceRatesGraph(t *testing.T) (*prometheus.Client, *prometheustest.
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v7 := model.Vector{
 		&model.Sample{
 			Metric: q7m0,
-			Value:  300},
+			Value:  300,
+		},
 		&model.Sample{
 			Metric: q7m1,
-			Value:  800},
+			Value:  800,
+		},
 		&model.Sample{
 			Metric: q7m2,
-			Value:  62}}
+			Value:  62,
+		},
+	}
 
 	q8 := `round(sum(rate(istio_tcp_received_bytes_total{reporter="source",source_workload_namespace="bookinfo"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
 	q8m0 := model.Metric{
@@ -987,11 +1077,14 @@ func mockNamespaceRatesGraph(t *testing.T) (*prometheus.Client, *prometheustest.
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v8 := model.Vector{
 		&model.Sample{
 			Metric: q8m0,
-			Value:  62}}
+			Value:  62,
+		},
+	}
 
 	q9 := `round(sum(rate(istio_request_messages_total{reporter="source",source_workload_namespace!="bookinfo",destination_workload_namespace="unknown",destination_workload="unknown",destination_service=~"^.+\\.bookinfo\\..+$"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision) > 0,0.001)`
 	v9 := model.Vector{}
@@ -1011,11 +1104,14 @@ func mockNamespaceRatesGraph(t *testing.T) (*prometheus.Client, *prometheustest.
 		"destination_workload_namespace": "bankapp",
 		"destination_workload":           "deposit-v1",
 		"destination_canonical_service":  "deposit",
-		"destination_canonical_revision": "v1"}
+		"destination_canonical_revision": "v1",
+	}
 	v11 := model.Vector{
 		&model.Sample{
 			Metric: q11m0,
-			Value:  50}}
+			Value:  50,
+		},
+	}
 
 	q12 := `round(sum(rate(istio_response_messages_total{reporter="source",source_workload_namespace!="bookinfo",destination_workload_namespace="unknown",destination_workload="unknown",destination_service=~"^.+\\.bookinfo\\..+$"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision) > 0,0.001)`
 	v12 := model.Vector{}
@@ -1035,11 +1131,14 @@ func mockNamespaceRatesGraph(t *testing.T) (*prometheus.Client, *prometheustest.
 		"destination_workload_namespace": "bankapp",
 		"destination_workload":           "deposit-v1",
 		"destination_canonical_service":  "deposit",
-		"destination_canonical_revision": "v1"}
+		"destination_canonical_revision": "v1",
+	}
 	v14 := model.Vector{
 		&model.Sample{
 			Metric: q14m0,
-			Value:  100}}
+			Value:  100,
+		},
+	}
 
 	mockQuery(api, q6, &v6)
 	mockQuery(api, q7, &v7)
@@ -1395,7 +1494,8 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q0m1 := model.Metric{
 		"source_workload_namespace":      "istio-system",
 		"source_workload":                "ingressgateway-unknown",
@@ -1411,14 +1511,18 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v0 := model.Vector{
 		&model.Sample{
 			Metric: q0m0,
-			Value:  50},
+			Value:  50,
+		},
 		&model.Sample{
 			Metric: q0m1,
-			Value:  100}}
+			Value:  100,
+		},
+	}
 
 	q1 := `round(sum(rate(istio_requests_total{reporter="source",source_workload_namespace="bookinfo",source_workload="productpage-v1"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,request_protocol,response_code,grpc_response_status,response_flags) > 0,0.001)`
 	q1m0 := model.Metric{
@@ -1436,7 +1540,8 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m1 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1452,7 +1557,8 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m2 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1468,7 +1574,8 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m3 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1483,7 +1590,8 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "300",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m4 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1498,7 +1606,8 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "400",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m5 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1513,7 +1622,8 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "500",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m6 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1529,7 +1639,8 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m7 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1545,7 +1656,8 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m8 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1560,35 +1672,46 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "404",
-		"response_flags":                 "NR"}
+		"response_flags":                 "NR",
+	}
 	v1 := model.Vector{
 		&model.Sample{
 			Metric: q1m0,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m1,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m2,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m3,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m4,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m5,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m6,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m7,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m8,
-			Value:  4}}
+			Value:  4,
+		},
+	}
 
 	q2 := `round(sum(rate(istio_tcp_sent_bytes_total{reporter="destination",destination_workload_namespace="bookinfo",destination_workload="productpage-v1"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
 	v2 := model.Vector{}
@@ -1606,11 +1729,14 @@ func TestWorkloadNodeGraph(t *testing.T) {
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v3 := model.Vector{
 		&model.Sample{
 			Metric: q3m0,
-			Value:  31}}
+			Value:  31,
+		},
+	}
 
 	client, xapi, _, err := setupMocked()
 	if err != nil {
@@ -1671,7 +1797,8 @@ func TestAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q0m1 := model.Metric{
 		"source_workload_namespace":      "istio-system",
 		"source_workload":                "ingressgateway-unknown",
@@ -1687,14 +1814,18 @@ func TestAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v0 := model.Vector{
 		&model.Sample{
 			Metric: q0m0,
-			Value:  50},
+			Value:  50,
+		},
 		&model.Sample{
 			Metric: q0m1,
-			Value:  100}}
+			Value:  100,
+		},
+	}
 
 	q1 := `round(sum(rate(istio_requests_total{reporter="source",source_workload_namespace="bookinfo",source_canonical_service="productpage"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,request_protocol,response_code,grpc_response_status,response_flags) > 0,0.001)`
 	q1m0 := model.Metric{
@@ -1712,7 +1843,8 @@ func TestAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m1 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1728,7 +1860,8 @@ func TestAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m2 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1744,7 +1877,8 @@ func TestAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m3 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1759,7 +1893,8 @@ func TestAppNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "300",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m4 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1774,7 +1909,8 @@ func TestAppNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "400",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m5 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1789,7 +1925,8 @@ func TestAppNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "500",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m6 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1805,7 +1942,8 @@ func TestAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m7 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1821,7 +1959,8 @@ func TestAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m8 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -1836,35 +1975,46 @@ func TestAppNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "404",
-		"response_flags":                 "NR"}
+		"response_flags":                 "NR",
+	}
 	v1 := model.Vector{
 		&model.Sample{
 			Metric: q1m0,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m1,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m2,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m3,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m4,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m5,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m6,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m7,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m8,
-			Value:  4}}
+			Value:  4,
+		},
+	}
 
 	q2 := `round(sum(rate(istio_tcp_sent_bytes_total{reporter="destination",destination_service_namespace="bookinfo",destination_canonical_service="productpage"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
 	v2 := model.Vector{}
@@ -1882,11 +2032,14 @@ func TestAppNodeGraph(t *testing.T) {
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v3 := model.Vector{
 		&model.Sample{
 			Metric: q3m0,
-			Value:  31}}
+			Value:  31,
+		},
+	}
 
 	client, xapi, _, err := setupMocked()
 	if err != nil {
@@ -1947,7 +2100,8 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q0m1 := model.Metric{
 		"source_workload_namespace":      "istio-system",
 		"source_workload":                "ingressgateway-unknown",
@@ -1963,14 +2117,18 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v0 := model.Vector{
 		&model.Sample{
 			Metric: q0m0,
-			Value:  50},
+			Value:  50,
+		},
 		&model.Sample{
 			Metric: q0m1,
-			Value:  100}}
+			Value:  100,
+		},
+	}
 
 	q1 := `round(sum(rate(istio_requests_total{reporter="source",source_workload_namespace="bookinfo",source_canonical_service="productpage",source_canonical_revision="v1"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,request_protocol,response_code,grpc_response_status,response_flags) > 0,0.001)`
 	q1m0 := model.Metric{
@@ -1988,7 +2146,8 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m1 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2004,7 +2163,8 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m2 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2020,7 +2180,8 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m3 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2035,7 +2196,8 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "300",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m4 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2050,7 +2212,8 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "400",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m5 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2065,7 +2228,8 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "500",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m6 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2081,7 +2245,8 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m7 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2097,7 +2262,8 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m8 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2112,35 +2278,46 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "404",
-		"response_flags":                 "NR"}
+		"response_flags":                 "NR",
+	}
 	v1 := model.Vector{
 		&model.Sample{
 			Metric: q1m0,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m1,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m2,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m3,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m4,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m5,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m6,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m7,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m8,
-			Value:  4}}
+			Value:  4,
+		},
+	}
 
 	q2 := `round(sum(rate(istio_tcp_sent_bytes_total{reporter="destination",destination_service_namespace="bookinfo",destination_canonical_service="productpage",destination_canonical_revision="v1"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
 	v2 := model.Vector{}
@@ -2158,11 +2335,14 @@ func TestVersionedAppNodeGraph(t *testing.T) {
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v3 := model.Vector{
 		&model.Sample{
 			Metric: q3m0,
-			Value:  31}}
+			Value:  31,
+		},
+	}
 
 	client, xapi, _, err := setupMocked()
 	if err != nil {
@@ -2226,11 +2406,14 @@ func TestServiceNodeGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v1 := model.Vector{
 		&model.Sample{
 			Metric: q1m0,
-			Value:  100}}
+			Value:  100,
+		},
+	}
 
 	q2 := `round(sum(rate(istio_tcp_sent_bytes_total{reporter="destination",destination_service_namespace="bookinfo",destination_service=~"^productpage\\.bookinfo\\..*$"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
 	q2m0 := model.Metric{
@@ -2245,11 +2428,14 @@ func TestServiceNodeGraph(t *testing.T) {
 		"destination_workload":           "productpage-v1",
 		"destination_canonical_service":  "productpage",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v2 := model.Vector{
 		&model.Sample{
 			Metric: q2m0,
-			Value:  31}}
+			Value:  31,
+		},
+	}
 
 	client, xapi, _, err := setupMocked()
 	if err != nil {
@@ -2309,7 +2495,8 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q0m1 := model.Metric{
 		"source_workload_namespace":      "istio-system",
 		"source_workload":                "ingressgateway-unknown",
@@ -2325,14 +2512,18 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v0 := model.Vector{
 		&model.Sample{
 			Metric: q0m0,
-			Value:  50},
+			Value:  50,
+		},
 		&model.Sample{
 			Metric: q0m1,
-			Value:  100}}
+			Value:  100,
+		},
+	}
 
 	q1 := `round(sum(rate(istio_requests_total{reporter="source",source_workload_namespace="bookinfo",source_workload="productpage-v1"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,request_protocol,response_code,grpc_response_status,response_flags) > 0,0.001)`
 	q1m0 := model.Metric{
@@ -2350,7 +2541,8 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m1 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2366,7 +2558,8 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m2 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2382,7 +2575,8 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m3 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2397,7 +2591,8 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "300",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m4 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2412,7 +2607,8 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "400",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m5 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2427,7 +2623,8 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "500",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m6 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2443,7 +2640,8 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m7 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2459,7 +2657,8 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m8 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2474,7 +2673,8 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "404",
-		"response_flags":                 "NR"}
+		"response_flags":                 "NR",
+	}
 	q1m9 := model.Metric{
 		"source_workload_namespace":      "bookinfo",
 		"source_workload":                "productpage-v1",
@@ -2490,38 +2690,50 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"request_protocol":               "grpc",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v1 := model.Vector{
 		&model.Sample{
 			Metric: q1m0,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m1,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m2,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m3,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m4,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m5,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m6,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m7,
-			Value:  20},
+			Value:  20,
+		},
 		&model.Sample{
 			Metric: q1m8,
-			Value:  4},
+			Value:  4,
+		},
 		&model.Sample{
 			Metric: q1m9,
-			Value:  50}}
+			Value:  50,
+		},
+	}
 
 	q2 := `round(sum(rate(istio_request_messages_total{reporter="destination",destination_workload_namespace="bookinfo",destination_workload="productpage-v1"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision) > 0,0.001)`
 	v2 := model.Vector{}
@@ -2539,11 +2751,14 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v3 := model.Vector{
 		&model.Sample{
 			Metric: q3m0,
-			Value:  31}}
+			Value:  31,
+		},
+	}
 
 	q4 := `round(sum(rate(istio_response_messages_total{reporter="destination",destination_workload_namespace="bookinfo",destination_workload="productpage-v1"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision) > 0,0.001)`
 	v4 := model.Vector{}
@@ -2561,11 +2776,14 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v5 := model.Vector{
 		&model.Sample{
 			Metric: q5m0,
-			Value:  62}}
+			Value:  62,
+		},
+	}
 
 	q6 := `round(sum(rate(istio_tcp_sent_bytes_total{reporter="destination",destination_workload_namespace="bookinfo",destination_workload="productpage-v1"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
 	v6 := model.Vector{}
@@ -2583,11 +2801,14 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v7 := model.Vector{
 		&model.Sample{
 			Metric: q7m0,
-			Value:  31}}
+			Value:  31,
+		},
+	}
 
 	q8 := `round(sum(rate(istio_tcp_received_bytes_total{reporter="destination",destination_workload_namespace="bookinfo",destination_workload="productpage-v1"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
 	v8 := model.Vector{}
@@ -2605,11 +2826,14 @@ func TestRatesNodeGraphTotal(t *testing.T) {
 		"destination_workload":           "tcp-v1",
 		"destination_canonical_service":  "tcp",
 		"destination_canonical_revision": "v1",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v9 := model.Vector{
 		&model.Sample{
 			Metric: q9m0,
-			Value:  62}}
+			Value:  62,
+		},
+	}
 
 	client, xapi, _, err := setupMocked()
 	if err != nil {
@@ -2690,11 +2914,13 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "latest",
 		"request_protocol":               "http",
 		"response_code":                  "503",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v0 := model.Vector{
 		&model.Sample{
 			Metric: q0m0,
-			Value:  50},
+			Value:  50,
+		},
 	}
 
 	q1 := `round(sum(rate(istio_requests_total{mesh_id="mesh1",reporter="destination",destination_workload_namespace="bookinfo"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,request_protocol,response_code,grpc_response_status,response_flags) > 0,0.001)`
@@ -2715,7 +2941,8 @@ func TestComplexGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m1 := model.Metric{
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "tutorial",
@@ -2733,7 +2960,8 @@ func TestComplexGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m2 := model.Metric{ // bad dest telem (variant 1.0)
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "tutorial",
@@ -2750,7 +2978,8 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "200",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m3 := model.Metric{ // bad dest telem (variant 1.2)
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "tutorial",
@@ -2767,7 +2996,8 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "200",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q1m4 := model.Metric{ // good telem (mock service entry)
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "tutorial",
@@ -2784,7 +3014,8 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "200",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	// TODO: This is bad telemetry that should normally be filtered.  But due to https://github.com/istio/istio/issues/29373
 	// we are currently not filtering but rather setting dest_cluster = source_cluster.  When 29373 is fixed for all
 	// supported versions and we remove the workaround, results of the test will change.
@@ -2804,27 +3035,34 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "200",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v1 := model.Vector{
 		&model.Sample{
 			Metric: q1m0,
-			Value:  50},
+			Value:  50,
+		},
 		&model.Sample{
 			Metric: q1m1,
-			Value:  50},
+			Value:  50,
+		},
 		&model.Sample{
 			Metric: q1m2,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q1m3,
-			Value:  200},
+			Value:  200,
+		},
 		&model.Sample{
 			Metric: q1m4,
-			Value:  300},
+			Value:  300,
+		},
 		// see above
 		&model.Sample{
 			Metric: q1m5,
-			Value:  700},
+			Value:  700,
+		},
 	}
 
 	q2 := `round(sum(rate(istio_requests_total{mesh_id="mesh1",reporter="source",source_workload_namespace="bookinfo"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,request_protocol,response_code,grpc_response_status,response_flags) > 0,0.001)`
@@ -2861,7 +3099,8 @@ func TestComplexGraph(t *testing.T) {
 		"request_protocol":               "grpc",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q7m1 := model.Metric{
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "bad-source-telemetry-case-1",
@@ -2879,14 +3118,17 @@ func TestComplexGraph(t *testing.T) {
 		"request_protocol":               "grpc",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v7 := model.Vector{
 		&model.Sample{
 			Metric: q7m0,
-			Value:  50},
+			Value:  50,
+		},
 		&model.Sample{
 			Metric: q7m1,
-			Value:  50},
+			Value:  50,
+		},
 	}
 
 	q8 := `round(sum(rate(istio_requests_total{mesh_id="mesh1",reporter="source",source_workload_namespace="tutorial"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,request_protocol,response_code,grpc_response_status,response_flags) > 0,0.001)`
@@ -2907,7 +3149,8 @@ func TestComplexGraph(t *testing.T) {
 		"request_protocol":               "http",
 		"response_code":                  "200",
 		"grpc_response_status":           "0",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q8m1 := model.Metric{ // bad dest telem (variant 1.0)
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "tutorial",
@@ -2924,7 +3167,8 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "200",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q8m2 := model.Metric{ // bad dest telem (variant 1.2)
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "tutorial",
@@ -2941,7 +3185,8 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "200",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q8m3 := model.Metric{ // good telem (mock service entry)
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "tutorial",
@@ -2958,7 +3203,8 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "200",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q8m4 := model.Metric{ // good telem (service entry via egressgateway, see the second hop below)
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "tutorial",
@@ -2975,7 +3221,8 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "200",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	q8m5 := model.Metric{ // no response http
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "tutorial",
@@ -2992,7 +3239,8 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "0",
-		"response_flags":                 "DC"}
+		"response_flags":                 "DC",
+	}
 	q8m6 := model.Metric{ // no response grpc
 		"source_cluster":                 "cluster-tutorial",
 		"source_workload_namespace":      "tutorial",
@@ -3009,7 +3257,8 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "grpc",
 		"response_code":                  "0", // note, grpc_response_status is not reported for grpc with no response
-		"response_flags":                 "DC"}
+		"response_flags":                 "DC",
+	}
 	// TODO: This is bad telemetry that should normally be filtered.  But due to https://github.com/istio/istio/issues/29373
 	// we are currently not filtering but rather setting dest_cluster = source_cluster.  When 29373 is fixed for all
 	// supported versions and we remove the workaround, results of the test will change.
@@ -3029,33 +3278,42 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "v1",
 		"request_protocol":               "http",
 		"response_code":                  "200",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v8 := model.Vector{
 		&model.Sample{
 			Metric: q8m0,
-			Value:  50},
+			Value:  50,
+		},
 		&model.Sample{
 			Metric: q8m1,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q8m2,
-			Value:  200},
+			Value:  200,
+		},
 		&model.Sample{
 			Metric: q8m3,
-			Value:  300},
+			Value:  300,
+		},
 		&model.Sample{
 			Metric: q8m4,
-			Value:  400},
+			Value:  400,
+		},
 		&model.Sample{
 			Metric: q8m5,
-			Value:  500},
+			Value:  500,
+		},
 		&model.Sample{
 			Metric: q8m6,
-			Value:  600},
+			Value:  600,
+		},
 		// see above
 		&model.Sample{
 			Metric: q8m7,
-			Value:  700},
+			Value:  700,
+		},
 	}
 
 	q9 := `round(sum(rate(istio_tcp_sent_bytes_total{mesh_id="mesh1",reporter="source",source_workload_namespace!="tutorial",destination_workload_namespace="unknown",destination_workload="unknown",destination_service=~"^.+\\.tutorial\\..+$"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
@@ -3091,11 +3349,14 @@ func TestComplexGraph(t *testing.T) {
 		"destination_canonical_revision": "unknown",
 		"request_protocol":               "http",
 		"response_code":                  "200",
-		"response_flags":                 "-"}
+		"response_flags":                 "-",
+	}
 	v14 := model.Vector{
 		&model.Sample{
 			Metric: q14m0,
-			Value:  400}}
+			Value:  400,
+		},
+	}
 
 	q15 := `round(sum(rate(istio_tcp_sent_bytes_total{mesh_id="mesh1",reporter="source",source_workload_namespace!="istio-system",destination_workload_namespace="unknown",destination_workload="unknown",destination_service=~"^.+\\.istio-system\\..+$"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) > 0,0.001)`
 	v15 := model.Vector{}
@@ -3184,7 +3445,8 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "productpage",
 		"source_cluster":                 "kukulcan",
 		"source_workload":                "productpage-v1",
-		"source_workload_namespace":      "bookinfo"}
+		"source_workload_namespace":      "bookinfo",
+	}
 	q1m1 := model.Metric{
 		"destination_canonical_revision": "v1",
 		"destination_canonical_service":  "details",
@@ -3201,7 +3463,8 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "productpage",
 		"source_cluster":                 "kukulcan",
 		"source_workload":                "productpage-v1",
-		"source_workload_namespace":      "bookinfo"}
+		"source_workload_namespace":      "bookinfo",
+	}
 	q1m2 := model.Metric{
 		"destination_canonical_revision": "v1",
 		"destination_canonical_service":  "productpage",
@@ -3218,7 +3481,8 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "istio-ingressgateway",
 		"source_cluster":                 "kukulcan",
 		"source_workload":                "istio-ingressgateway",
-		"source_workload_namespace":      "istio-system"}
+		"source_workload_namespace":      "istio-system",
+	}
 	q1m3 := model.Metric{
 		"destination_canonical_revision": "v1",
 		"destination_canonical_service":  "reviews",
@@ -3235,20 +3499,25 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "productpage",
 		"source_cluster":                 "kukulcan",
 		"source_workload":                "productpage-v1",
-		"source_workload_namespace":      "bookinfo"}
+		"source_workload_namespace":      "bookinfo",
+	}
 	v1 := model.Vector{
 		&model.Sample{
 			Metric: q1m0,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q1m1,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q1m2,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q1m3,
-			Value:  100},
+			Value:  100,
+		},
 	}
 
 	q2 := `round(sum(rate(istio_requests_total{reporter="source",source_workload_namespace="bookinfo"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,request_protocol,response_code,grpc_response_status,response_flags) ,0.001)`
@@ -3268,7 +3537,8 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "productpage",
 		"source_cluster":                 "kukulcan",
 		"source_workload":                "productpage-v1",
-		"source_workload_namespace":      "bookinfo"}
+		"source_workload_namespace":      "bookinfo",
+	}
 	q2m1 := model.Metric{
 		"destination_canonical_revision": "v1",
 		"destination_canonical_service":  "ratings",
@@ -3285,7 +3555,8 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "reviews",
 		"source_cluster":                 "kukulcan",
 		"source_workload":                "reviews-v2",
-		"source_workload_namespace":      "bookinfo"}
+		"source_workload_namespace":      "bookinfo",
+	}
 	q2m2 := model.Metric{
 		"destination_canonical_revision": "v1",
 		"destination_canonical_service":  "details",
@@ -3302,7 +3573,8 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "productpage",
 		"source_cluster":                 "kukulcan",
 		"source_workload":                "productpage-v1",
-		"source_workload_namespace":      "bookinfo"}
+		"source_workload_namespace":      "bookinfo",
+	}
 	q2m3 := model.Metric{
 		"destination_canonical_revision": "v1",
 		"destination_canonical_service":  "reviews",
@@ -3319,7 +3591,8 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "productpage",
 		"source_cluster":                 "kukulcan",
 		"source_workload":                "productpage-v1",
-		"source_workload_namespace":      "bookinfo"}
+		"source_workload_namespace":      "bookinfo",
+	}
 	q2m4 := model.Metric{
 		"destination_canonical_revision": "v2",
 		"destination_canonical_service":  "reviews",
@@ -3336,7 +3609,8 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "productpage",
 		"source_cluster":                 "kukulcan",
 		"source_workload":                "productpage-v1",
-		"source_workload_namespace":      "bookinfo"}
+		"source_workload_namespace":      "bookinfo",
+	}
 	q2m5 := model.Metric{
 		"destination_canonical_revision": "v2",
 		"destination_canonical_service":  "reviews",
@@ -3353,7 +3627,8 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "productpage",
 		"source_cluster":                 "kukulcan",
 		"source_workload":                "productpage-v1",
-		"source_workload_namespace":      "bookinfo"}
+		"source_workload_namespace":      "bookinfo",
+	}
 	// This is an additional test for #4488, done here because, unlike the other tests, this test is injecting service nodes
 	q2m6 := model.Metric{
 		"destination_canonical_revision": "v1",
@@ -3371,29 +3646,37 @@ func TestMultiClusterSourceGraph(t *testing.T) {
 		"source_canonical_service":       "kiali#4488-source",
 		"source_cluster":                 "tzotz",
 		"source_workload":                "kiali#4488-source-v1",
-		"source_workload_namespace":      "bookinfo"}
+		"source_workload_namespace":      "bookinfo",
+	}
 	v2 := model.Vector{
 		&model.Sample{
 			Metric: q2m0,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q2m1,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q2m2,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q2m3,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q2m4,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q2m5,
-			Value:  100},
+			Value:  100,
+		},
 		&model.Sample{
 			Metric: q2m6,
-			Value:  100},
+			Value:  100,
+		},
 	}
 
 	q3 := `round(sum(rate(istio_tcp_sent_bytes_total{reporter="source",source_workload_namespace!="bookinfo",destination_workload_namespace="unknown",destination_workload="unknown",destination_service=~"^.+\\.bookinfo\\..+$"} [600s])) by (source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags) ,0.001)`

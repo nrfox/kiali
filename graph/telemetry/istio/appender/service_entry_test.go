@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	osproject_v1 "github.com/openshift/api/project/v1"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	api_networking_v1beta1 "istio.io/api/networking/v1beta1"
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kiali/kiali/business"
@@ -23,10 +23,7 @@ func setupBusinessLayer(istioObjects ...runtime.Object) *business.Layer {
 	conf := config.NewConfig()
 	config.Set(conf)
 
-	k8s := kubetest.NewK8SClientMock()
-	k8s.MockIstio(istioObjects...)
-
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
+	k8s := kubetest.NewFakeK8sClient(istioObjects...)
 
 	businessLayer := business.NewWithBackends(k8s, nil, nil)
 	return businessLayer
@@ -52,7 +49,9 @@ func setupServiceEntries(exportTo []string) *business.Layer {
 	}
 	internalSE.Spec.Location = api_networking_v1beta1.ServiceEntry_MESH_INTERNAL
 
-	return setupBusinessLayer(externalSE, internalSE)
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "testNamespace"}}
+
+	return setupBusinessLayer(externalSE, internalSE, ns)
 }
 
 func serviceEntriesTrafficMap() map[string]*graph.Node {
@@ -673,7 +672,6 @@ func TestDisjointMulticlusterEntries(t *testing.T) {
 	assert := assert.New(t)
 
 	// Mock the k8s client with a "global" ServiceEntry
-	k8s := kubetest.NewK8SClientMock()
 
 	remoteSE := &networking_v1beta1.ServiceEntry{}
 	remoteSE.Name = "externalSE"
@@ -682,11 +680,9 @@ func TestDisjointMulticlusterEntries(t *testing.T) {
 		"svc1.namespace.global",
 	}
 	remoteSE.Spec.Location = api_networking_v1beta1.ServiceEntry_MESH_INTERNAL
+	k8s := kubetest.NewFakeK8sClient(remoteSE, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "namespace"}})
 
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
 	config.Set(config.NewConfig())
-
-	k8s.MockIstio(remoteSE)
 
 	businessLayer := business.NewWithBackends(k8s, nil, nil)
 
@@ -742,8 +738,6 @@ func TestDisjointMulticlusterEntries(t *testing.T) {
 }
 
 func TestServiceEntrySameHostMatchNamespace(t *testing.T) {
-	k8s := kubetest.NewK8SClientMock()
-
 	SE1 := &networking_v1beta1.ServiceEntry{}
 	SE1.Name = "SE1"
 	SE1.Namespace = "fooNamespace"
@@ -763,9 +757,12 @@ func TestServiceEntrySameHostMatchNamespace(t *testing.T) {
 	}
 	SE2.Spec.Location = api_networking_v1beta1.ServiceEntry_MESH_EXTERNAL
 
-	k8s.MockIstio(SE1, SE2)
-
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
+	k8s := kubetest.NewFakeK8sClient(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "fooNamespace"}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "testNamespace"}},
+		SE1,
+		SE2,
+	)
 	config.Set(config.NewConfig())
 
 	businessLayer := business.NewWithBackends(k8s, nil, nil)
@@ -866,8 +863,6 @@ func TestServiceEntrySameHostMatchNamespace(t *testing.T) {
 }
 
 func TestServiceEntrySameHostNoMatchNamespace(t *testing.T) {
-	k8s := kubetest.NewK8SClientMock()
-
 	SE1 := &networking_v1beta1.ServiceEntry{}
 	SE1.Name = "SE1"
 	SE1.Namespace = "otherNamespace"
@@ -887,9 +882,13 @@ func TestServiceEntrySameHostNoMatchNamespace(t *testing.T) {
 	}
 	SE2.Spec.Location = api_networking_v1beta1.ServiceEntry_MESH_EXTERNAL
 
-	k8s.MockIstio(SE1, SE2)
+	k8s := kubetest.NewFakeK8sClient(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "otherNamespace"}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "testNamespace"}},
+		SE1,
+		SE2,
+	)
 
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
 	config.Set(config.NewConfig())
 
 	businessLayer := business.NewWithBackends(k8s, nil, nil)
@@ -1016,7 +1015,7 @@ func TestServiceEntryMultipleEdges(t *testing.T) {
 	}
 	internalSE.Spec.Location = api_networking_v1beta1.ServiceEntry_MESH_INTERNAL
 
-	businessLayer := setupBusinessLayer(internalSE)
+	businessLayer := setupBusinessLayer(internalSE, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 
 	// VersionedApp graph
 	trafficMap := make(map[string]*graph.Node)

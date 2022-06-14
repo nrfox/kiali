@@ -15,7 +15,7 @@ type (
 	}
 )
 
-func (c *kialiCacheImpl) CheckRegistryStatus() bool {
+func (c *KialiCache) CheckRegistryStatus() bool {
 	defer c.registryStatusLock.RUnlock()
 	c.registryStatusLock.RLock()
 	if c.registryStatusCreated == nil {
@@ -27,13 +27,13 @@ func (c *kialiCacheImpl) CheckRegistryStatus() bool {
 	return true
 }
 
-func (c *kialiCacheImpl) GetRegistryStatus() *kubernetes.RegistryStatus {
+func (c *KialiCache) GetRegistryStatus() *kubernetes.RegistryStatus {
 	defer c.registryStatusLock.RUnlock()
 	c.registryStatusLock.RLock()
 	return c.registryStatus
 }
 
-func (c *kialiCacheImpl) SetRegistryStatus(registryStatus *kubernetes.RegistryStatus) {
+func (c *KialiCache) SetRegistryStatus(registryStatus *kubernetes.RegistryStatus) {
 	defer c.registryStatusLock.Unlock()
 	c.registryStatusLock.Lock()
 	timeNow := time.Now()
@@ -41,7 +41,7 @@ func (c *kialiCacheImpl) SetRegistryStatus(registryStatus *kubernetes.RegistrySt
 	c.registryStatus = registryStatus
 }
 
-func (c *kialiCacheImpl) RefreshRegistryStatus() {
+func (c *KialiCache) RefreshRegistryStatus() {
 	defer c.registryStatusLock.Unlock()
 	c.registryStatusLock.Lock()
 	c.registryStatusCreated = nil

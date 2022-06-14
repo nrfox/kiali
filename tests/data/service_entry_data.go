@@ -37,6 +37,8 @@ func CreateEmptyMeshExternalServiceEntry(name, namespace string, hosts []string)
 	se := networking_v1beta1.ServiceEntry{}
 	se.Name = name
 	se.Namespace = namespace
+	se.Kind = "ServiceEntry"
+	se.APIVersion = "networking.istio.io/v1beta1"
 	se.Spec.Hosts = hosts
 	se.Spec.Location = api_networking_v1beta1.ServiceEntry_MESH_EXTERNAL
 	se.Spec.Resolution = api_networking_v1beta1.ServiceEntry_DNS
@@ -47,6 +49,8 @@ func CreateEmptyMeshInternalServiceEntry(name, namespace string, hosts []string)
 	se := networking_v1beta1.ServiceEntry{}
 	se.Name = name
 	se.Namespace = namespace
+	se.Kind = "ServiceEntry"
+	se.APIVersion = "networking.istio.io/v1beta1"
 	se.Spec.Hosts = hosts
 	se.Spec.Location = api_networking_v1beta1.ServiceEntry_MESH_INTERNAL
 	se.Spec.Resolution = api_networking_v1beta1.ServiceEntry_NONE

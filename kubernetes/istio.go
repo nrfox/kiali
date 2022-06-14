@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -15,14 +16,17 @@ import (
 
 	"gopkg.in/yaml.v2"
 	api_networking_v1beta1 "istio.io/api/networking/v1beta1"
-	extentions_v1alpha1 "istio.io/client-go/pkg/apis/extensions/v1alpha1"
+	extensions_v1alpha1 "istio.io/client-go/pkg/apis/extensions/v1alpha1"
 	networking_v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	security_v1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
-	"istio.io/client-go/pkg/apis/telemetry/v1alpha1"
+	telemetry_v1alpha1 "istio.io/client-go/pkg/apis/telemetry/v1alpha1"
 	istio "istio.io/client-go/pkg/clientset/versioned"
 	core_v1 "k8s.io/api/core/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	kubetypes "k8s.io/apimachinery/pkg/types"
 	k8s_networking_v1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayapiclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
 
@@ -80,10 +84,43 @@ var (
 )
 
 type IstioClientInterface interface {
-	Istio() istio.Interface
-	// GatewayAPI returns the gateway-api kube client.
-	GatewayAPI() gatewayapiclient.Interface
+	GetDestinationRule(namespace, name string) (*networking_v1beta1.DestinationRule, error)
+	GetDestinationRules(namespace, labelSelector string) ([]*networking_v1beta1.DestinationRule, error)
+	GetEnvoyFilter(namespace, name string) (*networking_v1alpha3.EnvoyFilter, error)
+	GetEnvoyFilters(namespace, labelSelector string) ([]*networking_v1alpha3.EnvoyFilter, error)
+	GetGateway(namespace, name string) (*networking_v1beta1.Gateway, error)
+	GetGateways(namespace, labelSelector string) ([]*networking_v1beta1.Gateway, error)
+	GetServiceEntry(namespace, name string) (*networking_v1beta1.ServiceEntry, error)
+	GetServiceEntries(namespace, labelSelector string) ([]*networking_v1beta1.ServiceEntry, error)
+	GetSidecar(namespace, name string) (*networking_v1beta1.Sidecar, error)
+	GetSidecars(namespace, labelSelector string) ([]*networking_v1beta1.Sidecar, error)
+	GetTelemetry(namespace, name string) (*telemetry_v1alpha1.Telemetry, error)
+	GetTelemetries(namespace, labelSelector string) ([]*telemetry_v1alpha1.Telemetry, error)
+	GetVirtualService(namespace, name string) (*networking_v1beta1.VirtualService, error)
+	GetVirtualServices(namespace, labelSelector string) ([]*networking_v1beta1.VirtualService, error)
+	GetWorkloadEntry(namespace, name string) (*networking_v1beta1.WorkloadEntry, error)
+	GetWorkloadEntries(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadEntry, error)
+	GetWorkloadGroup(namespace, name string) (*networking_v1beta1.WorkloadGroup, error)
+	GetWorkloadGroups(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadGroup, error)
+	GetWasmPlugin(namespace, name string) (*extensions_v1alpha1.WasmPlugin, error)
+	GetWasmPlugins(namespace, labelSelector string) ([]*extensions_v1alpha1.WasmPlugin, error)
 
+	GetK8sGateway(namespace, name string) (*k8s_networking_v1alpha2.Gateway, error)
+	GetK8sGateways(namespace, labelSelector string) ([]*k8s_networking_v1alpha2.Gateway, error)
+	GetK8sHTTPRoute(namespace, name string) (*k8s_networking_v1alpha2.HTTPRoute, error)
+	GetK8sHTTPRoutes(namespace, labelSelector string) ([]*k8s_networking_v1alpha2.HTTPRoute, error)
+
+	GetAuthorizationPolicy(namespace, name string) (*security_v1beta1.AuthorizationPolicy, error)
+	GetAuthorizationPolicies(namespace, labelSelector string) ([]*security_v1beta1.AuthorizationPolicy, error)
+	GetPeerAuthentication(namespace, name string) (*security_v1beta1.PeerAuthentication, error)
+	GetPeerAuthentications(namespace, labelSelector string) ([]*security_v1beta1.PeerAuthentication, error)
+	GetRequestAuthentication(namespace, name string) (*security_v1beta1.RequestAuthentication, error)
+	GetRequestAuthentications(namespace, labelSelector string) ([]*security_v1beta1.RequestAuthentication, error)
+
+	// TODO: diambiguate kind.
+	DeleteObject(namespace, name, kind string) error
+	PatchObject(namespace string, name string, jsonPatch []byte, object runtime.Object) error
+	CreateObject(namespace string, kind string, object runtime.Object) error
 	CanConnectToIstiod() (IstioComponentStatus, error)
 	GetProxyStatus() ([]*ProxyStatus, error)
 	GetConfigDump(namespace, podName string) (*ConfigDump, error)
@@ -452,8 +489,8 @@ func ParseRegistryConfig(config map[string][]byte) (*RegistryConfiguration, erro
 		Sidecars:         []*networking_v1beta1.Sidecar{},
 		WorkloadEntries:  []*networking_v1beta1.WorkloadEntry{},
 		WorkloadGroups:   []*networking_v1beta1.WorkloadGroup{},
-		WasmPlugins:      []*extentions_v1alpha1.WasmPlugin{},
-		Telemetries:      []*v1alpha1.Telemetry{},
+		WasmPlugins:      []*extensions_v1alpha1.WasmPlugin{},
+		Telemetries:      []*telemetry_v1alpha1.Telemetry{},
 
 		// K8s Networking Gateways
 		K8sGateways:   []*k8s_networking_v1alpha2.Gateway{},
@@ -565,14 +602,14 @@ func ParseRegistryConfig(config map[string][]byte) (*RegistryConfiguration, erro
 							}
 							registry.WorkloadGroups = append(registry.WorkloadGroups, wg)
 						case "WasmPlugin":
-							var wp *extentions_v1alpha1.WasmPlugin
+							var wp *extensions_v1alpha1.WasmPlugin
 							err := bDec.Decode(&wp)
 							if err != nil {
 								log.Errorf("Error parsing RegistryConfig results for WasmPlugin: %s", err)
 							}
 							registry.WasmPlugins = append(registry.WasmPlugins, wp)
 						case "Telemetry":
-							var tm *v1alpha1.Telemetry
+							var tm *telemetry_v1alpha1.Telemetry
 							err := bDec.Decode(&tm)
 							if err != nil {
 								log.Errorf("Error parsing RegistryConfig results for Telemetry: %s", err)
@@ -659,6 +696,107 @@ func (in *K8SClient) SetProxyLogLevel(namespace, pod, level string) error {
 	}
 
 	return err
+}
+
+func (in *K8SClient) DeleteObject(namespace, name, kind string) error {
+	var err error
+	delOpts := meta_v1.DeleteOptions{}
+	ctx := context.TODO()
+	switch kind {
+	case DestinationRules:
+		err = in.Istio().NetworkingV1beta1().DestinationRules(namespace).Delete(ctx, name, delOpts)
+	case EnvoyFilters:
+		err = in.Istio().NetworkingV1alpha3().EnvoyFilters(namespace).Delete(ctx, name, delOpts)
+	case Gateways:
+		err = in.Istio().NetworkingV1beta1().Gateways(namespace).Delete(ctx, name, delOpts)
+	case K8sGateways:
+		err = in.GatewayAPI().GatewayV1alpha2().Gateways(namespace).Delete(ctx, name, delOpts)
+	case K8sHTTPRoutes:
+		err = in.GatewayAPI().GatewayV1alpha2().HTTPRoutes(namespace).Delete(ctx, name, delOpts)
+	case ServiceEntries:
+		err = in.Istio().NetworkingV1beta1().ServiceEntries(namespace).Delete(ctx, name, delOpts)
+	case Sidecars:
+		err = in.Istio().NetworkingV1beta1().Sidecars(namespace).Delete(ctx, name, delOpts)
+	case VirtualServices:
+		err = in.Istio().NetworkingV1beta1().VirtualServices(namespace).Delete(ctx, name, delOpts)
+	case WorkloadEntries:
+		err = in.Istio().NetworkingV1beta1().WorkloadEntries(namespace).Delete(ctx, name, delOpts)
+	case WorkloadGroups:
+		err = in.Istio().NetworkingV1beta1().WorkloadGroups(namespace).Delete(ctx, name, delOpts)
+	case AuthorizationPolicies:
+		err = in.Istio().SecurityV1beta1().AuthorizationPolicies(namespace).Delete(ctx, name, delOpts)
+	case PeerAuthentications:
+		err = in.Istio().SecurityV1beta1().PeerAuthentications(namespace).Delete(ctx, name, delOpts)
+	case RequestAuthentications:
+		err = in.Istio().SecurityV1beta1().RequestAuthentications(namespace).Delete(ctx, name, delOpts)
+	case WasmPlugins:
+		err = in.Istio().ExtensionsV1alpha1().WasmPlugins(namespace).Delete(ctx, name, delOpts)
+	case Telemetries:
+		err = in.Istio().TelemetryV1alpha1().Telemetries(namespace).Delete(ctx, name, delOpts)
+	default:
+		err = fmt.Errorf("object kind not found: %v", kind)
+	}
+
+	return err
+}
+
+func (in *K8SClient) PatchObject(namespace string, name string, jsonPatch []byte, object runtime.Object) error {
+	patchOpts := meta_v1.PatchOptions{}
+	var err error
+	var patchedObj runtime.Object
+	patchType := kubetypes.MergePatchType
+	bytePatch := []byte(jsonPatch)
+	ctx := context.TODO()
+	switch kind := object.(type) {
+	case *networking_v1beta1.DestinationRule:
+		patchedObj, err = in.Istio().NetworkingV1beta1().DestinationRules(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *networking_v1alpha3.EnvoyFilter:
+		patchedObj, err = in.Istio().NetworkingV1alpha3().EnvoyFilters(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *networking_v1beta1.Gateway:
+		patchedObj, err = in.Istio().NetworkingV1beta1().Gateways(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *k8s_networking_v1alpha2.Gateway:
+		patchedObj, err = in.GatewayAPI().GatewayV1alpha2().Gateways(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *k8s_networking_v1alpha2.HTTPRoute:
+		patchedObj, err = in.GatewayAPI().GatewayV1alpha2().HTTPRoutes(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *networking_v1beta1.ServiceEntry:
+		patchedObj, err = in.Istio().NetworkingV1beta1().ServiceEntries(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *networking_v1beta1.Sidecar:
+		patchedObj, err = in.Istio().NetworkingV1beta1().Sidecars(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *networking_v1beta1.VirtualService:
+		patchedObj, err = in.Istio().NetworkingV1beta1().VirtualServices(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *networking_v1beta1.WorkloadEntry:
+		patchedObj, err = in.Istio().NetworkingV1beta1().WorkloadEntries(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *networking_v1beta1.WorkloadGroup:
+		patchedObj, err = in.Istio().NetworkingV1beta1().WorkloadGroups(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *security_v1beta1.AuthorizationPolicy:
+		patchedObj, err = in.Istio().SecurityV1beta1().AuthorizationPolicies(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *security_v1beta1.PeerAuthentication:
+		patchedObj, err = in.Istio().SecurityV1beta1().PeerAuthentications(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *security_v1beta1.RequestAuthentication:
+		patchedObj, err = in.Istio().SecurityV1beta1().RequestAuthentications(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *extensions_v1alpha1.WasmPlugin:
+		patchedObj, err = in.Istio().ExtensionsV1alpha1().WasmPlugins(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	case *telemetry_v1alpha1.Telemetry:
+		patchedObj, err = in.Istio().TelemetryV1alpha1().Telemetries(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+	default:
+		err = fmt.Errorf("object type not found: %T", kind)
+	}
+	if err != nil {
+		return err
+	}
+	// Need to store the updated object in whatever object is pointing to. There's no way to access what the underlying
+	// value pointer that is underneath the interface except through reflection.
+	// At this point we know that the object is a pointer to a struct, so we can use Elem() to get the underlying struct.
+	// Patched object should be the same type as the object passed in.
+	reflect.ValueOf(object).Elem().Set(reflect.ValueOf(patchedObj).Elem())
+	// TODO: Probably need some better protections around this.
+
+	return nil
+}
+
+func (in *K8SClient) CreateObject(namespace string, kind string, object runtime.Object) error {
+	// TODO: Update once tests are passing.
+	return nil
 }
 
 func GetIstioConfigMap(istioConfig *core_v1.ConfigMap) (*IstioMeshConfig, error) {
@@ -838,4 +976,210 @@ func DestinationRuleHasMTLSEnabled(destinationRule *networking_v1beta1.Destinati
 		return mode == "ISTIO_MUTUAL", mode
 	}
 	return false, ""
+}
+
+func (c *K8SClient) GetDestinationRule(namespace, name string) (*networking_v1beta1.DestinationRule, error) {
+	return c.Istio().NetworkingV1beta1().DestinationRules(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetDestinationRules(namespace, labelSelector string) ([]*networking_v1beta1.DestinationRule, error) {
+	drs, err := c.Istio().NetworkingV1beta1().DestinationRules(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return drs.Items, nil
+}
+
+func (c *K8SClient) GetEnvoyFilter(namespace, name string) (*networking_v1alpha3.EnvoyFilter, error) {
+	return c.Istio().NetworkingV1alpha3().EnvoyFilters(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetEnvoyFilters(namespace, labelSelector string) ([]*networking_v1alpha3.EnvoyFilter, error) {
+	efs, err := c.Istio().NetworkingV1alpha3().EnvoyFilters(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return efs.Items, nil
+}
+
+func (c *K8SClient) GetGateway(namespace, name string) (*networking_v1beta1.Gateway, error) {
+	return c.Istio().NetworkingV1beta1().Gateways(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetGateways(namespace, labelSelector string) ([]*networking_v1beta1.Gateway, error) {
+	// cronJobs, err := c.getCacheLister(namespace).cronJobLister.CronJobs(namespace).List(labels.Everything())
+	gws, err := c.Istio().NetworkingV1beta1().Gateways(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return gws.Items, nil
+}
+
+func (c *K8SClient) GetServiceEntry(namespace, name string) (*networking_v1beta1.ServiceEntry, error) {
+	return c.Istio().NetworkingV1beta1().ServiceEntries(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetServiceEntries(namespace, labelSelector string) ([]*networking_v1beta1.ServiceEntry, error) {
+	ses, err := c.Istio().NetworkingV1beta1().ServiceEntries(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return ses.Items, nil
+}
+
+func (c *K8SClient) GetSidecar(namespace, name string) (*networking_v1beta1.Sidecar, error) {
+	return c.Istio().NetworkingV1beta1().Sidecars(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetSidecars(namespace, labelSelector string) ([]*networking_v1beta1.Sidecar, error) {
+	scs, err := c.Istio().NetworkingV1beta1().Sidecars(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return scs.Items, nil
+}
+
+func (c *K8SClient) GetVirtualService(namespace, name string) (*networking_v1beta1.VirtualService, error) {
+	return c.Istio().NetworkingV1beta1().VirtualServices(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetVirtualServices(namespace, labelSelector string) ([]*networking_v1beta1.VirtualService, error) {
+	vss, err := c.Istio().NetworkingV1beta1().VirtualServices(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return vss.Items, nil
+}
+
+func (c *K8SClient) GetWorkloadEntry(namespace, name string) (*networking_v1beta1.WorkloadEntry, error) {
+	return c.Istio().NetworkingV1beta1().WorkloadEntries(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetWorkloadEntries(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadEntry, error) {
+	wes, err := c.Istio().NetworkingV1beta1().WorkloadEntries(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return wes.Items, nil
+}
+
+func (c *K8SClient) GetWorkloadGroup(namespace, name string) (*networking_v1beta1.WorkloadGroup, error) {
+	return c.Istio().NetworkingV1beta1().WorkloadGroups(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetWorkloadGroups(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadGroup, error) {
+	wgs, err := c.Istio().NetworkingV1beta1().WorkloadGroups(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return wgs.Items, nil
+}
+
+func (c *K8SClient) GetWasmPlugin(namespace, name string) (*extensions_v1alpha1.WasmPlugin, error) {
+	return c.Istio().ExtensionsV1alpha1().WasmPlugins(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetWasmPlugins(namespace, labelSelector string) ([]*extensions_v1alpha1.WasmPlugin, error) {
+	wps, err := c.Istio().ExtensionsV1alpha1().WasmPlugins(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return wps.Items, nil
+}
+
+func (c *K8SClient) GetTelemetry(namespace, name string) (*telemetry_v1alpha1.Telemetry, error) {
+	return c.Istio().TelemetryV1alpha1().Telemetries(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetTelemetries(namespace, labelSelector string) ([]*telemetry_v1alpha1.Telemetry, error) {
+	ts, err := c.Istio().TelemetryV1alpha1().Telemetries(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return ts.Items, nil
+}
+
+func (c *K8SClient) GetK8sGateway(namespace, name string) (*k8s_networking_v1alpha2.Gateway, error) {
+	return c.GatewayAPI().GatewayV1alpha2().Gateways(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetK8sGateways(namespace, labelSelector string) ([]*k8s_networking_v1alpha2.Gateway, error) {
+	gws, err := c.GatewayAPI().GatewayV1alpha2().Gateways(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	var gatewayPtrs []*k8s_networking_v1alpha2.Gateway
+	for i := range gws.Items {
+		gatewayPtrs = append(gatewayPtrs, &gws.Items[i])
+	}
+
+	return gatewayPtrs, nil
+}
+
+func (c *K8SClient) GetK8sHTTPRoute(namespace, name string) (*k8s_networking_v1alpha2.HTTPRoute, error) {
+	return c.GatewayAPI().GatewayV1alpha2().HTTPRoutes(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetK8sHTTPRoutes(namespace, labelSelector string) ([]*k8s_networking_v1alpha2.HTTPRoute, error) {
+	hrs, err := c.GatewayAPI().GatewayV1alpha2().HTTPRoutes(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	var httpRoutePtrs []*k8s_networking_v1alpha2.HTTPRoute
+	for i := range hrs.Items {
+		httpRoutePtrs = append(httpRoutePtrs, &hrs.Items[i])
+	}
+
+	return httpRoutePtrs, nil
+}
+
+func (c *K8SClient) GetAuthorizationPolicy(namespace, name string) (*security_v1beta1.AuthorizationPolicy, error) {
+	return c.Istio().SecurityV1beta1().AuthorizationPolicies(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetAuthorizationPolicies(namespace, labelSelector string) ([]*security_v1beta1.AuthorizationPolicy, error) {
+	aps, err := c.Istio().SecurityV1beta1().AuthorizationPolicies(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return aps.Items, nil
+}
+
+func (c *K8SClient) GetPeerAuthentication(namespace, name string) (*security_v1beta1.PeerAuthentication, error) {
+	return c.Istio().SecurityV1beta1().PeerAuthentications(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetPeerAuthentications(namespace, labelSelector string) ([]*security_v1beta1.PeerAuthentication, error) {
+	pas, err := c.Istio().SecurityV1beta1().PeerAuthentications(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return pas.Items, nil
+}
+
+func (c *K8SClient) GetRequestAuthentication(namespace, name string) (*security_v1beta1.RequestAuthentication, error) {
+	return c.Istio().SecurityV1beta1().RequestAuthentications(namespace).Get(context.Background(), name, meta_v1.GetOptions{})
+}
+
+func (c *K8SClient) GetRequestAuthentications(namespace, labelSelector string) ([]*security_v1beta1.RequestAuthentication, error) {
+	ras, err := c.Istio().SecurityV1beta1().RequestAuthentications(namespace).List(context.Background(), meta_v1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+
+	return ras.Items, nil
 }

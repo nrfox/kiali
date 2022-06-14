@@ -7,7 +7,6 @@ import (
 
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	security_v1beta "istio.io/client-go/pkg/apis/security/v1beta1"
-	core_v1 "k8s.io/api/core/v1"
 
 	"github.com/kiali/kiali/business/checkers"
 	"github.com/kiali/kiali/business/references"
@@ -206,14 +205,18 @@ func (in *IstioValidationsService) GetIstioObjectValidations(ctx context.Context
 		objectCheckers = []ObjectChecker{serviceEntryChecker}
 		referenceChecker = references.ServiceEntryReferences{AuthorizationPolicies: rbacDetails.AuthorizationPolicies, Namespace: namespace, Namespaces: namespaces, DestinationRules: istioConfigList.DestinationRules, ServiceEntries: istioConfigList.ServiceEntries, Sidecars: istioConfigList.Sidecars, RegistryServices: registryServices}
 	case kubernetes.Sidecars:
-		sidecarsChecker := checkers.SidecarChecker{Sidecars: istioConfigList.Sidecars, Namespaces: namespaces,
-			WorkloadsPerNamespace: workloadsPerNamespace, ServiceEntries: istioConfigList.ServiceEntries, RegistryServices: registryServices}
+		sidecarsChecker := checkers.SidecarChecker{
+			Sidecars: istioConfigList.Sidecars, Namespaces: namespaces,
+			WorkloadsPerNamespace: workloadsPerNamespace, ServiceEntries: istioConfigList.ServiceEntries, RegistryServices: registryServices,
+		}
 		objectCheckers = []ObjectChecker{sidecarsChecker}
 		referenceChecker = references.SidecarReferences{Sidecars: istioConfigList.Sidecars, Namespace: namespace, Namespaces: namespaces, ServiceEntries: istioConfigList.ServiceEntries, RegistryServices: registryServices, WorkloadsPerNamespace: workloadsPerNamespace}
 	case kubernetes.AuthorizationPolicies:
-		authPoliciesChecker := checkers.AuthorizationPolicyChecker{AuthorizationPolicies: rbacDetails.AuthorizationPolicies,
-			Namespaces: namespaces, ServiceEntries: istioConfigList.ServiceEntries,
-			WorkloadsPerNamespace: workloadsPerNamespace, MtlsDetails: mtlsDetails, VirtualServices: istioConfigList.VirtualServices, RegistryServices: registryServices, PolicyAllowAny: in.isPolicyAllowAny()}
+		authPoliciesChecker := checkers.AuthorizationPolicyChecker{
+			AuthorizationPolicies: rbacDetails.AuthorizationPolicies,
+			Namespaces:            namespaces, ServiceEntries: istioConfigList.ServiceEntries,
+			WorkloadsPerNamespace: workloadsPerNamespace, MtlsDetails: mtlsDetails, VirtualServices: istioConfigList.VirtualServices, RegistryServices: registryServices, PolicyAllowAny: in.isPolicyAllowAny(),
+		}
 		objectCheckers = []ObjectChecker{authPoliciesChecker}
 		referenceChecker = references.AuthorizationPolicyReferences{AuthorizationPolicies: rbacDetails.AuthorizationPolicies, Namespace: namespace, Namespaces: namespaces, VirtualServices: istioConfigList.VirtualServices, ServiceEntries: istioConfigList.ServiceEntries, RegistryServices: registryServices, WorkloadsPerNamespace: workloadsPerNamespace}
 	case kubernetes.PeerAuthentications:
@@ -502,13 +505,7 @@ func (in *IstioValidationsService) fetchNonLocalmTLSConfigs(mtlsDetails *kuberne
 
 	cfg := config.Get()
 
-	var istioConfig *core_v1.ConfigMap
-	var err error
-	if IsNamespaceCached(cfg.IstioNamespace) {
-		istioConfig, err = kialiCache.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
-	} else {
-		istioConfig, err = in.k8s.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
-	}
+	istioConfig, err := in.k8s.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
 	if err != nil {
 		errChan <- err
 		return

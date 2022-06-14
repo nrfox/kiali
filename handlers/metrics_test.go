@@ -22,6 +22,7 @@ import (
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/models"
 	"github.com/kiali/kiali/prometheus"
@@ -335,7 +336,8 @@ func setupAggregateMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheust
 	ts := httptest.NewServer(mr)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, prom)
+	cache := cache.NewFakeKialiCache(nil, nil)
+	business.SetWithBackends(mockClientFactory, prom, cache)
 
 	return ts, xapi, k8s
 }

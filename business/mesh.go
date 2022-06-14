@@ -12,7 +12,6 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
 
 	"github.com/kiali/kiali/config"
@@ -211,14 +210,10 @@ func (in *MeshService) ResolveKialiControlPlaneCluster(r *http.Request) (*Cluste
 	// The "cluster_id" is set in an environment variable of
 	// the "istiod" deployment. Let's try to fetch it.
 	var istioDeployment *v1.Deployment
-	var istioDeploymentConfig = conf.ExternalServices.Istio.IstiodDeploymentName
+	istioDeploymentConfig := conf.ExternalServices.Istio.IstiodDeploymentName
 	var err error
 
-	if IsNamespaceCached(conf.IstioNamespace) {
-		istioDeployment, err = kialiCache.GetDeployment(conf.IstioNamespace, istioDeploymentConfig)
-	} else {
-		istioDeployment, err = in.k8s.GetDeployment(conf.IstioNamespace, istioDeploymentConfig)
-	}
+	istioDeployment, err = in.k8s.GetDeployment(conf.IstioNamespace, istioDeploymentConfig)
 	if err != nil && !errors.IsNotFound(err) {
 		return nil, err
 	}
@@ -324,18 +319,7 @@ func findKialiInNamespace(ctx context.Context, namespace string, clusterName str
 	if kialiNs != nil {
 		// The operator and the helm charts set this fixed label. It's also
 		// present in the Istio addon manifest of Kiali.
-		var services []core_v1.Service
-		var getSvcErr error
-		if IsNamespaceCached(kialiNs.Name) {
-			var tmpSvc []core_v1.Service
-			tmpSvc, getSvcErr = kialiCache.GetServices(kialiNs.Name, nil)
-			if getSvcErr == nil {
-				selector := (labels.Set{"app.kubernetes.io/part-of": "kiali"}).AsSelector()
-				services = kubernetes.FilterServicesByLabels(selector, tmpSvc)
-			}
-		} else {
-			services, getSvcErr = layer.k8s.GetServicesByLabels(kialiNs.Name, "app.kubernetes.io/part-of=kiali")
-		}
+		services, getSvcErr := layer.k8s.GetServices(kialiNs.Name, map[string]string{"app.kubernetes.io/part-of": "kiali"})
 		if getSvcErr != nil && !errors.IsNotFound(getSvcErr) {
 			log.Warningf("Discovery for Kiali instances in cluster [%s] failed when finding the service in [%s] namespace: %s", clusterName, namespace, getSvcErr.Error())
 			return
@@ -399,13 +383,7 @@ func (in *MeshService) findRemoteKiali(clusterName string, kubeconfig *kubernete
 func (in *MeshService) resolveKialiNetwork() (string, error) {
 	conf := config.Get()
 
-	var istioSidecarConfig *core_v1.ConfigMap
-	var err error
-	if IsNamespaceCached(conf.IstioNamespace) {
-		istioSidecarConfig, err = kialiCache.GetConfigMap(conf.IstioNamespace, conf.ExternalServices.Istio.IstioSidecarInjectorConfigMapName)
-	} else {
-		istioSidecarConfig, err = in.k8s.GetConfigMap(conf.IstioNamespace, conf.ExternalServices.Istio.IstioSidecarInjectorConfigMapName)
-	}
+	istioSidecarConfig, err := in.k8s.GetConfigMap(conf.IstioNamespace, conf.ExternalServices.Istio.IstioSidecarInjectorConfigMapName)
 	if err != nil {
 		// Don't return an error, as this may mean that Kiali is not installed along the control plane.
 		// This setup is OK, it's just that it's not within our multi-cluster assumptions.
@@ -586,13 +564,9 @@ func (in *MeshService) resolveNetwork(clusterName string, kubeconfig *kubernetes
 func (in *MeshService) OutboundTrafficPolicy() (*models.OutboundPolicy, error) {
 	cfg := config.Get()
 	otp := models.OutboundPolicy{Mode: "ALLOW_ANY"}
-	var istioConfig *core_v1.ConfigMap
-	var err error
-	if IsNamespaceCached(cfg.IstioNamespace) {
-		istioConfig, err = kialiCache.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
-	} else {
-		istioConfig, err = in.k8s.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
-	}
+
+	// TODO: Should this use cache?
+	istioConfig, err := in.k8s.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			err = fmt.Errorf("%w in namespace \"%s\"", err, cfg.IstioNamespace)
@@ -621,16 +595,10 @@ func (in *MeshService) OutboundTrafficPolicy() (*models.OutboundPolicy, error) {
 
 func (in *MeshService) IstiodResourceThresholds() (*models.IstiodThresholds, error) {
 	conf := config.Get()
+	istioDeploymentConfig := conf.ExternalServices.Istio.IstiodDeploymentName
 
-	var istioDeployment *v1.Deployment
-	var istioDeploymentConfig = conf.ExternalServices.Istio.IstiodDeploymentName
-	var err error
-
-	if IsNamespaceCached(conf.IstioNamespace) {
-		istioDeployment, err = kialiCache.GetDeployment(conf.IstioNamespace, istioDeploymentConfig)
-	} else {
-		istioDeployment, err = in.k8s.GetDeployment(conf.IstioNamespace, istioDeploymentConfig)
-	}
+	// TODO: should this use cache?
+	istioDeployment, err := kialiCache.GetDeployment(conf.IstioNamespace, istioDeploymentConfig)
 	if err != nil && !errors.IsNotFound(err) {
 		return nil, err
 	}

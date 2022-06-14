@@ -14,6 +14,7 @@ import (
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/prometheus"
 	"github.com/kiali/kiali/prometheus/prometheustest"
@@ -22,7 +23,6 @@ import (
 // Setup mock
 func utilSetupMocks(t *testing.T) (promClientSupplier, *prometheustest.PromAPIMock, *kubetest.K8SClientMock) {
 	conf := config.NewConfig()
-	conf.KubernetesConfig.CacheEnabled = false
 	config.Set(conf)
 	k8s := new(kubetest.K8SClientMock)
 	k8s.On("IsOpenShift").Return(false)
@@ -40,7 +40,8 @@ func utilSetupMocks(t *testing.T) (promClientSupplier, *prometheustest.PromAPIMo
 	prom.Inject(promAPI)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, nil)
+	cache := cache.NewFakeKialiCache(nil, nil)
+	business.SetWithBackends(mockClientFactory, nil, cache)
 	return func() (*prometheus.Client, error) { return prom, nil }, promAPI, k8s
 }
 

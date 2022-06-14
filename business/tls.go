@@ -5,7 +5,6 @@ import (
 
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	security_v1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
-	core_v1 "k8s.io/api/core/v1"
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
@@ -165,13 +164,7 @@ func (in *TLSService) hasAutoMTLSEnabled() bool {
 	}
 
 	cfg := config.Get()
-	var istioConfig *core_v1.ConfigMap
-	var err error
-	if IsNamespaceCached(cfg.IstioNamespace) {
-		istioConfig, err = kialiCache.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
-	} else {
-		istioConfig, err = in.k8s.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
-	}
+	istioConfig, err := kialiCache.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
 	if err != nil {
 		return true
 	}

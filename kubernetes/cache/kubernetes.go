@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	apps_v1 "k8s.io/api/apps/v1"
+	batch_v1 "k8s.io/api/batch/v1"
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
@@ -12,27 +13,27 @@ import (
 	"github.com/kiali/kiali/log"
 )
 
-type (
-	KubernetesCache interface {
-		GetConfigMap(namespace, name string) (*core_v1.ConfigMap, error)
-		GetDaemonSets(namespace string) ([]apps_v1.DaemonSet, error)
-		GetDaemonSet(namespace, name string) (*apps_v1.DaemonSet, error)
-		GetDeployments(namespace string) ([]apps_v1.Deployment, error)
-		GetDeployment(namespace, name string) (*apps_v1.Deployment, error)
-		GetEndpoints(namespace, name string) (*core_v1.Endpoints, error)
-		GetStatefulSets(namespace string) ([]apps_v1.StatefulSet, error)
-		GetStatefulSet(namespace, name string) (*apps_v1.StatefulSet, error)
-		GetServices(namespace string, selectorLabels map[string]string) ([]core_v1.Service, error)
-		GetService(namespace string, name string) (*core_v1.Service, error)
-		GetPods(namespace, labelSelector string) ([]core_v1.Pod, error)
-		GetReplicaSets(namespace string) ([]apps_v1.ReplicaSet, error)
-	}
-)
+// type (
+// 	KubernetesCache interface {
+// 		GetConfigMap(namespace, name string) (*core_v1.ConfigMap, error)
+// 		GetDaemonSets(namespace string) ([]apps_v1.DaemonSet, error)
+// 		GetDaemonSet(namespace, name string) (*apps_v1.DaemonSet, error)
+// 		GetDeployments(namespace string) ([]apps_v1.Deployment, error)
+// 		GetDeployment(namespace, name string) (*apps_v1.Deployment, error)
+// 		GetEndpoints(namespace, name string) (*core_v1.Endpoints, error)
+// 		GetStatefulSets(namespace string) ([]apps_v1.StatefulSet, error)
+// 		GetStatefulSet(namespace, name string) (*apps_v1.StatefulSet, error)
+// 		GetServices(namespace string, selectorLabels map[string]string) ([]core_v1.Service, error)
+// 		GetService(namespace string, name string) (*core_v1.Service, error)
+// 		GetPods(namespace, labelSelector string) ([]core_v1.Pod, error)
+// 		GetReplicaSets(namespace string) ([]apps_v1.ReplicaSet, error)
+// 	}
+// )
 
 // createKubernetesInformers creates kube informers for all objects kiali watches and
 // saves them to the typeCache. If namespace is not empty, the informers are scoped
 // to the namespace. Otherwise, the informers are cluster-wide.
-func (c *kialiCacheImpl) createKubernetesInformers(namespace string) informers.SharedInformerFactory {
+func (c *KialiCache) createKubernetesInformers(namespace string) informers.SharedInformerFactory {
 	var opts []informers.SharedInformerOption
 	if namespace != "" {
 		opts = append(opts, informers.WithNamespace(namespace))
@@ -61,14 +62,14 @@ func (c *kialiCacheImpl) createKubernetesInformers(namespace string) informers.S
 	return sharedInformers
 }
 
-func (c *kialiCacheImpl) getCacheLister(namespace string) *cacheLister {
+func (c *KialiCache) getCacheLister(namespace string) *cacheLister {
 	if c.clusterScoped {
 		return c.clusterCacheLister
 	}
 	return c.nsCacheLister[namespace]
 }
 
-func (c *kialiCacheImpl) GetConfigMap(namespace, name string) (*core_v1.ConfigMap, error) {
+func (c *KialiCache) GetConfigMap(namespace, name string) (*core_v1.ConfigMap, error) {
 	log.Tracef("[Kiali Cache] Get [resource: ConfigMap] for [namespace: %s] [name: %s]", namespace, name)
 	cfg, err := c.getCacheLister(namespace).configMapLister.ConfigMaps(namespace).Get(name)
 	if err != nil {
@@ -79,7 +80,22 @@ func (c *kialiCacheImpl) GetConfigMap(namespace, name string) (*core_v1.ConfigMa
 	return cfg, nil
 }
 
-func (c *kialiCacheImpl) GetDaemonSets(namespace string) ([]apps_v1.DaemonSet, error) {
+func (c *KialiCache) GetCronJobs(namespace string) ([]batch_v1.CronJob, error) {
+	cronJobs, err := c.getCacheLister(namespace).cronJobLister.CronJobs(namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	log.Tracef("[Kiali Cache] Get [resource: CronJob] for [namespace: %s] = %d", namespace, len(cronJobs))
+
+	retJobs := []batch_v1.CronJob{}
+	for _, cj := range cronJobs {
+		cj.Kind = kubernetes.CronJobType
+		retJobs = append(retJobs, *cj)
+	}
+	return retJobs, nil
+}
+
+func (c *KialiCache) GetDaemonSets(namespace string) ([]apps_v1.DaemonSet, error) {
 	daemonSets, err := c.getCacheLister(namespace).daemonSetLister.DaemonSets(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -94,7 +110,7 @@ func (c *kialiCacheImpl) GetDaemonSets(namespace string) ([]apps_v1.DaemonSet, e
 	return retSets, nil
 }
 
-func (c *kialiCacheImpl) GetDaemonSet(namespace, name string) (*apps_v1.DaemonSet, error) {
+func (c *KialiCache) GetDaemonSet(namespace, name string) (*apps_v1.DaemonSet, error) {
 	log.Tracef("[Kiali Cache] Get [resource: DaemonSet] for [namespace: %s] [name: %s]", namespace, name)
 	ds, err := c.getCacheLister(namespace).daemonSetLister.DaemonSets(namespace).Get(name)
 	if err != nil {
@@ -105,7 +121,7 @@ func (c *kialiCacheImpl) GetDaemonSet(namespace, name string) (*apps_v1.DaemonSe
 	return c.getCacheLister(namespace).daemonSetLister.DaemonSets(namespace).Get(name)
 }
 
-func (c *kialiCacheImpl) GetDeployments(namespace string) ([]apps_v1.Deployment, error) {
+func (c *KialiCache) GetDeployments(namespace string) ([]apps_v1.Deployment, error) {
 	deployments, err := c.getCacheLister(namespace).deploymentLister.Deployments(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -120,7 +136,7 @@ func (c *kialiCacheImpl) GetDeployments(namespace string) ([]apps_v1.Deployment,
 	return retDeployments, nil
 }
 
-func (c *kialiCacheImpl) GetDeployment(namespace, name string) (*apps_v1.Deployment, error) {
+func (c *KialiCache) GetDeployment(namespace, name string) (*apps_v1.Deployment, error) {
 	log.Tracef("[Kiali Cache] Get [resource: Deployment] for [namespace: %s] [name: %s]", namespace, name)
 	deployment, err := c.getCacheLister(namespace).deploymentLister.Deployments(namespace).Get(name)
 	if err != nil {
@@ -131,7 +147,7 @@ func (c *kialiCacheImpl) GetDeployment(namespace, name string) (*apps_v1.Deploym
 	return deployment, nil
 }
 
-func (c *kialiCacheImpl) GetEndpoints(namespace, name string) (*core_v1.Endpoints, error) {
+func (c *KialiCache) GetEndpoints(namespace, name string) (*core_v1.Endpoints, error) {
 	log.Tracef("[Kiali Cache] Get [resource: Endpoints] for [namespace: %s] [name: %s]", namespace, name)
 	endpoints, err := c.getCacheLister(namespace).endpointLister.Endpoints(namespace).Get(name)
 	if err != nil {
@@ -142,7 +158,7 @@ func (c *kialiCacheImpl) GetEndpoints(namespace, name string) (*core_v1.Endpoint
 	return endpoints, nil
 }
 
-func (c *kialiCacheImpl) GetStatefulSets(namespace string) ([]apps_v1.StatefulSet, error) {
+func (c *KialiCache) GetStatefulSets(namespace string) ([]apps_v1.StatefulSet, error) {
 	statefulSets, err := c.getCacheLister(namespace).statefulSetLister.StatefulSets(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -157,7 +173,7 @@ func (c *kialiCacheImpl) GetStatefulSets(namespace string) ([]apps_v1.StatefulSe
 	return retSets, nil
 }
 
-func (c *kialiCacheImpl) GetStatefulSet(namespace, name string) (*apps_v1.StatefulSet, error) {
+func (c *KialiCache) GetStatefulSet(namespace, name string) (*apps_v1.StatefulSet, error) {
 	log.Tracef("[Kiali Cache] Get [resource: StatefulSet] for [namespace: %s] [name: %s]", namespace, name)
 	statefulSet, err := c.getCacheLister(namespace).statefulSetLister.StatefulSets(namespace).Get(name)
 	if err != nil {
@@ -168,7 +184,7 @@ func (c *kialiCacheImpl) GetStatefulSet(namespace, name string) (*apps_v1.Statef
 	return statefulSet, nil
 }
 
-func (c *kialiCacheImpl) GetServices(namespace string, selectorLabels map[string]string) ([]core_v1.Service, error) {
+func (c *KialiCache) GetServices(namespace string, selectorLabels map[string]string) ([]core_v1.Service, error) {
 	services, err := c.getCacheLister(namespace).serviceLister.Services(namespace).List(labels.Set(selectorLabels).AsSelector())
 	if err != nil {
 		return nil, err
@@ -183,7 +199,7 @@ func (c *kialiCacheImpl) GetServices(namespace string, selectorLabels map[string
 	return retServices, nil
 }
 
-func (c *kialiCacheImpl) GetService(namespace, name string) (*core_v1.Service, error) {
+func (c *KialiCache) GetService(namespace, name string) (*core_v1.Service, error) {
 	log.Tracef("[Kiali Cache] Get [resource: Service] for [namespace: %s] [name: %s]", namespace, name)
 	service, err := c.getCacheLister(namespace).serviceLister.Services(namespace).Get(name)
 	if err != nil {
@@ -194,7 +210,7 @@ func (c *kialiCacheImpl) GetService(namespace, name string) (*core_v1.Service, e
 	return service, nil
 }
 
-func (c *kialiCacheImpl) GetPods(namespace, labelSelector string) ([]core_v1.Pod, error) {
+func (c *KialiCache) GetPods(namespace, labelSelector string) ([]core_v1.Pod, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -220,7 +236,7 @@ func (c *kialiCacheImpl) GetPods(namespace, labelSelector string) ([]core_v1.Pod
 // versions of the RS for the same Deployment (current and older revisions). Note that it is still possible
 // to have multiple RS for the same owner. In which case the most recent version of each is returned.
 // see also: ../kubernetes.go
-func (c *kialiCacheImpl) GetReplicaSets(namespace string) ([]apps_v1.ReplicaSet, error) {
+func (c *KialiCache) GetReplicaSets(namespace string) ([]apps_v1.ReplicaSet, error) {
 	reps, err := c.getCacheLister(namespace).replicaSetLister.ReplicaSets(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err

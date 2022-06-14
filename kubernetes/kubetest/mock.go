@@ -52,6 +52,7 @@ func NewK8SClientMock() *K8SClientMock {
 	k8s.On("IsOpenShift").Return(true)
 	k8s.On("IsGatewayAPI").Return(false)
 	k8s.On("GetKialiToken").Return("")
+	k8s.On("GetToken").Return("token")
 	return k8s
 }
 
@@ -186,6 +187,7 @@ func FakePodList() []core_v1.Pod {
 		{
 			ObjectMeta: meta_v1.ObjectMeta{
 				Name:        "reviews-v1",
+				Namespace:   "ns",
 				Labels:      map[string]string{"app": "reviews", "version": "v1"},
 				Annotations: FakeIstioAnnotations(),
 			},
@@ -193,6 +195,7 @@ func FakePodList() []core_v1.Pod {
 		{
 			ObjectMeta: meta_v1.ObjectMeta{
 				Name:        "reviews-v2",
+				Namespace:   "ns",
 				Labels:      map[string]string{"app": "reviews", "version": "v2"},
 				Annotations: FakeIstioAnnotations(),
 			},
@@ -200,6 +203,7 @@ func FakePodList() []core_v1.Pod {
 		{
 			ObjectMeta: meta_v1.ObjectMeta{
 				Name:        "httpbin-v1",
+				Namespace:   "ns",
 				Labels:      map[string]string{"app": "httpbin", "version": "v1"},
 				Annotations: FakeIstioAnnotations(),
 			},

@@ -12,8 +12,8 @@ import (
 
 // Fake KialiCache used for TLS Scenarios
 // It populates the Namespaces, Informers and Registry information needed
-func FakeTlsKialiCache(token string, namespaces []string, pa []*security_v1beta1.PeerAuthentication, dr []*networking_v1beta1.DestinationRule) KialiCache {
-	kialiCacheImpl := kialiCacheImpl{
+func FakeTlsKialiCache(token string, namespaces []string, pa []*security_v1beta1.PeerAuthentication, dr []*networking_v1beta1.DestinationRule) *KialiCache {
+	kialiCache := &KialiCache{
 		tokenNamespaces: make(map[string]namespaceCache),
 		// ~ long duration for unit testing
 		refreshDuration: time.Hour,
@@ -23,7 +23,7 @@ func FakeTlsKialiCache(token string, namespaces []string, pa []*security_v1beta1
 	for _, ns := range namespaces {
 		nss = append(nss, models.Namespace{Name: ns})
 	}
-	kialiCacheImpl.SetNamespaces(token, nss)
+	kialiCache.SetNamespaces(token, nss)
 
 	// Populate all DestinationRules using the Registry
 	registryStatus := kubernetes.RegistryStatus{
@@ -34,7 +34,7 @@ func FakeTlsKialiCache(token string, namespaces []string, pa []*security_v1beta1
 	}
 	registryStatus.Configuration.DestinationRules = append(registryStatus.Configuration.DestinationRules, dr...)
 	registryStatus.Configuration.PeerAuthentications = append(registryStatus.Configuration.PeerAuthentications, pa...)
-	kialiCacheImpl.SetRegistryStatus(&registryStatus)
+	kialiCache.SetRegistryStatus(&registryStatus)
 
-	return &kialiCacheImpl
+	return kialiCache
 }

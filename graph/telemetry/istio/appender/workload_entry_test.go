@@ -3,16 +3,17 @@ package appender_test
 import (
 	"testing"
 
-	osproject_v1 "github.com/openshift/api/project/v1"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/graph"
 	"github.com/kiali/kiali/graph/telemetry/istio/appender"
+	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 )
 
@@ -22,16 +23,14 @@ const (
 	appNamespace = "testNamespace"
 )
 
+// TODO: Revisit all the method calls.
 func setupBusinessLayer(istioObjects ...runtime.Object) *business.Layer {
-	k8s := kubetest.NewK8SClientMock()
+	k8s := kubetest.NewFakeK8sClient(istioObjects...)
 
 	return setupBusinessLayerWithKube(k8s, istioObjects...)
 }
 
-func setupBusinessLayerWithKube(k8s *kubetest.K8SClientMock, istioObjects ...runtime.Object) *business.Layer {
-
-	k8s.MockIstio(istioObjects...)
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
+func setupBusinessLayerWithKube(k8s kubernetes.ClientInterface, istioObjects ...runtime.Object) *business.Layer {
 	config.Set(config.NewConfig())
 
 	businessLayer := business.NewWithBackends(k8s, nil, nil)
@@ -53,7 +52,8 @@ func setupWorkloadEntries() *business.Layer {
 		"app":     appName,
 		"version": "v2",
 	}
-	return setupBusinessLayer(workloadV1, workloadV2)
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: appNamespace}}
+	return setupBusinessLayer(workloadV1, workloadV2, ns)
 }
 
 func workloadEntriesTrafficMap() map[string]*graph.Node {
@@ -171,7 +171,9 @@ func TestWorkloadEntryAppLabelNotMatching(t *testing.T) {
 		"version": "v2",
 	}
 
-	businessLayer := setupBusinessLayer(workloadV1, workloadV2)
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: appNamespace}}
+
+	businessLayer := setupBusinessLayer(workloadV1, workloadV2, ns)
 	trafficMap := workloadEntriesTrafficMap()
 
 	assert.Equal(5, len(trafficMap))
@@ -250,7 +252,9 @@ func TestMultipleWorkloadEntryForSameWorkload(t *testing.T) {
 		"version": "v2",
 	}
 
-	businessLayer := setupBusinessLayer(workloadV1A, workloadV1B, workloadV2)
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: appNamespace}}
+
+	businessLayer := setupBusinessLayer(workloadV1A, workloadV1B, workloadV2, ns)
 	trafficMap := workloadEntriesTrafficMap()
 
 	assert.Equal(5, len(trafficMap))
@@ -308,7 +312,8 @@ func TestMultipleWorkloadEntryForSameWorkload(t *testing.T) {
 func TestWorkloadWithoutWorkloadEntries(t *testing.T) {
 	assert := require.New(t)
 
-	businessLayer := setupBusinessLayer()
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: appNamespace}}
+	businessLayer := setupBusinessLayer(ns)
 	trafficMap := workloadEntriesTrafficMap()
 
 	assert.Equal(5, len(trafficMap))

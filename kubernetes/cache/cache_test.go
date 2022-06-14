@@ -16,8 +16,8 @@ import (
 	"github.com/kiali/kiali/kubernetes"
 )
 
-func newTestKialiCache(kubeObjects []runtime.Object, istioObjects []runtime.Object, gatewayObjects []runtime.Object) *kialiCacheImpl {
-	kialiCache := &kialiCacheImpl{
+func newTestKialiCache(kubeObjects []runtime.Object, istioObjects []runtime.Object, gatewayObjects []runtime.Object) *KialiCache {
+	kialiCache := &KialiCache{
 		k8sApi:                kubefake.NewSimpleClientset(kubeObjects...),
 		istioApi:              istiofake.NewSimpleClientset(istioObjects...),
 		gatewayApi:            gatewayapifake.NewSimpleClientset(gatewayObjects...),
@@ -34,7 +34,7 @@ func newTestKialiCache(kubeObjects []runtime.Object, istioObjects []runtime.Obje
 func TestNewKialiCache_isCached(t *testing.T) {
 	assert := assert.New(t)
 
-	kialiCacheImpl := kialiCacheImpl{
+	kialiCacheImpl := KialiCache{
 		istioClient:            kubernetes.K8SClient{},
 		refreshDuration:        0,
 		cacheNamespacesRegexps: []regexp.Regexp{*regexp.MustCompile("bookinfo"), *regexp.MustCompile("a.*"), *regexp.MustCompile("galicia")},
@@ -132,7 +132,7 @@ func TestCheckNamespaceClusterScoped(t *testing.T) {
 	kialiCache.clusterScoped = true
 
 	// Should always return true for cluster scoped cache.
-	assert.True(kialiCache.CheckNamespace("ns1"))
+	assert.True(kialiCache.checkNamespace("ns1"))
 }
 
 func TestCheckNamespaceNotIncluded(t *testing.T) {
@@ -141,7 +141,7 @@ func TestCheckNamespaceNotIncluded(t *testing.T) {
 	kialiCache := newTestKialiCache(nil, nil, nil)
 	kialiCache.clusterScoped = false
 
-	assert.False(kialiCache.CheckNamespace("ns1"))
+	assert.False(kialiCache.checkNamespace("ns1"))
 }
 
 func TestCheckNamespaceIsIncluded(t *testing.T) {
@@ -152,5 +152,5 @@ func TestCheckNamespaceIsIncluded(t *testing.T) {
 	kialiCache.clusterScoped = false
 	kialiCache.cacheNamespacesRegexps = []regexp.Regexp{*regex}
 
-	assert.True(kialiCache.CheckNamespace("ns1"))
+	assert.True(kialiCache.checkNamespace("ns1"))
 }

@@ -14,8 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/version"
 	kube "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd/api"
 	gatewayapiclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
+
+	// osproject_v1 "github.com/openshift/api/project/v1"
+	// osroutes_v1 "github.com/openshift/api/route/v1"
 
 	kialiConfig "github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/log"
@@ -33,11 +35,15 @@ type PodLogs struct {
 	Logs string `json:"logs,omitempty"`
 }
 
+type ClientGetter interface {
+	K8SClientInterface
+	IstioClientInterface
+}
+
 // ClientInterface for mocks (only mocked function are necessary here)
 type ClientInterface interface {
 	GetServerVersion() (*version.Info, error)
 	GetToken() string
-	GetAuthInfo() *api.AuthInfo
 	IsOpenShift() bool
 	IsGatewayAPI() bool
 	K8SClientInterface
@@ -45,13 +51,14 @@ type ClientInterface interface {
 	OSClientInterface
 }
 
+var _ ClientInterface = &K8SClient{}
+
 // K8SClient is the client struct for Kubernetes and Istio APIs
 // It hides the way it queries each API
 type K8SClient struct {
-	ClientInterface
 	token          string
 	k8s            kube.Interface
-	istioClientset *istio.Clientset
+	istioClientset istio.Interface
 	// Used in REST queries after bump to client-go v0.20.x
 	ctx context.Context
 	// isOpenShift private variable will check if kiali is deployed under an OpenShift cluster or not
@@ -173,4 +180,13 @@ func NewClientFromConfig(config *rest.Config) (*K8SClient, error) {
 
 	client.ctx = context.Background()
 	return &client, nil
+}
+
+// TODO: Token? What's that used for here?
+func NewClient(kubeClient kube.Interface, istioClient istio.Interface, gatewayapiClient gatewayapiclient.Interface) *K8SClient {
+	return &K8SClient{
+		istioClientset: istioClient,
+		k8s:            kubeClient,
+		gatewayapi:     gatewayapiClient,
+	}
 }

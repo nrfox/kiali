@@ -14,6 +14,7 @@ import (
 	istiotelem_v1alpha1_listers "istio.io/client-go/pkg/listers/telemetry/v1alpha1"
 	kube "k8s.io/client-go/kubernetes"
 	apps_v1_listers "k8s.io/client-go/listers/apps/v1"
+	batch_v1_listers "k8s.io/client-go/listers/batch/v1"
 	core_v1_listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/rest"
 	gatewayapi "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
@@ -25,109 +26,82 @@ import (
 	"github.com/kiali/kiali/models"
 )
 
-// Istio uses caches for pods and controllers.
-// Kiali will use caches for specific namespaces and types
-// https://github.com/istio/istio/blob/master/mixer/adapter/kubernetesenv/cache.go
+// namespaceCache caches namespaces according to their token.
+type namespaceCache struct {
+	created       time.Time
+	namespaces    []models.Namespace
+	nameNamespace map[string]models.Namespace
+}
 
-type (
-	KialiCache interface {
-		// Control methods
-		// Check if a namespace is listed to be cached; if yes, creates a cache for that namespace
-		CheckNamespace(namespace string) bool
+type podProxyStatus struct {
+	namespace   string
+	pod         string
+	proxyStatus *kubernetes.ProxyStatus
+}
 
-		// Refresh will recreate the necessary cache. If the cache is cluster-scoped the "namespace" argument
-		// is ignored and the whole cache is recreated, otherwise only the namespace-specific cache is updated.
-		Refresh(namespace string)
+// cacheLister combines a bunch of lister types into one.
+// This can probably be simplified or turned into an interface
+// with go generics.
+type cacheLister struct {
+	// Kube listers
+	configMapLister   core_v1_listers.ConfigMapLister
+	cronJobLister     batch_v1_listers.CronJobLister
+	daemonSetLister   apps_v1_listers.DaemonSetLister
+	deploymentLister  apps_v1_listers.DeploymentLister
+	endpointLister    core_v1_listers.EndpointsLister
+	podLister         core_v1_listers.PodLister
+	replicaSetLister  apps_v1_listers.ReplicaSetLister
+	serviceLister     core_v1_listers.ServiceLister
+	statefulSetLister apps_v1_listers.StatefulSetLister
 
-		// Stop all caches
-		Stop()
+	// Istio listers
+	authzLister           istiosec_v1beta1_listers.AuthorizationPolicyLister
+	destinationRuleLister istionet_v1beta1_listers.DestinationRuleLister
+	envoyFilterLister     istionet_v1alpha3_listers.EnvoyFilterLister
+	gatewayLister         istionet_v1beta1_listers.GatewayLister
+	k8sgatewayLister      k8s_v1alpha2_listers.GatewayLister
+	k8shttprouteLister    k8s_v1alpha2_listers.HTTPRouteLister
+	peerAuthnLister       istiosec_v1beta1_listers.PeerAuthenticationLister
+	requestAuthnLister    istiosec_v1beta1_listers.RequestAuthenticationLister
+	serviceEntryLister    istionet_v1beta1_listers.ServiceEntryLister
+	sidecarLister         istionet_v1beta1_listers.SidecarLister
+	telemetryLister       istiotelem_v1alpha1_listers.TelemetryLister
+	virtualServiceLister  istionet_v1beta1_listers.VirtualServiceLister
+	wasmPluginLister      istioext_v1alpha1_listers.WasmPluginLister
+	workloadEntryLister   istionet_v1beta1_listers.WorkloadEntryLister
+	workloadGroupLister   istionet_v1beta1_listers.WorkloadGroupLister
+}
 
-		// Kubernetes Client used for cache
-		GetClient() *kubernetes.K8SClient
+type KialiCache struct {
+	clusterScoped          bool // Creates either cluster-scoped or namespace-scoped informers
+	istioClient            kubernetes.K8SClient
+	k8sApi                 kube.Interface
+	istioApi               istio.Interface
+	gatewayApi             gatewayapi.Interface
+	refreshDuration        time.Duration
+	cacheNamespacesRegexps []regexp.Regexp
+	stopNSChans            map[string]chan struct{}
+	stopClusterScopedChan  chan struct{} // Close this channel to stop the cluster-scoped informers.
+	cacheLock              sync.RWMutex
+	tokenLock              sync.RWMutex
+	tokenNamespaces        map[string]namespaceCache
+	tokenNamespaceDuration time.Duration
+	proxyStatusLock        sync.RWMutex
+	proxyStatusCreated     *time.Time
+	proxyStatusNamespaces  map[string]map[string]podProxyStatus
+	registryRefreshHandler RegistryRefreshHandler
+	registryStatusLock     sync.RWMutex
+	registryStatusCreated  *time.Time
+	registryStatus         *kubernetes.RegistryStatus
+	// Stops the background goroutine which refreshes the cache's
+	// service account token.
+	stopCacheChan chan bool
 
-		KubernetesCache
-		IstioCache
-		NamespacesCache
-		ProxyStatusCache
-		RegistryStatusCache
-	}
+	clusterCacheLister *cacheLister
+	nsCacheLister      map[string]*cacheLister
+}
 
-	namespaceCache struct {
-		created       time.Time
-		namespaces    []models.Namespace
-		nameNamespace map[string]models.Namespace
-	}
-
-	podProxyStatus struct {
-		namespace   string
-		pod         string
-		proxyStatus *kubernetes.ProxyStatus
-	}
-
-	// cacheLister combines a bunch of lister types into one.
-	// This can probably be simplified or turned into an interface
-	// with go generics.
-	cacheLister struct {
-		// Kube listers
-		configMapLister   core_v1_listers.ConfigMapLister
-		daemonSetLister   apps_v1_listers.DaemonSetLister
-		deploymentLister  apps_v1_listers.DeploymentLister
-		endpointLister    core_v1_listers.EndpointsLister
-		podLister         core_v1_listers.PodLister
-		replicaSetLister  apps_v1_listers.ReplicaSetLister
-		serviceLister     core_v1_listers.ServiceLister
-		statefulSetLister apps_v1_listers.StatefulSetLister
-
-		// Istio listers
-		authzLister           istiosec_v1beta1_listers.AuthorizationPolicyLister
-		destinationRuleLister istionet_v1beta1_listers.DestinationRuleLister
-		envoyFilterLister     istionet_v1alpha3_listers.EnvoyFilterLister
-		gatewayLister         istionet_v1beta1_listers.GatewayLister
-		k8sgatewayLister      k8s_v1alpha2_listers.GatewayLister
-		k8shttprouteLister    k8s_v1alpha2_listers.HTTPRouteLister
-		peerAuthnLister       istiosec_v1beta1_listers.PeerAuthenticationLister
-		requestAuthnLister    istiosec_v1beta1_listers.RequestAuthenticationLister
-		serviceEntryLister    istionet_v1beta1_listers.ServiceEntryLister
-		sidecarLister         istionet_v1beta1_listers.SidecarLister
-		telemetryLister       istiotelem_v1alpha1_listers.TelemetryLister
-		virtualServiceLister  istionet_v1beta1_listers.VirtualServiceLister
-		wasmPluginLister      istioext_v1alpha1_listers.WasmPluginLister
-		workloadEntryLister   istionet_v1beta1_listers.WorkloadEntryLister
-		workloadGroupLister   istionet_v1beta1_listers.WorkloadGroupLister
-	}
-
-	kialiCacheImpl struct {
-		clusterScoped          bool // Creates either cluster-scoped or namespace-scoped informers
-		istioClient            kubernetes.K8SClient
-		k8sApi                 kube.Interface
-		istioApi               istio.Interface
-		gatewayApi             gatewayapi.Interface
-		refreshDuration        time.Duration
-		cacheNamespacesRegexps []regexp.Regexp
-		cacheIstioTypes        map[string]bool
-		stopNSChans            map[string]chan struct{}
-		stopClusterScopedChan  chan struct{} // Close this channel to stop the cluster-scoped informers.
-		cacheLock              sync.RWMutex
-		tokenLock              sync.RWMutex
-		tokenNamespaces        map[string]namespaceCache
-		tokenNamespaceDuration time.Duration
-		proxyStatusLock        sync.RWMutex
-		proxyStatusCreated     *time.Time
-		proxyStatusNamespaces  map[string]map[string]podProxyStatus
-		registryRefreshHandler RegistryRefreshHandler
-		registryStatusLock     sync.RWMutex
-		registryStatusCreated  *time.Time
-		registryStatus         *kubernetes.RegistryStatus
-		// Stops the background goroutine which refreshes the cache's
-		// service account token.
-		stopCacheChan chan bool
-
-		clusterCacheLister *cacheLister
-		nsCacheLister      map[string]*cacheLister
-	}
-)
-
-func NewKialiCache(namespaceSeedList ...string) (KialiCache, error) {
+func NewKialiCache(namespaceSeedList ...string) (*KialiCache, error) {
 	config, err := kubernetes.ConfigClient()
 	if err != nil {
 		return nil, err
@@ -163,23 +137,21 @@ func NewKialiCache(namespaceSeedList ...string) (KialiCache, error) {
 	refreshDuration := time.Duration(kConfig.KubernetesConfig.CacheDuration) * time.Second
 	tokenNamespaceDuration := time.Duration(kConfig.KubernetesConfig.CacheTokenNamespaceDuration) * time.Second
 
-	cacheNamespaces := kConfig.KubernetesConfig.CacheNamespaces
-	cacheIstioTypes := make(map[string]bool)
-	for _, iType := range kConfig.KubernetesConfig.CacheIstioTypes {
-		cacheIstioTypes[iType] = true
-	}
-	log.Tracef("[Kiali Cache] cacheIstioTypes %v", cacheIstioTypes)
-
+	cacheNamespaces := kConfig.Deployment.AccessibleNamespaces
 	cacheNamespacesRegexps := make([]regexp.Regexp, len(cacheNamespaces))
 	for i, ns := range cacheNamespaces {
+		// '**' is a special character for selecting all namespaces
+		// but needs to be converted to an actual regexp.
+		if ns == "**" {
+			ns = ".*"
+		}
 		cacheNamespacesRegexps[i] = *regexp.MustCompile(strings.TrimSpace(ns))
 	}
 
-	kialiCacheImpl := kialiCacheImpl{
+	kialiCache := KialiCache{
 		istioClient:            *istioClient,
 		refreshDuration:        refreshDuration,
 		cacheNamespacesRegexps: cacheNamespacesRegexps,
-		cacheIstioTypes:        cacheIstioTypes,
 		// Only when all namespaces are accessible should the cache be cluster scoped.
 		// Otherwise, kiali may not have access to all namespaces since
 		// the operator only grants clusterroles when all namespaces are accessible.
@@ -188,33 +160,53 @@ func NewKialiCache(namespaceSeedList ...string) (KialiCache, error) {
 		tokenNamespaceDuration: tokenNamespaceDuration,
 		proxyStatusNamespaces:  make(map[string]map[string]podProxyStatus),
 	}
-	kialiCacheImpl.k8sApi = istioClient.GetK8sApi()
-	kialiCacheImpl.istioApi = istioClient.Istio()
-	kialiCacheImpl.gatewayApi = istioClient.GatewayAPI()
+	kialiCache.k8sApi = istioClient.GetK8sApi()
+	kialiCache.istioApi = istioClient.Istio()
+	kialiCache.gatewayApi = istioClient.GatewayAPI()
 
 	// Update SA Token
-	kialiCacheImpl.stopCacheChan = kialiCacheImpl.refreshCache(istioConfig)
-	kialiCacheImpl.registryRefreshHandler = NewRegistryHandler(kialiCacheImpl.RefreshRegistryStatus)
+	kialiCache.stopCacheChan = kialiCache.refreshCache(istioConfig)
+	kialiCache.registryRefreshHandler = NewRegistryHandler(kialiCache.RefreshRegistryStatus)
 
-	if kialiCacheImpl.clusterScoped {
+	if kialiCache.clusterScoped {
 		log.Debug("[Kiali Cache] Using 'cluster' scoped Kiali Cache")
-		kialiCacheImpl.createClusterScopedCache()
+		kialiCache.createClusterScopedCache()
 	} else {
 		log.Debug("[Kiali Cache] Using 'namespace' scoped Kiali Cache")
-		kialiCacheImpl.nsCacheLister = make(map[string]*cacheLister)
-		kialiCacheImpl.stopNSChans = make(map[string]chan struct{})
+		kialiCache.nsCacheLister = make(map[string]*cacheLister)
+		kialiCache.stopNSChans = make(map[string]chan struct{})
 
 		for _, ns := range namespaceSeedList {
-			kialiCacheImpl.CheckNamespace(ns)
+			kialiCache.checkNamespace(ns)
+		}
+	}
+
+	kialiCache.registryRefreshHandler = NewRegistryHandler(kialiCache.RefreshRegistryStatus)
+
+	if kConfig.KubernetesConfig.CacheClusterScoped {
+		log.Debug("[Kiali Cache] Using 'cluster' scoped Kiali Cache")
+		kialiCache.createClusterScopedCache()
+	} else {
+		log.Debug("[Kiali Cache] Using 'namespace' scoped Kiali Cache")
+		kialiCache.nsCacheLister = make(map[string]*cacheLister)
+		kialiCache.stopNSChans = make(map[string]chan struct{})
+		namespaces, err := istioClient.GetNamespaces("")
+		if err != nil {
+			log.Errorf("[Kiali Cache] Error getting namespaces: %s", err)
+			return nil, err
+		}
+
+		for _, ns := range namespaces {
+			kialiCache.checkNamespace(ns.Name)
 		}
 	}
 
 	log.Infof("Kiali Cache is active for namespaces %v", cacheNamespaces)
-	return &kialiCacheImpl, nil
+	return &kialiCache, nil
 }
 
 // It will indicate if a namespace should have a cache
-func (c *kialiCacheImpl) isCached(namespace string) bool {
+func (c *KialiCache) isCached(namespace string) bool {
 	for _, cacheNs := range c.cacheNamespacesRegexps {
 		if cacheNs.MatchString(namespace) {
 			return true
@@ -223,7 +215,7 @@ func (c *kialiCacheImpl) isCached(namespace string) bool {
 	return false
 }
 
-func (c *kialiCacheImpl) createNSCache(namespace string) bool {
+func (c *KialiCache) createNSCache(namespace string) bool {
 	kubeInformerFactory := c.createKubernetesInformers(namespace)
 	istioInformerFactory := c.createIstioInformers(namespace)
 	gatewayInformerFactory := c.createGatewayInformers(namespace)
@@ -262,7 +254,7 @@ func (c *kialiCacheImpl) createNSCache(namespace string) bool {
 	return true
 }
 
-func (c *kialiCacheImpl) createClusterScopedCache() bool {
+func (c *KialiCache) createClusterScopedCache() bool {
 	kubeInformerFactory := c.createKubernetesInformers("")
 	istioInformerFactory := c.createIstioInformers("")
 	gatewayInformerFactory := c.createGatewayInformers("")
@@ -300,7 +292,7 @@ func (c *kialiCacheImpl) createClusterScopedCache() bool {
 // CheckNamespace will
 // - Validate if a namespace is included in the cache
 // - Create and initialize a cache
-func (c *kialiCacheImpl) CheckNamespace(namespace string) bool {
+func (c *KialiCache) checkNamespace(namespace string) bool {
 	if c.clusterScoped {
 		return true
 	} else if !c.isCached(namespace) {
@@ -322,7 +314,7 @@ func (c *kialiCacheImpl) CheckNamespace(namespace string) bool {
 
 // Refresh will recreate the necessary cache. If the cache is cluster-scoped the "namespace" argument
 // is ignored and the whole cache is recreated, otherwise only the namespace-specific cache is updated.
-func (c *kialiCacheImpl) Refresh(namespace string) {
+func (c *KialiCache) Refresh(namespace string) {
 	defer c.cacheLock.Unlock()
 	c.cacheLock.Lock()
 
@@ -338,7 +330,7 @@ func (c *kialiCacheImpl) Refresh(namespace string) {
 
 // refreshCache watches for changes to the cache's service account token
 // and recreates the cache(s) when the token changes.
-func (c *kialiCacheImpl) refreshCache(istioConfig rest.Config) chan bool {
+func (c *KialiCache) refreshCache(istioConfig rest.Config) chan bool {
 	ticker := time.NewTicker(60 * time.Second)
 	quit := make(chan bool)
 	go func() {
@@ -388,7 +380,7 @@ func (c *kialiCacheImpl) refreshCache(istioConfig rest.Config) chan bool {
 }
 
 // Stop will stop either the cluster wide cache or all of the namespace caches.
-func (c *kialiCacheImpl) Stop() {
+func (c *KialiCache) Stop() {
 	log.Infof("Stopping Kiali Cache")
 	defer c.cacheLock.Unlock()
 	c.cacheLock.Lock()
@@ -402,7 +394,7 @@ func (c *kialiCacheImpl) Stop() {
 	close(c.stopCacheChan)
 }
 
-func (c *kialiCacheImpl) stop(namespace string) {
+func (c *KialiCache) stop(namespace string) {
 	if c.clusterScoped {
 		close(c.stopClusterScopedChan)
 	} else {
@@ -414,6 +406,6 @@ func (c *kialiCacheImpl) stop(namespace string) {
 	}
 }
 
-func (c *kialiCacheImpl) GetClient() *kubernetes.K8SClient {
+func (c *KialiCache) GetClient() *kubernetes.K8SClient {
 	return &c.istioClient
 }

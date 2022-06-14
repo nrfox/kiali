@@ -1,12 +1,12 @@
 package cache
 
 import (
-	"fmt"
-
 	extentions_v1alpha1 "istio.io/client-go/pkg/apis/extensions/v1alpha1"
 	networking_v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	security_v1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
+
+	// TODO: make this import consistent
 	"istio.io/client-go/pkg/apis/telemetry/v1alpha1"
 	istio "istio.io/client-go/pkg/informers/externalversions"
 	"k8s.io/apimachinery/pkg/labels"
@@ -16,137 +16,92 @@ import (
 	"github.com/kiali/kiali/kubernetes"
 )
 
-type (
-	IstioCache interface {
-		CheckIstioResource(resourceType string) bool
+// type IstioCache interface {
+// 	GetDestinationRule(namespace, name string) (*networking_v1beta1.DestinationRule, error)
+// 	GetDestinationRules(namespace, labelSelector string) ([]*networking_v1beta1.DestinationRule, error)
+// 	GetEnvoyFilter(namespace, name string) (*networking_v1alpha3.EnvoyFilter, error)
+// 	GetEnvoyFilters(namespace, labelSelector string) ([]*networking_v1alpha3.EnvoyFilter, error)
+// 	GetGateway(namespace, name string) (*networking_v1beta1.Gateway, error)
+// 	GetGateways(namespace, labelSelector string) ([]*networking_v1beta1.Gateway, error)
+// 	GetServiceEntry(namespace, name string) (*networking_v1beta1.ServiceEntry, error)
+// 	GetServiceEntries(namespace, labelSelector string) ([]*networking_v1beta1.ServiceEntry, error)
+// 	GetSidecar(namespace, name string) (*networking_v1beta1.Sidecar, error)
+// 	GetSidecars(namespace, labelSelector string) ([]*networking_v1beta1.Sidecar, error)
+// 	GetTelemetry(namespace, name string) (*v1alpha1.Telemetry, error)
+// 	GetTelemetries(namespace, labelSelector string) ([]*v1alpha1.Telemetry, error)
+// 	GetVirtualService(namespace, name string) (*networking_v1beta1.VirtualService, error)
+// 	GetVirtualServices(namespace, labelSelector string) ([]*networking_v1beta1.VirtualService, error)
+// 	GetWorkloadEntry(namespace, name string) (*networking_v1beta1.WorkloadEntry, error)
+// 	GetWorkloadEntries(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadEntry, error)
+// 	GetWorkloadGroup(namespace, name string) (*networking_v1beta1.WorkloadGroup, error)
+// 	GetWorkloadGroups(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadGroup, error)
+// 	GetWasmPlugin(namespace, name string) (*extentions_v1alpha1.WasmPlugin, error)
+// 	GetWasmPlugins(namespace, labelSelector string) ([]*extentions_v1alpha1.WasmPlugin, error)
 
-		GetDestinationRule(namespace, name string) (*networking_v1beta1.DestinationRule, error)
-		GetDestinationRules(namespace, labelSelector string) ([]*networking_v1beta1.DestinationRule, error)
-		GetEnvoyFilter(namespace, name string) (*networking_v1alpha3.EnvoyFilter, error)
-		GetEnvoyFilters(namespace, labelSelector string) ([]*networking_v1alpha3.EnvoyFilter, error)
-		GetGateway(namespace, name string) (*networking_v1beta1.Gateway, error)
-		GetGateways(namespace, labelSelector string) ([]*networking_v1beta1.Gateway, error)
-		GetServiceEntry(namespace, name string) (*networking_v1beta1.ServiceEntry, error)
-		GetServiceEntries(namespace, labelSelector string) ([]*networking_v1beta1.ServiceEntry, error)
-		GetSidecar(namespace, name string) (*networking_v1beta1.Sidecar, error)
-		GetSidecars(namespace, labelSelector string) ([]*networking_v1beta1.Sidecar, error)
-		GetVirtualService(namespace, name string) (*networking_v1beta1.VirtualService, error)
-		GetVirtualServices(namespace, labelSelector string) ([]*networking_v1beta1.VirtualService, error)
-		GetWorkloadEntry(namespace, name string) (*networking_v1beta1.WorkloadEntry, error)
-		GetWorkloadEntries(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadEntry, error)
-		GetWorkloadGroup(namespace, name string) (*networking_v1beta1.WorkloadGroup, error)
-		GetWorkloadGroups(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadGroup, error)
-		GetWasmPlugin(namespace, name string) (*extentions_v1alpha1.WasmPlugin, error)
-		GetWasmPlugins(namespace, labelSelector string) ([]*extentions_v1alpha1.WasmPlugin, error)
-		GetTelemetry(namespace, name string) (*v1alpha1.Telemetry, error)
-		GetTelemetries(namespace, labelSelector string) ([]*v1alpha1.Telemetry, error)
+// 	GetK8sGateway(namespace, name string) (*gatewayapi.Gateway, error)
+// 	GetK8sGateways(namespace, labelSelector string) ([]*gatewayapi.Gateway, error)
+// 	GetK8sHTTPRoute(namespace, name string) (*gatewayapi.HTTPRoute, error)
+// 	GetK8sHTTPRoutes(namespace, labelSelector string) ([]*gatewayapi.HTTPRoute, error)
 
-		GetK8sGateway(namespace, name string) (*gatewayapi.Gateway, error)
-		GetK8sGateways(namespace, labelSelector string) ([]*gatewayapi.Gateway, error)
-		GetK8sHTTPRoute(namespace, name string) (*gatewayapi.HTTPRoute, error)
-		GetK8sHTTPRoutes(namespace, labelSelector string) ([]*gatewayapi.HTTPRoute, error)
+// 	GetAuthorizationPolicy(namespace, name string) (*security_v1beta1.AuthorizationPolicy, error)
+// 	GetAuthorizationPolicies(namespace, labelSelector string) ([]*security_v1beta1.AuthorizationPolicy, error)
+// 	GetPeerAuthentication(namespace, name string) (*security_v1beta1.PeerAuthentication, error)
+// 	GetPeerAuthentications(namespace, labelSelector string) ([]*security_v1beta1.PeerAuthentication, error)
+// 	GetRequestAuthentication(namespace, name string) (*security_v1beta1.RequestAuthentication, error)
+// 	GetRequestAuthentications(namespace, labelSelector string) ([]*security_v1beta1.RequestAuthentication, error)
+// }
 
-		GetAuthorizationPolicy(namespace, name string) (*security_v1beta1.AuthorizationPolicy, error)
-		GetAuthorizationPolicies(namespace, labelSelector string) ([]*security_v1beta1.AuthorizationPolicy, error)
-		GetPeerAuthentication(namespace, name string) (*security_v1beta1.PeerAuthentication, error)
-		GetPeerAuthentications(namespace, labelSelector string) ([]*security_v1beta1.PeerAuthentication, error)
-		GetRequestAuthentication(namespace, name string) (*security_v1beta1.RequestAuthentication, error)
-		GetRequestAuthentications(namespace, labelSelector string) ([]*security_v1beta1.RequestAuthentication, error)
-	}
-)
-
-func (c *kialiCacheImpl) CheckIstioResource(resourceType string) bool {
-	// cacheIstioTypes stores the single types but for compatibility with kubernetes api resourceType will use plurals
-	_, exist := c.cacheIstioTypes[kubernetes.PluralType[resourceType]]
-	return exist
-}
-
-func (c *kialiCacheImpl) createIstioInformers(namespace string) istio.SharedInformerFactory {
+func (c *KialiCache) createIstioInformers(namespace string) istio.SharedInformerFactory {
 	var opts []istio.SharedInformerOption
 	if namespace != "" {
 		opts = append(opts, istio.WithNamespace(namespace))
 	}
 	sharedInformers := istio.NewSharedInformerFactoryWithOptions(c.istioApi, c.refreshDuration, opts...)
-	lister := c.getCacheLister(namespace)
 
-	if c.CheckIstioResource(kubernetes.AuthorizationPolicies) {
-		lister.authzLister = sharedInformers.Security().V1beta1().AuthorizationPolicies().Lister()
-		sharedInformers.Security().V1beta1().AuthorizationPolicies().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.DestinationRules) {
-		lister.destinationRuleLister = sharedInformers.Networking().V1beta1().DestinationRules().Lister()
-		sharedInformers.Networking().V1beta1().DestinationRules().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.EnvoyFilters) {
-		lister.envoyFilterLister = sharedInformers.Networking().V1alpha3().EnvoyFilters().Lister()
-		sharedInformers.Networking().V1alpha3().EnvoyFilters().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.Gateways) {
-		lister.gatewayLister = sharedInformers.Networking().V1beta1().Gateways().Lister()
-		sharedInformers.Networking().V1beta1().Gateways().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.PeerAuthentications) {
-		lister.peerAuthnLister = sharedInformers.Security().V1beta1().PeerAuthentications().Lister()
-		sharedInformers.Security().V1beta1().PeerAuthentications().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.RequestAuthentications) {
-		lister.requestAuthnLister = sharedInformers.Security().V1beta1().RequestAuthentications().Lister()
-		sharedInformers.Security().V1beta1().RequestAuthentications().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.ServiceEntries) {
-		lister.serviceEntryLister = sharedInformers.Networking().V1beta1().ServiceEntries().Lister()
-		sharedInformers.Networking().V1beta1().ServiceEntries().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.Sidecars) {
-		lister.sidecarLister = sharedInformers.Networking().V1beta1().Sidecars().Lister()
-		sharedInformers.Networking().V1beta1().Sidecars().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.Telemetries) {
-		lister.telemetryLister = sharedInformers.Telemetry().V1alpha1().Telemetries().Lister()
-		sharedInformers.Telemetry().V1alpha1().Telemetries().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.VirtualServices) {
-		lister.virtualServiceLister = sharedInformers.Networking().V1beta1().VirtualServices().Lister()
-		sharedInformers.Networking().V1beta1().VirtualServices().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.WasmPlugins) {
-		lister.wasmPluginLister = sharedInformers.Extensions().V1alpha1().WasmPlugins().Lister()
-		sharedInformers.Extensions().V1alpha1().WasmPlugins().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.WorkloadEntries) {
-		lister.workloadEntryLister = sharedInformers.Networking().V1beta1().WorkloadEntries().Lister()
-		sharedInformers.Networking().V1beta1().WorkloadEntries().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
-	if c.CheckIstioResource(kubernetes.WorkloadGroups) {
-		lister.workloadGroupLister = sharedInformers.Networking().V1beta1().WorkloadGroups().Lister()
-		sharedInformers.Networking().V1beta1().WorkloadGroups().Informer().AddEventHandler(c.registryRefreshHandler)
-	}
+	lister := c.getCacheLister(namespace)
+	lister.authzLister = sharedInformers.Security().V1beta1().AuthorizationPolicies().Lister()
+	lister.destinationRuleLister = sharedInformers.Networking().V1beta1().DestinationRules().Lister()
+	lister.envoyFilterLister = sharedInformers.Networking().V1alpha3().EnvoyFilters().Lister()
+	lister.gatewayLister = sharedInformers.Networking().V1beta1().Gateways().Lister()
+	lister.peerAuthnLister = sharedInformers.Security().V1beta1().PeerAuthentications().Lister()
+	lister.requestAuthnLister = sharedInformers.Security().V1beta1().RequestAuthentications().Lister()
+	lister.serviceEntryLister = sharedInformers.Networking().V1beta1().ServiceEntries().Lister()
+	lister.sidecarLister = sharedInformers.Networking().V1beta1().Sidecars().Lister()
+	lister.virtualServiceLister = sharedInformers.Networking().V1beta1().VirtualServices().Lister()
+	lister.workloadEntryLister = sharedInformers.Networking().V1beta1().WorkloadEntries().Lister()
+	lister.workloadGroupLister = sharedInformers.Networking().V1beta1().WorkloadGroups().Lister()
+	lister.telemetryLister = sharedInformers.Telemetry().V1alpha1().Telemetries().Lister()
+
+	sharedInformers.Security().V1beta1().AuthorizationPolicies().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Networking().V1beta1().DestinationRules().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Networking().V1alpha3().EnvoyFilters().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Networking().V1beta1().Gateways().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Security().V1beta1().PeerAuthentications().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Security().V1beta1().RequestAuthentications().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Networking().V1beta1().ServiceEntries().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Networking().V1beta1().Sidecars().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Networking().V1beta1().VirtualServices().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Networking().V1beta1().WorkloadEntries().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Networking().V1beta1().WorkloadGroups().Informer().AddEventHandler(c.registryRefreshHandler)
+	sharedInformers.Telemetry().V1alpha1().Telemetries().Informer().AddEventHandler(c.registryRefreshHandler)
 
 	return sharedInformers
 }
 
-func (c *kialiCacheImpl) createGatewayInformers(namespace string) gateway.SharedInformerFactory {
+func (c *KialiCache) createGatewayInformers(namespace string) gateway.SharedInformerFactory {
 	sharedInformers := gateway.NewSharedInformerFactory(c.gatewayApi, c.refreshDuration)
 	lister := c.getCacheLister(namespace)
 
 	if c.istioClient.IsGatewayAPI() {
-		if c.CheckIstioResource(kubernetes.K8sGateways) {
-			lister.k8sgatewayLister = sharedInformers.Gateway().V1alpha2().Gateways().Lister()
-			sharedInformers.Gateway().V1alpha2().Gateways().Informer().AddEventHandler(c.registryRefreshHandler)
-		}
-		if c.CheckIstioResource(kubernetes.K8sHTTPRoutes) {
-			lister.k8shttprouteLister = sharedInformers.Gateway().V1alpha2().HTTPRoutes().Lister()
-			sharedInformers.Gateway().V1alpha2().Gateways().Informer().AddEventHandler(c.registryRefreshHandler)
-		}
+		lister.k8sgatewayLister = sharedInformers.Gateway().V1alpha2().Gateways().Lister()
+		lister.k8shttprouteLister = sharedInformers.Gateway().V1alpha2().HTTPRoutes().Lister()
+		sharedInformers.Gateway().V1alpha2().Gateways().Informer().AddEventHandler(c.registryRefreshHandler)
+		sharedInformers.Gateway().V1alpha2().Gateways().Informer().AddEventHandler(c.registryRefreshHandler)
 	}
 	return sharedInformers
 }
 
-func (c *kialiCacheImpl) GetDestinationRule(namespace, name string) (*networking_v1beta1.DestinationRule, error) {
-	if !c.CheckIstioResource(kubernetes.DestinationRules) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.DestinationRuleType)
-	}
-
+func (c *KialiCache) GetDestinationRule(namespace, name string) (*networking_v1beta1.DestinationRule, error) {
 	dr, err := c.getCacheLister(namespace).destinationRuleLister.DestinationRules(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -156,10 +111,7 @@ func (c *kialiCacheImpl) GetDestinationRule(namespace, name string) (*networking
 	return dr, nil
 }
 
-func (c *kialiCacheImpl) GetDestinationRules(namespace, labelSelector string) ([]*networking_v1beta1.DestinationRule, error) {
-	if !c.CheckIstioResource(kubernetes.DestinationRules) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.DestinationRuleType)
-	}
+func (c *KialiCache) GetDestinationRules(namespace, labelSelector string) ([]*networking_v1beta1.DestinationRule, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -182,11 +134,7 @@ func (c *kialiCacheImpl) GetDestinationRules(namespace, labelSelector string) ([
 	return drs, nil
 }
 
-func (c *kialiCacheImpl) GetEnvoyFilter(namespace, name string) (*networking_v1alpha3.EnvoyFilter, error) {
-	if !c.CheckIstioResource(kubernetes.EnvoyFilters) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.EnvoyFilterType)
-	}
-
+func (c *KialiCache) GetEnvoyFilter(namespace, name string) (*networking_v1alpha3.EnvoyFilter, error) {
 	ef, err := c.getCacheLister(namespace).envoyFilterLister.EnvoyFilters(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -196,10 +144,7 @@ func (c *kialiCacheImpl) GetEnvoyFilter(namespace, name string) (*networking_v1a
 	return ef, nil
 }
 
-func (c *kialiCacheImpl) GetEnvoyFilters(namespace, labelSelector string) ([]*networking_v1alpha3.EnvoyFilter, error) {
-	if !c.CheckIstioResource(kubernetes.EnvoyFilters) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.EnvoyFilterType)
-	}
+func (c *KialiCache) GetEnvoyFilters(namespace, labelSelector string) ([]*networking_v1alpha3.EnvoyFilter, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -222,11 +167,7 @@ func (c *kialiCacheImpl) GetEnvoyFilters(namespace, labelSelector string) ([]*ne
 	return efs, nil
 }
 
-func (c *kialiCacheImpl) GetGateway(namespace, name string) (*networking_v1beta1.Gateway, error) {
-	if !c.CheckIstioResource(kubernetes.Gateways) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.GatewayType)
-	}
-
+func (c *KialiCache) GetGateway(namespace, name string) (*networking_v1beta1.Gateway, error) {
 	gw, err := c.getCacheLister(namespace).gatewayLister.Gateways(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -236,10 +177,7 @@ func (c *kialiCacheImpl) GetGateway(namespace, name string) (*networking_v1beta1
 	return gw, nil
 }
 
-func (c *kialiCacheImpl) GetGateways(namespace, labelSelector string) ([]*networking_v1beta1.Gateway, error) {
-	if !c.CheckIstioResource(kubernetes.Gateways) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.Gateways)
-	}
+func (c *KialiCache) GetGateways(namespace, labelSelector string) ([]*networking_v1beta1.Gateway, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -262,11 +200,7 @@ func (c *kialiCacheImpl) GetGateways(namespace, labelSelector string) ([]*networ
 	return gateways, nil
 }
 
-func (c *kialiCacheImpl) GetServiceEntry(namespace, name string) (*networking_v1beta1.ServiceEntry, error) {
-	if !c.CheckIstioResource(kubernetes.ServiceEntries) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.ServiceEntryType)
-	}
-
+func (c *KialiCache) GetServiceEntry(namespace, name string) (*networking_v1beta1.ServiceEntry, error) {
 	se, err := c.getCacheLister(namespace).serviceEntryLister.ServiceEntries(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -276,10 +210,7 @@ func (c *kialiCacheImpl) GetServiceEntry(namespace, name string) (*networking_v1
 	return se, nil
 }
 
-func (c *kialiCacheImpl) GetServiceEntries(namespace, labelSelector string) ([]*networking_v1beta1.ServiceEntry, error) {
-	if !c.CheckIstioResource(kubernetes.ServiceEntries) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.ServiceEntryType)
-	}
+func (c *KialiCache) GetServiceEntries(namespace, labelSelector string) ([]*networking_v1beta1.ServiceEntry, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -302,11 +233,7 @@ func (c *kialiCacheImpl) GetServiceEntries(namespace, labelSelector string) ([]*
 	return ses, nil
 }
 
-func (c *kialiCacheImpl) GetSidecar(namespace, name string) (*networking_v1beta1.Sidecar, error) {
-	if !c.CheckIstioResource(kubernetes.Sidecars) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.SidecarType)
-	}
-
+func (c *KialiCache) GetSidecar(namespace, name string) (*networking_v1beta1.Sidecar, error) {
 	sc, err := c.getCacheLister(namespace).sidecarLister.Sidecars(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -316,10 +243,7 @@ func (c *kialiCacheImpl) GetSidecar(namespace, name string) (*networking_v1beta1
 	return sc, nil
 }
 
-func (c *kialiCacheImpl) GetSidecars(namespace, labelSelector string) ([]*networking_v1beta1.Sidecar, error) {
-	if !c.CheckIstioResource(kubernetes.Sidecars) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.SidecarType)
-	}
+func (c *KialiCache) GetSidecars(namespace, labelSelector string) ([]*networking_v1beta1.Sidecar, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -342,11 +266,7 @@ func (c *kialiCacheImpl) GetSidecars(namespace, labelSelector string) ([]*networ
 	return sidecars, nil
 }
 
-func (c *kialiCacheImpl) GetVirtualService(namespace, name string) (*networking_v1beta1.VirtualService, error) {
-	if !c.CheckIstioResource(kubernetes.VirtualServices) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.VirtualServiceType)
-	}
-
+func (c *KialiCache) GetVirtualService(namespace, name string) (*networking_v1beta1.VirtualService, error) {
 	vs, err := c.getCacheLister(namespace).virtualServiceLister.VirtualServices(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -356,10 +276,7 @@ func (c *kialiCacheImpl) GetVirtualService(namespace, name string) (*networking_
 	return vs, nil
 }
 
-func (c *kialiCacheImpl) GetVirtualServices(namespace, labelSelector string) ([]*networking_v1beta1.VirtualService, error) {
-	if !c.CheckIstioResource(kubernetes.VirtualServices) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.VirtualServiceType)
-	}
+func (c *KialiCache) GetVirtualServices(namespace, labelSelector string) ([]*networking_v1beta1.VirtualService, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -382,11 +299,7 @@ func (c *kialiCacheImpl) GetVirtualServices(namespace, labelSelector string) ([]
 	return vs, nil
 }
 
-func (c *kialiCacheImpl) GetWorkloadEntry(namespace, name string) (*networking_v1beta1.WorkloadEntry, error) {
-	if !c.CheckIstioResource(kubernetes.WorkloadEntries) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.WorkloadEntryType)
-	}
-
+func (c *KialiCache) GetWorkloadEntry(namespace, name string) (*networking_v1beta1.WorkloadEntry, error) {
 	we, err := c.getCacheLister(namespace).workloadEntryLister.WorkloadEntries(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -396,11 +309,7 @@ func (c *kialiCacheImpl) GetWorkloadEntry(namespace, name string) (*networking_v
 	return we, nil
 }
 
-func (c *kialiCacheImpl) GetWorkloadEntries(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadEntry, error) {
-	if !c.CheckIstioResource(kubernetes.WorkloadEntries) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.WorkloadEntryType)
-	}
-
+func (c *KialiCache) GetWorkloadEntries(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadEntry, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -423,11 +332,7 @@ func (c *kialiCacheImpl) GetWorkloadEntries(namespace, labelSelector string) ([]
 	return we, nil
 }
 
-func (c *kialiCacheImpl) GetWorkloadGroup(namespace, name string) (*networking_v1beta1.WorkloadGroup, error) {
-	if !c.CheckIstioResource(kubernetes.WorkloadGroups) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.WorkloadGroupType)
-	}
-
+func (c *KialiCache) GetWorkloadGroup(namespace, name string) (*networking_v1beta1.WorkloadGroup, error) {
 	wg, err := c.getCacheLister(namespace).workloadGroupLister.WorkloadGroups(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -437,10 +342,7 @@ func (c *kialiCacheImpl) GetWorkloadGroup(namespace, name string) (*networking_v
 	return wg, nil
 }
 
-func (c *kialiCacheImpl) GetWorkloadGroups(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadGroup, error) {
-	if !c.CheckIstioResource(kubernetes.WorkloadGroups) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.WorkloadGroups)
-	}
+func (c *KialiCache) GetWorkloadGroups(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadGroup, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -463,11 +365,7 @@ func (c *kialiCacheImpl) GetWorkloadGroups(namespace, labelSelector string) ([]*
 	return wg, nil
 }
 
-func (c *kialiCacheImpl) GetWasmPlugin(namespace, name string) (*extentions_v1alpha1.WasmPlugin, error) {
-	if !c.CheckIstioResource(kubernetes.WasmPlugins) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.WasmPluginType)
-	}
-
+func (c *KialiCache) GetWasmPlugin(namespace, name string) (*extentions_v1alpha1.WasmPlugin, error) {
 	wp, err := c.getCacheLister(namespace).wasmPluginLister.WasmPlugins(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -477,11 +375,7 @@ func (c *kialiCacheImpl) GetWasmPlugin(namespace, name string) (*extentions_v1al
 	return wp, nil
 }
 
-func (c *kialiCacheImpl) GetWasmPlugins(namespace, labelSelector string) ([]*extentions_v1alpha1.WasmPlugin, error) {
-	if !c.CheckIstioResource(kubernetes.WasmPlugins) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.WasmPlugins)
-	}
-
+func (c *KialiCache) GetWasmPlugins(namespace, labelSelector string) ([]*extentions_v1alpha1.WasmPlugin, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -504,11 +398,7 @@ func (c *kialiCacheImpl) GetWasmPlugins(namespace, labelSelector string) ([]*ext
 	return wp, nil
 }
 
-func (c *kialiCacheImpl) GetTelemetry(namespace, name string) (*v1alpha1.Telemetry, error) {
-	if !c.CheckIstioResource(kubernetes.Telemetries) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.TelemetryType)
-	}
-
+func (c *KialiCache) GetTelemetry(namespace, name string) (*v1alpha1.Telemetry, error) {
 	t, err := c.getCacheLister(namespace).telemetryLister.Telemetries(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -518,11 +408,7 @@ func (c *kialiCacheImpl) GetTelemetry(namespace, name string) (*v1alpha1.Telemet
 	return t, nil
 }
 
-func (c *kialiCacheImpl) GetTelemetries(namespace, labelSelector string) ([]*v1alpha1.Telemetry, error) {
-	if !c.CheckIstioResource(kubernetes.Telemetries) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.Telemetries)
-	}
-
+func (c *KialiCache) GetTelemetries(namespace, labelSelector string) ([]*v1alpha1.Telemetry, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -546,11 +432,7 @@ func (c *kialiCacheImpl) GetTelemetries(namespace, labelSelector string) ([]*v1a
 	return t, nil
 }
 
-func (c *kialiCacheImpl) GetK8sGateway(namespace, name string) (*gatewayapi.Gateway, error) {
-	if !c.CheckIstioResource(kubernetes.K8sGateways) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.K8sGatewayType)
-	}
-
+func (c *KialiCache) GetK8sGateway(namespace, name string) (*gatewayapi.Gateway, error) {
 	g, err := c.getCacheLister(namespace).k8sgatewayLister.Gateways(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -560,11 +442,7 @@ func (c *kialiCacheImpl) GetK8sGateway(namespace, name string) (*gatewayapi.Gate
 	return g, nil
 }
 
-func (c *kialiCacheImpl) GetK8sGateways(namespace, labelSelector string) ([]*gatewayapi.Gateway, error) {
-	if !c.CheckIstioResource(kubernetes.K8sGateways) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.K8sGateways)
-	}
-
+func (c *KialiCache) GetK8sGateways(namespace, labelSelector string) ([]*gatewayapi.Gateway, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -588,11 +466,7 @@ func (c *kialiCacheImpl) GetK8sGateways(namespace, labelSelector string) ([]*gat
 	return g, nil
 }
 
-func (c *kialiCacheImpl) GetK8sHTTPRoute(namespace, name string) (*gatewayapi.HTTPRoute, error) {
-	if !c.CheckIstioResource(kubernetes.K8sHTTPRoutes) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.K8sHTTPRouteType)
-	}
-
+func (c *KialiCache) GetK8sHTTPRoute(namespace, name string) (*gatewayapi.HTTPRoute, error) {
 	g, err := c.getCacheLister(namespace).k8shttprouteLister.HTTPRoutes(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -602,11 +476,7 @@ func (c *kialiCacheImpl) GetK8sHTTPRoute(namespace, name string) (*gatewayapi.HT
 	return g, nil
 }
 
-func (c *kialiCacheImpl) GetK8sHTTPRoutes(namespace, labelSelector string) ([]*gatewayapi.HTTPRoute, error) {
-	if !c.CheckIstioResource(kubernetes.K8sHTTPRoutes) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.K8sHTTPRoutes)
-	}
-
+func (c *KialiCache) GetK8sHTTPRoutes(namespace, labelSelector string) ([]*gatewayapi.HTTPRoute, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -630,11 +500,7 @@ func (c *kialiCacheImpl) GetK8sHTTPRoutes(namespace, labelSelector string) ([]*g
 	return r, nil
 }
 
-func (c *kialiCacheImpl) GetAuthorizationPolicy(namespace, name string) (*security_v1beta1.AuthorizationPolicy, error) {
-	if !c.CheckIstioResource(kubernetes.AuthorizationPolicies) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.AuthorizationPoliciesType)
-	}
-
+func (c *KialiCache) GetAuthorizationPolicy(namespace, name string) (*security_v1beta1.AuthorizationPolicy, error) {
 	ap, err := c.getCacheLister(namespace).authzLister.AuthorizationPolicies(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -644,10 +510,7 @@ func (c *kialiCacheImpl) GetAuthorizationPolicy(namespace, name string) (*securi
 	return ap, nil
 }
 
-func (c *kialiCacheImpl) GetAuthorizationPolicies(namespace, labelSelector string) ([]*security_v1beta1.AuthorizationPolicy, error) {
-	if !c.CheckIstioResource(kubernetes.AuthorizationPolicies) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.AuthorizationPolicies)
-	}
+func (c *KialiCache) GetAuthorizationPolicies(namespace, labelSelector string) ([]*security_v1beta1.AuthorizationPolicy, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -670,11 +533,7 @@ func (c *kialiCacheImpl) GetAuthorizationPolicies(namespace, labelSelector strin
 	return authPolicies, nil
 }
 
-func (c *kialiCacheImpl) GetPeerAuthentication(namespace, name string) (*security_v1beta1.PeerAuthentication, error) {
-	if !c.CheckIstioResource(kubernetes.PeerAuthentications) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.PeerAuthenticationsType)
-	}
-
+func (c *KialiCache) GetPeerAuthentication(namespace, name string) (*security_v1beta1.PeerAuthentication, error) {
 	pa, err := c.getCacheLister(namespace).peerAuthnLister.PeerAuthentications(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -684,11 +543,7 @@ func (c *kialiCacheImpl) GetPeerAuthentication(namespace, name string) (*securit
 	return pa, nil
 }
 
-func (c *kialiCacheImpl) GetPeerAuthentications(namespace, labelSelector string) ([]*security_v1beta1.PeerAuthentication, error) {
-	if !c.CheckIstioResource(kubernetes.PeerAuthentications) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.PeerAuthenticationsType)
-	}
-
+func (c *KialiCache) GetPeerAuthentications(namespace, labelSelector string) ([]*security_v1beta1.PeerAuthentication, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err
@@ -711,11 +566,7 @@ func (c *kialiCacheImpl) GetPeerAuthentications(namespace, labelSelector string)
 	return peerAuths, nil
 }
 
-func (c *kialiCacheImpl) GetRequestAuthentication(namespace, name string) (*security_v1beta1.RequestAuthentication, error) {
-	if !c.CheckIstioResource(kubernetes.RequestAuthentications) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.RequestAuthentications)
-	}
-
+func (c *KialiCache) GetRequestAuthentication(namespace, name string) (*security_v1beta1.RequestAuthentication, error) {
 	ra, err := c.getCacheLister(namespace).requestAuthnLister.RequestAuthentications(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -725,10 +576,7 @@ func (c *kialiCacheImpl) GetRequestAuthentication(namespace, name string) (*secu
 	return ra, nil
 }
 
-func (c *kialiCacheImpl) GetRequestAuthentications(namespace, labelSelector string) ([]*security_v1beta1.RequestAuthentication, error) {
-	if !c.CheckIstioResource(kubernetes.RequestAuthentications) {
-		return nil, fmt.Errorf("Kiali cache doesn't support [resourceType: %s]", kubernetes.RequestAuthenticationsType)
-	}
+func (c *KialiCache) GetRequestAuthentications(namespace, labelSelector string) ([]*security_v1beta1.RequestAuthentication, error) {
 	selector, err := labels.Parse(labelSelector)
 	if err != nil {
 		return nil, err

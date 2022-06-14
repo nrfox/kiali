@@ -23,15 +23,12 @@ func TestGetSidecar(t *testing.T) {
 		"version": "v1",
 	}
 
-	kialiCacheImpl := kialiCacheImpl{
+	kialiCacheImpl := KialiCache{
 		clusterScoped:         true,
 		stopClusterScopedChan: make(chan struct{}),
 		istioApi:              istiofake.NewSimpleClientset(sidecar),
 		k8sApi:                kubefake.NewSimpleClientset(),
-		cacheIstioTypes: map[string]bool{
-			kubernetes.PluralType[kubernetes.Sidecars]: true,
-		},
-		clusterCacheLister: &cacheLister{},
+		clusterCacheLister:    &cacheLister{},
 	}
 	kialiCacheImpl.registryRefreshHandler = NewRegistryHandler(kialiCacheImpl.RefreshRegistryStatus)
 
@@ -100,19 +97,6 @@ func TestGetSidecar(t *testing.T) {
 	}
 }
 
-func TestGetNonCachedResource(t *testing.T) {
-	assert := assert.New(t)
-	sidecar := &networking_v1beta1.VirtualService{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "sidecar", Namespace: "test", Labels: map[string]string{"app": "bookinfo", "version": "v1"},
-		},
-	}
-	kialiCache := newTestKialiCache(nil, []runtime.Object{sidecar}, nil)
-	kialiCache.cacheIstioTypes = nil
-	_, err := kialiCache.GetVirtualServices("testing-ns", "app=bookinfo")
-	assert.Error(err)
-}
-
 // Other parts of the codebase assume that this kind field is present so it's important
 // that the cache sets it.
 func TestGetAndListReturnKindInfo(t *testing.T) {
@@ -123,9 +107,6 @@ func TestGetAndListReturnKindInfo(t *testing.T) {
 		},
 	}
 	kialiCache := newTestKialiCache(nil, []runtime.Object{vs}, nil)
-	kialiCache.cacheIstioTypes = map[string]bool{
-		kubernetes.PluralType[kubernetes.VirtualServices]: true,
-	}
 	kialiCache.Refresh("test")
 
 	vsFromCache, err := kialiCache.GetVirtualService("test", "vs")

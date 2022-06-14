@@ -10,6 +10,8 @@ import (
 
 func CreateEmptyVirtualService(name string, namespace string, hosts []string) *networking_v1beta1.VirtualService {
 	vs := networking_v1beta1.VirtualService{}
+	vs.Kind = "VirtualService"
+	vs.APIVersion = "networking.istio.io/v1beta1"
 	vs.Name = name
 	vs.Namespace = namespace
 	vs.Spec.Hosts = hosts

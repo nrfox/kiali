@@ -41,7 +41,7 @@ var clientFactory kubernetes.ClientFactory
 
 var (
 	jaegerClient     jaeger.ClientInterface
-	kialiCache       cache.KialiCache
+	kialiCache       *cache.KialiCache
 	once             sync.Once
 	prometheusClient prometheus.ClientInterface
 )
@@ -55,68 +55,54 @@ func initKialiCache() {
 		}
 	}
 
-	if config.Get().KubernetesConfig.CacheEnabled {
-		log.Infof("Initializing Kiali Cache")
+	log.Infof("Initializing Kiali Cache")
 
-		// Initial list of namespaces to seed the cache with.
-		// This is only necessary if the cache is namespace-scoped.
-		// For a cluster-scoped cache, all namespaces are accessible.
-		// TODO: This is leaking cluster-scoped vs. namespace-scoped in a way.
-		var namespaceSeedList []string
-		if !config.Get().AllNamespacesAccessible() {
-			cfg, err := kubernetes.ConfigClient()
-			if err != nil {
-				log.Errorf("Failed to initialize Kiali Cache. Unable to create Kube rest config. Err: %s", err)
-				return
-			}
-
-			kubeClient, err := kubernetes.NewClientFromConfig(cfg)
-			if err != nil {
-				log.Errorf("Failed to initialize Kiali Cache. Unable to create Kube client. Err: %s", err)
-				return
-			}
-
-			initNamespaceService := NewNamespaceService(kubeClient)
-			nss, err := initNamespaceService.GetNamespaces(context.Background())
-			if err != nil {
-				log.Errorf("Error fetching initial namespaces for populating the Kiali Cache. Details: %s", err)
-				return
-			}
-
-			for _, ns := range nss {
-				namespaceSeedList = append(namespaceSeedList, ns.Name)
-			}
-		}
-
-		cache, err := cache.NewKialiCache(namespaceSeedList...)
+	// Initial list of namespaces to seed the cache with.
+	// This is only necessary if the cache is namespace-scoped.
+	// For a cluster-scoped cache, all namespaces are accessible.
+	// TODO: This is leaking cluster-scoped vs. namespace-scoped in a way.
+	var namespaceSeedList []string
+	if !config.Get().AllNamespacesAccessible() {
+		cfg, err := kubernetes.ConfigClient()
 		if err != nil {
-			log.Errorf("Error initializing Kiali Cache. Details: %s", err)
+			log.Errorf("Failed to initialize Kiali Cache. Unable to create Kube rest config. Err: %s", err)
 			return
 		}
 
-		kialiCache = cache
-	}
-}
+		kubeClient, err := kubernetes.NewClientFromConfig(cfg)
+		if err != nil {
+			log.Errorf("Failed to initialize Kiali Cache. Unable to create Kube client. Err: %s", err)
+			return
+		}
 
-func IsNamespaceCached(namespace string) bool {
-	ok := kialiCache != nil && kialiCache.CheckNamespace(namespace)
-	return ok
-}
+		initNamespaceService := NewNamespaceService(kubeClient)
+		nss, err := initNamespaceService.GetNamespaces(context.Background())
+		if err != nil {
+			log.Errorf("Error fetching initial namespaces for populating the Kiali Cache. Details: %s", err)
+			return
+		}
 
-func IsResourceCached(namespace string, resource string) bool {
-	ok := IsNamespaceCached(namespace)
-	if ok && resource != "" {
-		ok = kialiCache.CheckIstioResource(resource)
+		for _, ns := range nss {
+			namespaceSeedList = append(namespaceSeedList, ns.Name)
+		}
 	}
-	return ok
+
+	cache, err := cache.NewKialiCache(namespaceSeedList...)
+	if err != nil {
+		log.Errorf("Error initializing Kiali Cache. Details: %s", err)
+		return
+	}
+
+	kialiCache = cache
 }
 
 func Start() {
-	// Kiali Cache will be initialized once at first use of Business layer
+	// Kiali Cache will be initialized once at start up.
 	once.Do(initKialiCache)
 }
 
-// Get the business.Layer
+// Get the business.Layer. A business layer gets created per request but the kube clients
+// are created once per auth token. When the client tokens expire, they will be deleted.
 func Get(authInfo *api.AuthInfo) (*Layer, error) {
 	// Use an existing client factory if it exists, otherwise create and use in the future
 	if clientFactory == nil {
@@ -133,6 +119,14 @@ func Get(authInfo *api.AuthInfo) (*Layer, error) {
 		return nil, err
 	}
 
+	// The caching client effectively uses two different SA account tokens.
+	// The kiali SA token is used for all cache methods. The cache methods are
+	// read-only. Methods that are not cached and methods that modify objects
+	// use the user's token through the normal client.
+	cachingClient := cache.NewCachingClient(kialiCache, k8s)
+
+	// TODO: We probably want to create the prom client and the jaeger client at the same time
+	// we initialize the cache which happens on startup.
 	// Use an existing Prometheus client if it exists, otherwise create and use in the future
 	if prometheusClient == nil {
 		prom, err := prometheus.NewClient()
@@ -155,14 +149,16 @@ func Get(authInfo *api.AuthInfo) (*Layer, error) {
 		return jaegerClient, err
 	}
 
-	return NewWithBackends(k8s, prometheusClient, jaegerLoader), nil
+	return NewWithBackends(cachingClient, prometheusClient, jaegerLoader), nil
 }
 
 // SetWithBackends allows for specifying the ClientFactory and Prometheus clients to be used.
 // Mock friendly. Used only with tests.
-func SetWithBackends(cf kubernetes.ClientFactory, prom prometheus.ClientInterface) {
+// TODO: Can the bizz layer just own the cache or do other things need it too?
+func SetWithBackends(cf kubernetes.ClientFactory, prom prometheus.ClientInterface, cache *cache.KialiCache) {
 	clientFactory = cf
 	prometheusClient = prom
+	kialiCache = cache
 }
 
 // NewWithBackends creates the business layer using the passed k8s and prom clients
@@ -192,6 +188,7 @@ func NewWithBackends(k8s kubernetes.ClientInterface, prom prometheus.ClientInter
 }
 
 func Stop() {
+	// This shouldn't be nil except in testing.
 	if kialiCache != nil {
 		kialiCache.Stop()
 	}

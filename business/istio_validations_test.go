@@ -245,7 +245,8 @@ func fakeIstioConfigList() *models.IstioConfigList {
 	istioConfigList.VirtualServices = []*networking_v1beta1.VirtualService{
 		data.AddHttpRoutesToVirtualService(data.CreateHttpRouteDestination("product", "v1", -1),
 			data.AddTcpRoutesToVirtualService(data.CreateTcpRoute("product2", "v1", -1),
-				data.CreateEmptyVirtualService("product-vs", "test", []string{"product"})))}
+				data.CreateEmptyVirtualService("product-vs", "test", []string{"product"}))),
+	}
 
 	istioConfigList.DestinationRules = []*networking_v1beta1.DestinationRule{
 		data.AddSubsetToDestinationRule(data.CreateSubset("v1", "v1"), data.CreateEmptyDestinationRule("test", "product-dr", "product")),
@@ -334,7 +335,8 @@ func getGateway(name, namespace string) []*networking_v1beta1.Gateway {
 		data.AddServerToGateway(data.CreateServer([]string{"valid"}, 80, "http", "http"),
 			data.CreateEmptyGateway(name, namespace, map[string]string{
 				"app": "real",
-			}))}
+			})),
+	}
 }
 
 func loadVirtualService(file string, t *testing.T) *networking_v1beta1.VirtualService {

@@ -167,6 +167,8 @@ func (in *K8SClient) GetNamespaces(labelSelector string) ([]core_v1.Namespace, e
 func (in *K8SClient) GetProject(name string) (*osproject_v1.Project, error) {
 	result := &osproject_v1.Project{}
 
+	// TODO: Import the openshift apis/clients.
+
 	err := in.k8s.Discovery().RESTClient().Get().Prefix("apis", "project.openshift.io", "v1", "projects", name).Do(in.ctx).Into(result)
 	if err != nil {
 		return nil, err

@@ -10,6 +10,7 @@ import (
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
 	"github.com/kiali/kiali/observability"
@@ -20,6 +21,7 @@ import (
 type IstioStatusService struct {
 	k8s           kubernetes.ClientInterface
 	businessLayer *Layer
+	kialiCache    cache.KialiCache
 }
 
 func (iss *IstioStatusService) GetStatus(ctx context.Context) (kubernetes.IstioComponentStatus, error) {

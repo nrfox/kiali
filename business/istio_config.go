@@ -14,8 +14,6 @@ import (
 	security_v1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	"istio.io/client-go/pkg/apis/telemetry/v1alpha1"
 	api_errors "k8s.io/apimachinery/pkg/api/errors"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	api_types "k8s.io/apimachinery/pkg/types"
 	k8s_networking_v1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/kiali/kiali/config"
@@ -232,20 +230,11 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 	var wg sync.WaitGroup
 	wg.Add(15)
 
-	listOpts := meta_v1.ListOptions{LabelSelector: criteria.LabelSelector}
-
 	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.DestinationRules) {
 			var err error
-			// Check if namespace is cached
-			if IsResourceCached(criteria.Namespace, kubernetes.DestinationRules) {
-				istioConfigList.DestinationRules, err = kialiCache.GetDestinationRules(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				drl, e := in.k8s.Istio().NetworkingV1beta1().DestinationRules(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.DestinationRules = drl.Items
-				err = e
-			}
+			istioConfigList.DestinationRules, err = in.k8s.GetDestinationRules(criteria.Namespace, criteria.LabelSelector)
 			if err != nil {
 				errChan <- err
 			}
@@ -256,13 +245,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.EnvoyFilters) {
 			var err error
-			if IsResourceCached(criteria.Namespace, kubernetes.EnvoyFilters) {
-				istioConfigList.EnvoyFilters, err = kialiCache.GetEnvoyFilters(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				efl, e := in.k8s.Istio().NetworkingV1alpha3().EnvoyFilters(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.EnvoyFilters = efl.Items
-				err = e
-			}
+			istioConfigList.EnvoyFilters, err = in.k8s.GetEnvoyFilters(criteria.Namespace, criteria.LabelSelector)
 			if err == nil {
 				if isWorkloadSelector {
 					istioConfigList.EnvoyFilters = kubernetes.FilterEnvoyFiltersBySelector(workloadSelector, istioConfigList.EnvoyFilters)
@@ -277,14 +260,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.Gateways) {
 			var err error
-			// Check if namespace is cached
-			if IsResourceCached(criteria.Namespace, kubernetes.Gateways) {
-				istioConfigList.Gateways, err = kialiCache.GetGateways(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				gwl, e := in.k8s.Istio().NetworkingV1beta1().Gateways(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.Gateways = gwl.Items
-				err = e
-			}
+			istioConfigList.Gateways, err = in.k8s.GetGateways(criteria.Namespace, criteria.LabelSelector)
 			if err == nil {
 				if isWorkloadSelector {
 					istioConfigList.Gateways = kubernetes.FilterGatewaysBySelector(workloadSelector, istioConfigList.Gateways)
@@ -301,9 +277,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 			var err error
 			// ignore an error as system could not be configured to support K8s Gateway API
 			// Check if namespace is cached
-			if IsResourceCached(criteria.Namespace, kubernetes.K8sGateways) {
-				istioConfigList.K8sGateways, err = kialiCache.GetK8sGateways(criteria.Namespace, criteria.LabelSelector)
-			}
+			istioConfigList.K8sGateways, err = in.k8s.GetK8sGateways(criteria.Namespace, criteria.LabelSelector)
 			// TODO gwl.Items, there is conflict itself in Gateway API between returned types referenced or not
 			//else {
 			//	if gwl, e := in.k8s.GatewayAPI().GatewayV1alpha2().Gateways(criteria.Namespace).List(ctx, listOpts); e == nil {
@@ -322,9 +296,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 			var err error
 			// ignore an error as system could not be configured to support K8s Gateway API
 			// Check if namespace is cached
-			if IsResourceCached(criteria.Namespace, kubernetes.K8sHTTPRoutes) {
-				istioConfigList.K8sHTTPRoutes, err = kialiCache.GetK8sHTTPRoutes(criteria.Namespace, criteria.LabelSelector)
-			}
+			istioConfigList.K8sHTTPRoutes, err = in.k8s.GetK8sHTTPRoutes(criteria.Namespace, criteria.LabelSelector)
 			// TODO gwl.Items, there is conflict itself in Gateway API between returned types referenced or not
 			//else {
 			//	if gwl, e := in.k8s.GatewayAPI().GatewayV1alpha2().HTTPRoutes(criteria.Namespace).List(ctx, listOpts); e == nil {
@@ -341,14 +313,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.ServiceEntries) {
 			var err error
-			// Check if namespace is cached
-			if IsResourceCached(criteria.Namespace, kubernetes.ServiceEntries) {
-				istioConfigList.ServiceEntries, err = kialiCache.GetServiceEntries(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				sel, e := in.k8s.Istio().NetworkingV1beta1().ServiceEntries(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.ServiceEntries = sel.Items
-				err = e
-			}
+			istioConfigList.ServiceEntries, err = in.k8s.GetServiceEntries(criteria.Namespace, criteria.LabelSelector)
 			if err != nil {
 				errChan <- err
 			}
@@ -359,13 +324,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.Sidecars) {
 			var err error
-			if IsResourceCached(criteria.Namespace, kubernetes.Sidecars) {
-				istioConfigList.Sidecars, err = kialiCache.GetSidecars(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				scl, e := in.k8s.Istio().NetworkingV1beta1().Sidecars(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.Sidecars = scl.Items
-				err = e
-			}
+			istioConfigList.Sidecars, err = in.k8s.GetSidecars(criteria.Namespace, criteria.LabelSelector)
 			if err == nil {
 				if isWorkloadSelector {
 					istioConfigList.Sidecars = kubernetes.FilterSidecarsBySelector(workloadSelector, istioConfigList.Sidecars)
@@ -380,14 +339,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.VirtualServices) {
 			var err error
-			// Check if namespace is cached
-			if IsResourceCached(criteria.Namespace, kubernetes.VirtualServices) {
-				istioConfigList.VirtualServices, err = kialiCache.GetVirtualServices(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				vsl, e := in.k8s.Istio().NetworkingV1beta1().VirtualServices(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.VirtualServices = vsl.Items
-				err = e
-			}
+			istioConfigList.VirtualServices, err = in.k8s.GetVirtualServices(criteria.Namespace, criteria.LabelSelector)
 			if err != nil {
 				errChan <- err
 			}
@@ -398,13 +350,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.WorkloadEntries) {
 			var err error
-			if IsResourceCached(criteria.Namespace, kubernetes.WorkloadEntries) {
-				istioConfigList.WorkloadEntries, err = kialiCache.GetWorkloadEntries(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				wel, e := in.k8s.Istio().NetworkingV1beta1().WorkloadEntries(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.WorkloadEntries = wel.Items
-				err = e
-			}
+			istioConfigList.WorkloadEntries, err = in.k8s.GetWorkloadEntries(criteria.Namespace, criteria.LabelSelector)
 			if err != nil {
 				errChan <- err
 			}
@@ -415,13 +361,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.WorkloadGroups) {
 			var err error
-			if IsResourceCached(criteria.Namespace, kubernetes.WorkloadGroups) {
-				istioConfigList.WorkloadGroups, err = kialiCache.GetWorkloadGroups(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				wgl, e := in.k8s.Istio().NetworkingV1beta1().WorkloadGroups(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.WorkloadGroups = wgl.Items
-				err = e
-			}
+			istioConfigList.WorkloadGroups, err = in.k8s.GetWorkloadGroups(criteria.Namespace, criteria.LabelSelector)
 			if err != nil {
 				errChan <- err
 			}
@@ -432,13 +372,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.WasmPlugins) {
 			var err error
-			if IsResourceCached(criteria.Namespace, kubernetes.WasmPlugins) {
-				istioConfigList.WasmPlugins, err = kialiCache.GetWasmPlugins(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				wgl, e := in.k8s.Istio().ExtensionsV1alpha1().WasmPlugins(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.WasmPlugins = wgl.Items
-				err = e
-			}
+			istioConfigList.WasmPlugins, err = in.k8s.GetWasmPlugins(criteria.Namespace, criteria.LabelSelector)
 			if err != nil {
 				errChan <- err
 			}
@@ -449,13 +383,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.Telemetries) {
 			var err error
-			if IsResourceCached(criteria.Namespace, kubernetes.Telemetries) {
-				istioConfigList.Telemetries, err = kialiCache.GetTelemetries(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				wgl, e := in.k8s.Istio().TelemetryV1alpha1().Telemetries(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.Telemetries = wgl.Items
-				err = e
-			}
+			istioConfigList.Telemetries, err = in.k8s.GetTelemetries(criteria.Namespace, criteria.LabelSelector)
 			if err != nil {
 				errChan <- err
 			}
@@ -466,13 +394,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.AuthorizationPolicies) {
 			var err error
-			if IsResourceCached(criteria.Namespace, kubernetes.AuthorizationPolicies) {
-				istioConfigList.AuthorizationPolicies, err = kialiCache.GetAuthorizationPolicies(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				apl, e := in.k8s.Istio().SecurityV1beta1().AuthorizationPolicies(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.AuthorizationPolicies = apl.Items
-				err = e
-			}
+			istioConfigList.AuthorizationPolicies, err = in.k8s.GetAuthorizationPolicies(criteria.Namespace, criteria.LabelSelector)
 			if err == nil {
 				if isWorkloadSelector {
 					istioConfigList.AuthorizationPolicies = kubernetes.FilterAuthorizationPoliciesBySelector(workloadSelector, istioConfigList.AuthorizationPolicies)
@@ -487,13 +409,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.PeerAuthentications) {
 			var err error
-			if IsResourceCached(criteria.Namespace, kubernetes.PeerAuthentications) {
-				istioConfigList.PeerAuthentications, err = kialiCache.GetPeerAuthentications(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				pal, e := in.k8s.Istio().SecurityV1beta1().PeerAuthentications(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.PeerAuthentications = pal.Items
-				err = e
-			}
+			istioConfigList.PeerAuthentications, err = in.k8s.GetPeerAuthentications(criteria.Namespace, criteria.LabelSelector)
 			if err == nil {
 				if isWorkloadSelector {
 					istioConfigList.PeerAuthentications = kubernetes.FilterPeerAuthenticationsBySelector(workloadSelector, istioConfigList.PeerAuthentications)
@@ -508,13 +424,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 		defer wg.Done()
 		if criteria.Include(kubernetes.RequestAuthentications) {
 			var err error
-			if IsResourceCached(criteria.Namespace, kubernetes.RequestAuthentications) {
-				istioConfigList.RequestAuthentications, err = kialiCache.GetRequestAuthentications(criteria.Namespace, criteria.LabelSelector)
-			} else {
-				ral, e := in.k8s.Istio().SecurityV1beta1().RequestAuthentications(criteria.Namespace).List(ctx, listOpts)
-				istioConfigList.RequestAuthentications = ral.Items
-				err = e
-			}
+			istioConfigList.RequestAuthentications, err = in.k8s.GetRequestAuthentications(criteria.Namespace, criteria.LabelSelector)
 			if err == nil {
 				if isWorkloadSelector {
 					istioConfigList.RequestAuthentications = kubernetes.FilterRequestAuthenticationsBySelector(workloadSelector, istioConfigList.RequestAuthentications)
@@ -578,99 +488,37 @@ func (in *IstioConfigService) GetIstioConfigDetails(ctx context.Context, namespa
 		}
 	}(ctx)
 
-	getOpts := meta_v1.GetOptions{}
-
 	switch objectType {
 	case kubernetes.DestinationRules:
-		istioConfigDetail.DestinationRule, err = in.k8s.Istio().NetworkingV1beta1().DestinationRules(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.DestinationRule.Kind = kubernetes.DestinationRuleType
-			istioConfigDetail.DestinationRule.APIVersion = kubernetes.ApiNetworkingVersionV1Beta1
-		}
+		istioConfigDetail.DestinationRule, err = in.k8s.GetDestinationRule(namespace, object)
 	case kubernetes.EnvoyFilters:
-		istioConfigDetail.EnvoyFilter, err = in.k8s.Istio().NetworkingV1alpha3().EnvoyFilters(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.EnvoyFilter.Kind = kubernetes.EnvoyFilterType
-			istioConfigDetail.EnvoyFilter.APIVersion = kubernetes.ApiNetworkingVersionV1Alpha3
-		}
+		istioConfigDetail.EnvoyFilter, err = in.k8s.GetEnvoyFilter(namespace, object)
 	case kubernetes.Gateways:
-		istioConfigDetail.Gateway, err = in.k8s.Istio().NetworkingV1beta1().Gateways(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.Gateway.Kind = kubernetes.GatewayType
-			istioConfigDetail.Gateway.APIVersion = kubernetes.ApiNetworkingVersionV1Beta1
-		}
+		istioConfigDetail.Gateway, err = in.k8s.GetGateway(namespace, object)
 	case kubernetes.K8sGateways:
-		istioConfigDetail.K8sGateway, err = in.k8s.GatewayAPI().GatewayV1alpha2().Gateways(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.K8sGateway.Kind = kubernetes.K8sActualGatewayType
-			istioConfigDetail.K8sGateway.APIVersion = kubernetes.K8sApiNetworkingVersionV1Alpha2
-		}
+		istioConfigDetail.K8sGateway, err = in.k8s.GetK8sGateway(namespace, object)
 	case kubernetes.K8sHTTPRoutes:
-		istioConfigDetail.K8sHTTPRoute, err = in.k8s.GatewayAPI().GatewayV1alpha2().HTTPRoutes(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.K8sHTTPRoute.Kind = kubernetes.K8sActualHTTPRouteType
-			istioConfigDetail.K8sHTTPRoute.APIVersion = kubernetes.K8sApiNetworkingVersionV1Alpha2
-		}
+		istioConfigDetail.K8sHTTPRoute, err = in.k8s.GetK8sHTTPRoute(namespace, object)
 	case kubernetes.ServiceEntries:
-		istioConfigDetail.ServiceEntry, err = in.k8s.Istio().NetworkingV1beta1().ServiceEntries(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.ServiceEntry.Kind = kubernetes.ServiceEntryType
-			istioConfigDetail.ServiceEntry.APIVersion = kubernetes.ApiNetworkingVersionV1Beta1
-		}
+		istioConfigDetail.ServiceEntry, err = in.k8s.GetServiceEntry(namespace, object)
 	case kubernetes.Sidecars:
-		istioConfigDetail.Sidecar, err = in.k8s.Istio().NetworkingV1beta1().Sidecars(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.Sidecar.Kind = kubernetes.SidecarType
-			istioConfigDetail.Sidecar.APIVersion = kubernetes.ApiNetworkingVersionV1Beta1
-		}
+		istioConfigDetail.Sidecar, err = in.k8s.GetSidecar(namespace, object)
 	case kubernetes.VirtualServices:
-		istioConfigDetail.VirtualService, err = in.k8s.Istio().NetworkingV1beta1().VirtualServices(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.VirtualService.Kind = kubernetes.VirtualServiceType
-			istioConfigDetail.VirtualService.APIVersion = kubernetes.ApiNetworkingVersionV1Beta1
-		}
+		istioConfigDetail.VirtualService, err = in.k8s.GetVirtualService(namespace, object)
 	case kubernetes.WorkloadEntries:
-		istioConfigDetail.WorkloadEntry, err = in.k8s.Istio().NetworkingV1beta1().WorkloadEntries(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.WorkloadEntry.Kind = kubernetes.WorkloadEntryType
-			istioConfigDetail.WorkloadEntry.APIVersion = kubernetes.ApiNetworkingVersionV1Beta1
-		}
+		istioConfigDetail.WorkloadEntry, err = in.k8s.GetWorkloadEntry(namespace, object)
 	case kubernetes.WorkloadGroups:
-		istioConfigDetail.WorkloadGroup, err = in.k8s.Istio().NetworkingV1beta1().WorkloadGroups(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.WorkloadGroup.Kind = kubernetes.WorkloadGroupType
-			istioConfigDetail.WorkloadGroup.APIVersion = kubernetes.ApiNetworkingVersionV1Beta1
-		}
+		istioConfigDetail.WorkloadGroup, err = in.k8s.GetWorkloadGroup(namespace, object)
 	case kubernetes.WasmPlugins:
-		istioConfigDetail.WasmPlugin, err = in.k8s.Istio().ExtensionsV1alpha1().WasmPlugins(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.WasmPlugin.Kind = kubernetes.WasmPluginType
-			istioConfigDetail.WasmPlugin.APIVersion = kubernetes.ApiExtensionV1Alpha1
-		}
+		istioConfigDetail.WasmPlugin, err = in.k8s.GetWasmPlugin(namespace, object)
 	case kubernetes.Telemetries:
-		istioConfigDetail.Telemetry, err = in.k8s.Istio().TelemetryV1alpha1().Telemetries(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.Telemetry.Kind = kubernetes.TelemetryType
-			istioConfigDetail.Telemetry.APIVersion = kubernetes.ApiTelemetryV1Alpha1
-		}
+		istioConfigDetail.Telemetry, err = in.k8s.GetTelemetry(namespace, object)
 	case kubernetes.AuthorizationPolicies:
-		istioConfigDetail.AuthorizationPolicy, err = in.k8s.Istio().SecurityV1beta1().AuthorizationPolicies(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.AuthorizationPolicy.Kind = kubernetes.AuthorizationPoliciesType
-			istioConfigDetail.AuthorizationPolicy.APIVersion = kubernetes.ApiSecurityVersion
-		}
+		istioConfigDetail.AuthorizationPolicy, err = in.k8s.GetAuthorizationPolicy(namespace, object)
 	case kubernetes.PeerAuthentications:
-		istioConfigDetail.PeerAuthentication, err = in.k8s.Istio().SecurityV1beta1().PeerAuthentications(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.PeerAuthentication.Kind = kubernetes.PeerAuthenticationsType
-			istioConfigDetail.PeerAuthentication.APIVersion = kubernetes.ApiSecurityVersion
-		}
+		istioConfigDetail.PeerAuthentication, err = in.k8s.GetPeerAuthentication(namespace, object)
 	case kubernetes.RequestAuthentications:
-		istioConfigDetail.RequestAuthentication, err = in.k8s.Istio().SecurityV1beta1().RequestAuthentications(namespace).Get(ctx, object, getOpts)
-		if err == nil {
-			istioConfigDetail.RequestAuthentication.Kind = kubernetes.RequestAuthenticationsType
-			istioConfigDetail.RequestAuthentication.APIVersion = kubernetes.ApiSecurityVersion
-		}
+		istioConfigDetail.RequestAuthentication, err = in.k8s.GetRequestAuthentication(namespace, object)
 	default:
 		err = fmt.Errorf("object type not found: %v", objectType)
 	}
@@ -880,49 +728,7 @@ func GetIstioAPI(resourceType string) bool {
 
 // DeleteIstioConfigDetail deletes the given Istio resource
 func (in *IstioConfigService) DeleteIstioConfigDetail(namespace, resourceType, name string) error {
-	var err error
-	delOpts := meta_v1.DeleteOptions{}
-	ctx := context.TODO()
-	switch resourceType {
-	case kubernetes.DestinationRules:
-		err = in.k8s.Istio().NetworkingV1beta1().DestinationRules(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.EnvoyFilters:
-		err = in.k8s.Istio().NetworkingV1alpha3().EnvoyFilters(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.Gateways:
-		err = in.k8s.Istio().NetworkingV1beta1().Gateways(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.K8sGateways:
-		err = in.k8s.GatewayAPI().GatewayV1alpha2().Gateways(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.K8sHTTPRoutes:
-		err = in.k8s.GatewayAPI().GatewayV1alpha2().HTTPRoutes(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.ServiceEntries:
-		err = in.k8s.Istio().NetworkingV1beta1().ServiceEntries(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.Sidecars:
-		err = in.k8s.Istio().NetworkingV1beta1().Sidecars(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.VirtualServices:
-		err = in.k8s.Istio().NetworkingV1beta1().VirtualServices(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.WorkloadEntries:
-		err = in.k8s.Istio().NetworkingV1beta1().WorkloadEntries(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.WorkloadGroups:
-		err = in.k8s.Istio().NetworkingV1beta1().WorkloadGroups(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.AuthorizationPolicies:
-		err = in.k8s.Istio().SecurityV1beta1().AuthorizationPolicies(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.PeerAuthentications:
-		err = in.k8s.Istio().SecurityV1beta1().PeerAuthentications(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.RequestAuthentications:
-		err = in.k8s.Istio().SecurityV1beta1().RequestAuthentications(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.WasmPlugins:
-		err = in.k8s.Istio().ExtensionsV1alpha1().WasmPlugins(namespace).Delete(ctx, name, delOpts)
-	case kubernetes.Telemetries:
-		err = in.k8s.Istio().TelemetryV1alpha1().Telemetries(namespace).Delete(ctx, name, delOpts)
-	default:
-		err = fmt.Errorf("object type not found: %v", resourceType)
-	}
-
-	// Cache is stopped after a Create/Update/Delete operation to force a refresh
-	if kialiCache != nil && err == nil {
-		kialiCache.Refresh(namespace)
-	}
-	return err
+	return in.k8s.DeleteObject(namespace, name, resourceType)
 }
 
 func (in *IstioConfigService) UpdateIstioConfigDetail(namespace, resourceType, name, jsonPatch string) (models.IstioConfigDetails, error) {
@@ -930,66 +736,59 @@ func (in *IstioConfigService) UpdateIstioConfigDetail(namespace, resourceType, n
 	istioConfigDetail.Namespace = models.Namespace{Name: namespace}
 	istioConfigDetail.ObjectType = resourceType
 
-	patchOpts := meta_v1.PatchOptions{}
-	ctx := context.TODO()
-	patchType := api_types.MergePatchType
 	bytePatch := []byte(jsonPatch)
 
 	var err error
 	switch resourceType {
 	case kubernetes.DestinationRules:
 		istioConfigDetail.DestinationRule = &networking_v1beta1.DestinationRule{}
-		istioConfigDetail.DestinationRule, err = in.k8s.Istio().NetworkingV1beta1().DestinationRules(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.DestinationRule)
 	case kubernetes.EnvoyFilters:
 		istioConfigDetail.EnvoyFilter = &networking_v1alpha3.EnvoyFilter{}
-		istioConfigDetail.EnvoyFilter, err = in.k8s.Istio().NetworkingV1alpha3().EnvoyFilters(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.EnvoyFilter)
 	case kubernetes.Gateways:
 		istioConfigDetail.Gateway = &networking_v1beta1.Gateway{}
-		istioConfigDetail.Gateway, err = in.k8s.Istio().NetworkingV1beta1().Gateways(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.Gateway)
 	case kubernetes.K8sGateways:
 		istioConfigDetail.K8sGateway = &k8s_networking_v1alpha2.Gateway{}
-		istioConfigDetail.K8sGateway, err = in.k8s.GatewayAPI().GatewayV1alpha2().Gateways(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.K8sGateway)
 	case kubernetes.K8sHTTPRoutes:
 		istioConfigDetail.K8sHTTPRoute = &k8s_networking_v1alpha2.HTTPRoute{}
-		istioConfigDetail.K8sHTTPRoute, err = in.k8s.GatewayAPI().GatewayV1alpha2().HTTPRoutes(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.K8sHTTPRoute)
 	case kubernetes.ServiceEntries:
 		istioConfigDetail.ServiceEntry = &networking_v1beta1.ServiceEntry{}
-		istioConfigDetail.ServiceEntry, err = in.k8s.Istio().NetworkingV1beta1().ServiceEntries(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.ServiceEntry)
 	case kubernetes.Sidecars:
 		istioConfigDetail.Sidecar = &networking_v1beta1.Sidecar{}
-		istioConfigDetail.Sidecar, err = in.k8s.Istio().NetworkingV1beta1().Sidecars(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.Sidecar)
 	case kubernetes.VirtualServices:
 		istioConfigDetail.VirtualService = &networking_v1beta1.VirtualService{}
-		istioConfigDetail.VirtualService, err = in.k8s.Istio().NetworkingV1beta1().VirtualServices(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.VirtualService)
 	case kubernetes.WorkloadEntries:
 		istioConfigDetail.WorkloadEntry = &networking_v1beta1.WorkloadEntry{}
-		istioConfigDetail.WorkloadEntry, err = in.k8s.Istio().NetworkingV1beta1().WorkloadEntries(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.WorkloadEntry)
 	case kubernetes.WorkloadGroups:
 		istioConfigDetail.WorkloadGroup = &networking_v1beta1.WorkloadGroup{}
-		istioConfigDetail.WorkloadGroup, err = in.k8s.Istio().NetworkingV1beta1().WorkloadGroups(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.WorkloadGroup)
 	case kubernetes.AuthorizationPolicies:
 		istioConfigDetail.AuthorizationPolicy = &security_v1beta1.AuthorizationPolicy{}
-		istioConfigDetail.AuthorizationPolicy, err = in.k8s.Istio().SecurityV1beta1().AuthorizationPolicies(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.AuthorizationPolicy)
 	case kubernetes.PeerAuthentications:
 		istioConfigDetail.PeerAuthentication = &security_v1beta1.PeerAuthentication{}
-		istioConfigDetail.PeerAuthentication, err = in.k8s.Istio().SecurityV1beta1().PeerAuthentications(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.PeerAuthentication)
 	case kubernetes.RequestAuthentications:
 		istioConfigDetail.RequestAuthentication = &security_v1beta1.RequestAuthentication{}
-		istioConfigDetail.RequestAuthentication, err = in.k8s.Istio().SecurityV1beta1().RequestAuthentications(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.RequestAuthentication)
 	case kubernetes.WasmPlugins:
 		istioConfigDetail.WasmPlugin = &extentions_v1alpha1.WasmPlugin{}
-		istioConfigDetail.WasmPlugin, err = in.k8s.Istio().ExtensionsV1alpha1().WasmPlugins(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.WasmPlugin)
 	case kubernetes.Telemetries:
 		istioConfigDetail.Telemetry = &v1alpha1.Telemetry{}
-		istioConfigDetail.Telemetry, err = in.k8s.Istio().TelemetryV1alpha1().Telemetries(namespace).Patch(ctx, name, patchType, bytePatch, patchOpts)
+		err = in.k8s.PatchObject(namespace, name, bytePatch, istioConfigDetail.Telemetry)
 	default:
 		err = fmt.Errorf("object type not found: %v", resourceType)
 	}
 
-	// Cache is stopped after a Create/Update/Delete operation to force a refresh
-	if kialiCache != nil && err == nil {
-		kialiCache.Refresh(namespace)
-	}
 	return istioConfigDetail, err
 }
 
@@ -997,9 +796,6 @@ func (in *IstioConfigService) CreateIstioConfigDetail(namespace, resourceType st
 	istioConfigDetail := models.IstioConfigDetails{}
 	istioConfigDetail.Namespace = models.Namespace{Name: namespace}
 	istioConfigDetail.ObjectType = resourceType
-
-	createOpts := meta_v1.CreateOptions{}
-	ctx := context.TODO()
 
 	var err error
 	switch resourceType {
@@ -1009,112 +805,109 @@ func (in *IstioConfigService) CreateIstioConfigDetail(namespace, resourceType st
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.DestinationRule, err = in.k8s.Istio().NetworkingV1beta1().DestinationRules(namespace).Create(ctx, istioConfigDetail.DestinationRule, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.DestinationRule)
 	case kubernetes.EnvoyFilters:
 		istioConfigDetail.EnvoyFilter = &networking_v1alpha3.EnvoyFilter{}
 		err = json.Unmarshal(body, istioConfigDetail.EnvoyFilter)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.EnvoyFilter, err = in.k8s.Istio().NetworkingV1alpha3().EnvoyFilters(namespace).Create(ctx, istioConfigDetail.EnvoyFilter, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.EnvoyFilter)
 	case kubernetes.Gateways:
 		istioConfigDetail.Gateway = &networking_v1beta1.Gateway{}
 		err = json.Unmarshal(body, istioConfigDetail.Gateway)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.Gateway, err = in.k8s.Istio().NetworkingV1beta1().Gateways(namespace).Create(ctx, istioConfigDetail.Gateway, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.Gateway)
 	case kubernetes.K8sGateways:
 		istioConfigDetail.K8sGateway = &k8s_networking_v1alpha2.Gateway{}
 		err = json.Unmarshal(body, istioConfigDetail.K8sGateway)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.K8sGateway, err = in.k8s.GatewayAPI().GatewayV1alpha2().Gateways(namespace).Create(ctx, istioConfigDetail.K8sGateway, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.K8sGateway)
 	case kubernetes.K8sHTTPRoutes:
 		istioConfigDetail.K8sHTTPRoute = &k8s_networking_v1alpha2.HTTPRoute{}
 		err = json.Unmarshal(body, istioConfigDetail.K8sHTTPRoute)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.K8sHTTPRoute, err = in.k8s.GatewayAPI().GatewayV1alpha2().HTTPRoutes(namespace).Create(ctx, istioConfigDetail.K8sHTTPRoute, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.K8sHTTPRoute)
 	case kubernetes.ServiceEntries:
 		istioConfigDetail.ServiceEntry = &networking_v1beta1.ServiceEntry{}
 		err = json.Unmarshal(body, istioConfigDetail.ServiceEntry)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.ServiceEntry, err = in.k8s.Istio().NetworkingV1beta1().ServiceEntries(namespace).Create(ctx, istioConfigDetail.ServiceEntry, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.ServiceEntry)
 	case kubernetes.Sidecars:
 		istioConfigDetail.Sidecar = &networking_v1beta1.Sidecar{}
 		err = json.Unmarshal(body, istioConfigDetail.Sidecar)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.Sidecar, err = in.k8s.Istio().NetworkingV1beta1().Sidecars(namespace).Create(ctx, istioConfigDetail.Sidecar, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.Sidecar)
 	case kubernetes.VirtualServices:
 		istioConfigDetail.VirtualService = &networking_v1beta1.VirtualService{}
 		err = json.Unmarshal(body, istioConfigDetail.VirtualService)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.VirtualService, err = in.k8s.Istio().NetworkingV1beta1().VirtualServices(namespace).Create(ctx, istioConfigDetail.VirtualService, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.VirtualService)
 	case kubernetes.WorkloadEntries:
 		istioConfigDetail.WorkloadEntry = &networking_v1beta1.WorkloadEntry{}
 		err = json.Unmarshal(body, istioConfigDetail.WorkloadEntry)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.WorkloadEntry, err = in.k8s.Istio().NetworkingV1beta1().WorkloadEntries(namespace).Create(ctx, istioConfigDetail.WorkloadEntry, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.WorkloadEntry)
 	case kubernetes.WorkloadGroups:
 		istioConfigDetail.WorkloadGroup = &networking_v1beta1.WorkloadGroup{}
 		err = json.Unmarshal(body, istioConfigDetail.WorkloadGroup)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.WorkloadGroup, err = in.k8s.Istio().NetworkingV1beta1().WorkloadGroups(namespace).Create(ctx, istioConfigDetail.WorkloadGroup, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.WorkloadGroup)
 	case kubernetes.WasmPlugins:
 		istioConfigDetail.WasmPlugin = &extentions_v1alpha1.WasmPlugin{}
 		err = json.Unmarshal(body, istioConfigDetail.WasmPlugin)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.WasmPlugin, err = in.k8s.Istio().ExtensionsV1alpha1().WasmPlugins(namespace).Create(ctx, istioConfigDetail.WasmPlugin, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.WasmPlugin)
 	case kubernetes.Telemetries:
 		istioConfigDetail.Telemetry = &v1alpha1.Telemetry{}
 		err = json.Unmarshal(body, istioConfigDetail.Telemetry)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.Telemetry, err = in.k8s.Istio().TelemetryV1alpha1().Telemetries(namespace).Create(ctx, istioConfigDetail.Telemetry, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.Telemetry)
 	case kubernetes.AuthorizationPolicies:
 		istioConfigDetail.AuthorizationPolicy = &security_v1beta1.AuthorizationPolicy{}
 		err = json.Unmarshal(body, istioConfigDetail.AuthorizationPolicy)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.AuthorizationPolicy, err = in.k8s.Istio().SecurityV1beta1().AuthorizationPolicies(namespace).Create(ctx, istioConfigDetail.AuthorizationPolicy, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.AuthorizationPolicy)
 	case kubernetes.PeerAuthentications:
 		istioConfigDetail.PeerAuthentication = &security_v1beta1.PeerAuthentication{}
 		err = json.Unmarshal(body, istioConfigDetail.PeerAuthentication)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.PeerAuthentication, err = in.k8s.Istio().SecurityV1beta1().PeerAuthentications(namespace).Create(ctx, istioConfigDetail.PeerAuthentication, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.PeerAuthentication)
 	case kubernetes.RequestAuthentications:
 		istioConfigDetail.RequestAuthentication = &security_v1beta1.RequestAuthentication{}
 		err = json.Unmarshal(body, istioConfigDetail.RequestAuthentication)
 		if err != nil {
 			return istioConfigDetail, api_errors.NewBadRequest(err.Error())
 		}
-		istioConfigDetail.RequestAuthentication, err = in.k8s.Istio().SecurityV1beta1().RequestAuthentications(namespace).Create(ctx, istioConfigDetail.RequestAuthentication, createOpts)
+		err = in.k8s.CreateObject(namespace, resourceType, istioConfigDetail.RequestAuthentication)
 	default:
 		err = fmt.Errorf("object type not found: %v", resourceType)
 	}
-	// Cache is stopped after a Create/Update/Delete operation to force a refresh
-	if kialiCache != nil && err == nil {
-		kialiCache.Refresh(namespace)
-	}
+	// TODO: Ensure this is accounted for in the caching client.
 	return istioConfigDetail, err
 }
 

@@ -7,6 +7,8 @@ import (
 
 func CreateEmptyDestinationRule(namespace string, name string, host string) *networking_v1beta1.DestinationRule {
 	dr := networking_v1beta1.DestinationRule{}
+	dr.Kind = "DestinationRule"
+	dr.APIVersion = "networking.istio.io/v1beta1"
 	dr.Name = name
 	dr.Namespace = namespace
 	dr.Spec.Host = host

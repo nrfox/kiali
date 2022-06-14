@@ -14,12 +14,17 @@ import (
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
+	"github.com/kiali/kiali/kubernetes"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 )
 
+type fakeProxy struct{ kubernetes.ClientInterface }
+
+func (f *fakeProxy) SetProxyLogLevel(namespace, podName, level string) error { return nil }
+
 func setupTestLoggingServer(t *testing.T, namespace, pod string) *httptest.Server {
 	conf := config.NewConfig()
-	conf.KubernetesConfig.CacheEnabled = false
 	config.Set(conf)
 
 	mr := mux.NewRouter()
@@ -32,13 +37,11 @@ func setupTestLoggingServer(t *testing.T, namespace, pod string) *httptest.Serve
 	ts := httptest.NewServer(mr)
 	t.Cleanup(ts.Close)
 
-	k8s := new(kubetest.K8SClientMock)
-	k8s.On("IsOpenShift").Return(false)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.On("SetProxyLogLevel").Return(nil)
+	k8s := &fakeProxy{ClientInterface: kubetest.NewFakeK8sClient()}
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, nil)
+	cache := cache.NewFakeKialiCache(nil, nil)
+	business.SetWithBackends(mockClientFactory, nil, cache)
 
 	return ts
 }

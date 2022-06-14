@@ -18,6 +18,7 @@ import (
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/prometheus/prometheustest"
 	"github.com/kiali/kiali/util"
@@ -30,7 +31,6 @@ func TestStrategyTokenAuthentication(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.Auth.Strategy = config.AuthStrategyToken
 	cfg.LoginToken.SigningKey = util.RandomString(16)
-	cfg.KubernetesConfig.CacheEnabled = false
 	config.Set(cfg)
 
 	authentication.InitializeAuthenticationController("token")
@@ -65,7 +65,6 @@ func TestStrategyTokenAuthentication(t *testing.T) {
 // rejected if user provides wrong credentials
 func TestStrategyTokenFails(t *testing.T) {
 	cfg := config.NewConfig()
-	cfg.KubernetesConfig.CacheEnabled = false
 	cfg.Auth.Strategy = config.AuthStrategyToken
 	config.Set(cfg)
 
@@ -134,7 +133,6 @@ func TestStrategyHeaderOidcAuthentication(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.Auth.Strategy = config.AuthStrategyHeader
 	cfg.LoginToken.SigningKey = util.RandomString(16)
-	cfg.KubernetesConfig.CacheEnabled = false
 	config.Set(cfg)
 
 	clockTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -175,7 +173,6 @@ func TestStrategyHeaderAuthentication(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.Auth.Strategy = config.AuthStrategyHeader
 	cfg.LoginToken.SigningKey = util.RandomString(16)
-	cfg.KubernetesConfig.CacheEnabled = false
 	config.Set(cfg)
 
 	clockTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -216,7 +213,6 @@ func TestStrategyHeaderOidcWithImpersonationAuthentication(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.Auth.Strategy = config.AuthStrategyHeader
 	cfg.LoginToken.SigningKey = util.RandomString(16)
-	cfg.KubernetesConfig.CacheEnabled = false
 	config.Set(cfg)
 
 	clockTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -257,7 +253,8 @@ func mockK8s(reject bool) {
 	prom := new(prometheustest.PromClientMock)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, prom)
+	cache := cache.NewFakeKialiCache(nil, nil)
+	business.SetWithBackends(mockClientFactory, prom, cache)
 
 	if reject {
 		k8s.On("GetProjects", mock.AnythingOfType("string")).Return([]osproject_v1.Project{}, fmt.Errorf("Rejecting"))

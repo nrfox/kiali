@@ -27,11 +27,8 @@ func setupGlobalMeshConfig() {
 func TestGetClustersResolvesTheKialiCluster(t *testing.T) {
 	check := assert.New(t)
 
-	k8s := new(kubetest.K8SClientMock)
 	conf := config.NewConfig()
 	conf.InCluster = false
-	conf.KubernetesConfig.CacheEnabled = false
-	kialiCache = nil
 	config.Set(conf)
 
 	// As we are not interested in caches in this test, make sure
@@ -42,6 +39,10 @@ func TestGetClustersResolvesTheKialiCluster(t *testing.T) {
 	isMeshConfigured = false
 
 	istioDeploymentMock := apps_v1.Deployment{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "istiod",
+			Namespace: "istio-system",
+		},
 		Spec: apps_v1.DeploymentSpec{
 			Template: core_v1.PodTemplateSpec{
 				Spec: core_v1.PodSpec{
@@ -65,6 +66,10 @@ func TestGetClustersResolvesTheKialiCluster(t *testing.T) {
 	}
 
 	sidecarConfigMapMock := core_v1.ConfigMap{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "istio-sidecar-injector",
+			Namespace: "istio-system",
+		},
 		Data: map[string]string{
 			"values": "{ \"global\": { \"network\": \"kialiNetwork\" } }",
 		},
@@ -74,29 +79,25 @@ func TestGetClustersResolvesTheKialiCluster(t *testing.T) {
 		ObjectMeta: v1.ObjectMeta{Name: "foo"},
 	}
 
-	kialiSvc := []core_v1.Service{
-		{
-			ObjectMeta: v1.ObjectMeta{
-				Annotations: map[string]string{
-					"operator-sdk/primary-resource": "kiali-operator/myKialiCR",
-				},
-				Labels: map[string]string{
-					"app.kubernetes.io/version": "v1.25",
-				},
-				Name:      "kiali-service",
-				Namespace: "foo",
+	kialiSvc := []core_v1.Service{{
+		ObjectMeta: v1.ObjectMeta{
+			Annotations: map[string]string{
+				"operator-sdk/primary-resource": "kiali-operator/myKialiCR",
+			},
+			Labels: map[string]string{
+				"app.kubernetes.io/version": "v1.25",
+			},
+			Name:      "kiali-service",
+			Namespace: "foo",
+		},
+		Spec: core_v1.ServiceSpec{
+			Selector: map[string]string{
+				"app.kubernetes.io/part-of": "kiali",
 			},
 		},
-	}
+	}}
 
-	k8s.On("IsOpenShift").Return(false)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.On("GetSecrets", conf.IstioNamespace, "istio/multiCluster=true").Return([]core_v1.Secret{}, nil)
-	k8s.On("GetDeployment", conf.IstioNamespace, conf.ExternalServices.Istio.IstiodDeploymentName).Return(&istioDeploymentMock, nil)
-	k8s.On("GetConfigMap", conf.IstioNamespace, conf.ExternalServices.Istio.IstioSidecarInjectorConfigMapName).Return(&sidecarConfigMapMock, nil)
-
-	k8s.On("GetNamespace", "foo").Return(&kialiNs, nil)
-	k8s.On("GetServicesByLabels", "foo", "app.kubernetes.io/part-of=kiali").Return(kialiSvc, nil)
+	k8s := kubetest.NewFakeK8sClient(&istioDeploymentMock, &sidecarConfigMapMock, &kialiNs, &kialiSvc[0])
 
 	t.Setenv("KUBERNETES_SERVICE_HOST", "127.0.0.2")
 	t.Setenv("KUBERNETES_SERVICE_PORT", "9443")
@@ -132,7 +133,6 @@ func TestGetClustersResolvesRemoteClusters(t *testing.T) {
 	k8s := new(kubetest.K8SClientMock)
 	conf := config.NewConfig()
 	conf.InCluster = false
-	conf.KubernetesConfig.CacheEnabled = false
 	config.Set(conf)
 
 	// As we are not interested in caches in this test, make sure
@@ -254,7 +254,6 @@ func TestIsMeshConfiguredIsCached(t *testing.T) {
 	conf.InCluster = false
 	conf.IstioNamespace = "foo"
 	conf.ExternalServices.Istio.ConfigMapName = "bar"
-	conf.KubernetesConfig.CacheEnabled = false
 	config.Set(conf)
 
 	istioConfigMapMock := core_v1.ConfigMap{
@@ -304,7 +303,6 @@ func TestResolveKialiControlPlaneClusterIsCached(t *testing.T) {
 	conf.InCluster = false
 	conf.IstioNamespace = "foo"
 	conf.ExternalServices.Istio.IstiodDeploymentName = "bar"
-	conf.KubernetesConfig.CacheEnabled = false
 	config.Set(conf)
 
 	t.Setenv("KUBERNETES_SERVICE_HOST", "127.0.0.2")
@@ -343,6 +341,7 @@ func TestResolveKialiControlPlaneClusterIsCached(t *testing.T) {
 	var nilConfigMap *core_v1.ConfigMap
 	var nilNamespace *core_v1.Namespace
 
+	k8s.On("GetToken").Return("SomeToken")
 	k8s.On("IsOpenShift").Return(false)
 	k8s.On("IsGatewayAPI").Return(false)
 	k8s.On("GetDeployment", "foo", "bar").Return(&istioDeploymentMock, nil)
