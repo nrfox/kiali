@@ -598,7 +598,7 @@ func (in *MeshService) IstiodResourceThresholds() (*models.IstiodThresholds, err
 	istioDeploymentConfig := conf.ExternalServices.Istio.IstiodDeploymentName
 
 	// TODO: should this use cache?
-	istioDeployment, err := kialiCache.GetDeployment(conf.IstioNamespace, istioDeploymentConfig)
+	istioDeployment, err := in.k8s.GetDeployment(conf.IstioNamespace, istioDeploymentConfig)
 	if err != nil && !errors.IsNotFound(err) {
 		return nil, err
 	}

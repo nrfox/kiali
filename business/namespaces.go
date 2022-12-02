@@ -381,7 +381,7 @@ func (in *NamespaceService) isIncludedNamespace(namespace string) bool {
 // GetNamespace returns the definition of the specified namespace.
 func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) (*models.Namespace, error) {
 	var end observability.EndFunc
-	ctx, end = observability.StartSpan(ctx, "GetNamespace",
+	_, end = observability.StartSpan(ctx, "GetNamespace",
 		observability.Attribute("package", "business"),
 		observability.Attribute("namespace", namespace),
 	)

@@ -4,8 +4,7 @@ import (
 	apps_v1 "k8s.io/api/apps/v1"
 	batch_v1 "k8s.io/api/batch/v1"
 	core_v1 "k8s.io/api/core/v1"
-
-	// istio "istio.io/client-go/pkg/clientset/versioned"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kiali/kiali/kubernetes"
 )
@@ -134,37 +133,51 @@ func (cc *CachingClient) UpdateNamespace(namespace string, jsonPatch string) (*c
 }
 
 func (cc *CachingClient) UpdateService(namespace string, name string, jsonPatch string) error {
-	err := cc.ClientInterface.UpdateService(namespace, name, jsonPatch)
-	if err != nil {
+	if err := cc.ClientInterface.UpdateService(namespace, name, jsonPatch); err != nil {
 		return err
 	}
 
 	// Cache is stopped after a Create/Update/Delete operation to force a refresh
 	cc.cache.Refresh(namespace)
-
-	return err
+	return nil
 }
 
 func (cc *CachingClient) UpdateWorkload(namespace string, name string, workloadType string, jsonPatch string) error {
-	err := cc.ClientInterface.UpdateWorkload(namespace, name, workloadType, jsonPatch)
-	if err != nil {
+	if err := cc.ClientInterface.UpdateWorkload(namespace, name, workloadType, jsonPatch); err != nil {
 		return err
 	}
 
 	// Cache is stopped after a Create/Update/Delete operation to force a refresh
 	cc.cache.Refresh(namespace)
-
-	return err
+	return nil
 }
 
 func (cc *CachingClient) DeleteObject(namespace string, name string, kind string) error {
-	err := cc.ClientInterface.DeleteObject(namespace, name, kind)
-	if err != nil {
+	if err := cc.ClientInterface.DeleteObject(namespace, name, kind); err != nil {
 		return err
 	}
 
 	// Cache is stopped after a Create/Update/Delete operation to force a refresh
 	cc.cache.Refresh(namespace)
+	return nil
+}
 
-	return err
+func (cc *CachingClient) PatchObject(namespace string, name string, jsonPatch []byte, object runtime.Object) error {
+	if err := cc.ClientInterface.PatchObject(namespace, name, jsonPatch, object); err != nil {
+		return err
+	}
+
+	// Cache is stopped after a Create/Update/Delete operation to force a refresh
+	cc.cache.Refresh(namespace)
+	return nil
+}
+
+func (cc *CachingClient) CreateObject(namespace string, kind string, object runtime.Object) error {
+	if err := cc.ClientInterface.CreateObject(namespace, kind, object); err != nil {
+		return err
+	}
+
+	// Cache is stopped after a Create/Update/Delete operation to force a refresh
+	cc.cache.Refresh(namespace)
+	return nil
 }

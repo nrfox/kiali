@@ -57,18 +57,19 @@ func fakeService(namespace, name string) *core_v1.Service {
 
 // TestNamespaceAppHealth is unit test (testing request handling, not the prometheus client behaviour)
 func TestNamespaceAppHealth(t *testing.T) {
-	// TODO: Fix this test.
-	return
 	conf := config.NewConfig()
 	config.Set(conf)
-	kubeObjects := []runtime.Object{fakeService("ns", "reviews"), fakeService("ns", "httpbin"), setupMockData()}
+	var cacheObjects []runtime.Object
+	kubeObjects := []runtime.Object{fakeService("ns", "reviews"), fakeService("ns", "httpbin")}
 	for _, obj := range kubetest.FakePodList() {
 		o := obj
 		kubeObjects = append(kubeObjects, &o)
 	}
+	cacheObjects = append(cacheObjects, kubeObjects...)
+	kubeObjects = append(kubeObjects, setupMockData())
 	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
 	k8s.OpenShift = true
-	ts, prom := setupNamespaceHealthEndpoint(t, k8s, kubeObjects...)
+	ts, prom := setupNamespaceHealthEndpoint(t, k8s, cacheObjects...)
 
 	url := ts.URL + "/api/namespaces/ns/health"
 

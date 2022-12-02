@@ -11,7 +11,6 @@ import (
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
-	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
 	"github.com/kiali/kiali/observability"
@@ -23,7 +22,6 @@ type AppService struct {
 	prom          prometheus.ClientInterface
 	k8s           kubernetes.ClientInterface
 	businessLayer *Layer
-	kialiCache    cache.KialiCache
 }
 
 type AppCriteria struct {
@@ -58,9 +56,6 @@ func buildFinalLabels(m map[string][]string) map[string]string {
 	}
 	return consolidated
 }
-
-// TODO(nrfox): Kiali should probably startup even if the kube/prom/whatever clients can't be created.
-// That way you can debug from the Kiali UI itself. TODO: Do we ever need to get info on a resource outside of the mesh?
 
 // GetAppList is the API handler to fetch the list of applications in a given namespace
 func (in *AppService) GetAppList(ctx context.Context, criteria AppCriteria) (models.AppList, error) {

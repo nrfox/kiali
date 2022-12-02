@@ -907,7 +907,7 @@ func (in *IstioConfigService) CreateIstioConfigDetail(namespace, resourceType st
 	default:
 		err = fmt.Errorf("object type not found: %v", resourceType)
 	}
-	// TODO: Ensure this is accounted for in the caching client.
+
 	return istioConfigDetail, err
 }
 

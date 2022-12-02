@@ -13,23 +13,6 @@ import (
 	"github.com/kiali/kiali/log"
 )
 
-// type (
-// 	KubernetesCache interface {
-// 		GetConfigMap(namespace, name string) (*core_v1.ConfigMap, error)
-// 		GetDaemonSets(namespace string) ([]apps_v1.DaemonSet, error)
-// 		GetDaemonSet(namespace, name string) (*apps_v1.DaemonSet, error)
-// 		GetDeployments(namespace string) ([]apps_v1.Deployment, error)
-// 		GetDeployment(namespace, name string) (*apps_v1.Deployment, error)
-// 		GetEndpoints(namespace, name string) (*core_v1.Endpoints, error)
-// 		GetStatefulSets(namespace string) ([]apps_v1.StatefulSet, error)
-// 		GetStatefulSet(namespace, name string) (*apps_v1.StatefulSet, error)
-// 		GetServices(namespace string, selectorLabels map[string]string) ([]core_v1.Service, error)
-// 		GetService(namespace string, name string) (*core_v1.Service, error)
-// 		GetPods(namespace, labelSelector string) ([]core_v1.Pod, error)
-// 		GetReplicaSets(namespace string) ([]apps_v1.ReplicaSet, error)
-// 	}
-// )
-
 // createKubernetesInformers creates kube informers for all objects kiali watches and
 // saves them to the typeCache. If namespace is not empty, the informers are scoped
 // to the namespace. Otherwise, the informers are cluster-wide.
