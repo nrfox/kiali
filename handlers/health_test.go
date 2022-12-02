@@ -59,17 +59,15 @@ func fakeService(namespace, name string) *core_v1.Service {
 func TestNamespaceAppHealth(t *testing.T) {
 	conf := config.NewConfig()
 	config.Set(conf)
-	var cacheObjects []runtime.Object
-	kubeObjects := []runtime.Object{fakeService("ns", "reviews"), fakeService("ns", "httpbin")}
+	kubeObjects := []runtime.Object{fakeService("ns", "reviews"), fakeService("ns", "httpbin"), setupMockData()}
 	for _, obj := range kubetest.FakePodList() {
 		o := obj
 		kubeObjects = append(kubeObjects, &o)
 	}
-	cacheObjects = append(cacheObjects, kubeObjects...)
-	kubeObjects = append(kubeObjects, setupMockData())
 	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
+	kialiCache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
 	k8s.OpenShift = true
-	ts, prom := setupNamespaceHealthEndpoint(t, k8s, cacheObjects...)
+	ts, prom := setupNamespaceHealthEndpoint(t, k8s, kialiCache)
 
 	url := ts.URL + "/api/namespaces/ns/health"
 
@@ -88,14 +86,10 @@ func TestNamespaceAppHealth(t *testing.T) {
 	// TODO: Need to add some additional assertions here?
 }
 
-// TODO: Combine cache and kube clients.
-func setupNamespaceHealthEndpoint(t *testing.T, k8s kubernetes.ClientInterface, objects ...runtime.Object) (*httptest.Server, *prometheustest.PromClientMock) {
+func setupNamespaceHealthEndpoint(t *testing.T, k8s kubernetes.ClientInterface, cache *cache.KialiCache) (*httptest.Server, *prometheustest.PromClientMock) {
 	prom := new(prometheustest.PromClientMock)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	cache := cache.NewFakeKialiCache(objects, nil)
-	cache.Refresh("")
-	// TODO: Update business layer to mock out registry?
 	business.SetWithBackends(mockClientFactory, prom, cache)
 	business.SetKialiControlPlaneCluster(&business.Cluster{Name: business.DefaultClusterID})
 

@@ -6,11 +6,13 @@ import (
 	osapps_v1 "github.com/openshift/api/apps/v1"
 	osproject_v1 "github.com/openshift/api/project/v1"
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
+	istio "istio.io/client-go/pkg/clientset/versioned"
 	istiofake "istio.io/client-go/pkg/clientset/versioned/fake"
 	istioscheme "istio.io/client-go/pkg/clientset/versioned/scheme"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	kubescheme "k8s.io/client-go/kubernetes/scheme"
 	gatewayapifake "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned/fake"
@@ -25,7 +27,6 @@ func isIstioResource(obj runtime.Object) bool {
 }
 
 func isKubeResource(obj runtime.Object) bool {
-	// TODO: this may be wrong now.
 	_, _, err := kubescheme.Scheme.ObjectKinds(obj)
 	return err == nil
 }
@@ -102,6 +103,8 @@ func NewFakeK8sClient(objects ...runtime.Object) *FakeK8sClient {
 		ClientInterface:   kialikube.NewClient(kubeClient, istioClient, gatewayAPIClient),
 		deploymentConfigs: deploymentConfigs,
 		projects:          projects,
+		KubeClientset:     kubeClient,
+		IstioClientset:    istioClient,
 	}
 }
 
@@ -116,6 +119,9 @@ type FakeK8sClient struct {
 	// This is a map of namespace: []objects e.g. DeploymentConfig: []DeploymentConfig.
 	deploymentConfigs map[string][]osapps_v1.DeploymentConfig
 	projects          []osproject_v1.Project
+	// Underlying kubernetes clientset.
+	KubeClientset  kubernetes.Interface
+	IstioClientset istio.Interface
 }
 
 func (c *FakeK8sClient) IsOpenShift() bool  { return c.OpenShift }

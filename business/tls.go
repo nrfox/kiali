@@ -56,7 +56,6 @@ func (in *TLSService) MeshWidemTLSStatus(ctx context.Context, namespaces []strin
 	}
 
 	minTLS, err := in.businessLayer.IstioCerts.GetTlsMinVersion()
-
 	if err != nil {
 		log.Errorf("Error getting TLM min version: %s ", err)
 	}
@@ -164,7 +163,7 @@ func (in *TLSService) hasAutoMTLSEnabled() bool {
 	}
 
 	cfg := config.Get()
-	istioConfig, err := kialiCache.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
+	istioConfig, err := in.k8s.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
 	if err != nil {
 		return true
 	}

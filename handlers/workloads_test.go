@@ -31,12 +31,10 @@ import (
 )
 
 // TODO: Combine client and cache
-func setupWorkloadList(t *testing.T, k8s kubernetes.ClientInterface, objects ...runtime.Object) (*httptest.Server, *prometheustest.PromClientMock) {
+func setupWorkloadList(t *testing.T, k8s kubernetes.ClientInterface, cache *cache.KialiCache) (*httptest.Server, *prometheustest.PromClientMock) {
 	prom := new(prometheustest.PromClientMock)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	cache := cache.NewFakeKialiCache(objects, nil)
-	cache.Refresh("")
 	business.SetWithBackends(mockClientFactory, prom, cache)
 
 	mr := mux.NewRouter()
@@ -55,6 +53,7 @@ func setupWorkloadList(t *testing.T, k8s kubernetes.ClientInterface, objects ...
 func TestWorkloadsEndpoint(t *testing.T) {
 	conf := config.NewConfig()
 	config.Set(conf)
+	mockClock()
 
 	kubeObjects := []runtime.Object{&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns"}}}
 	for _, obj := range business.FakeDepSyncedWithRS() {
@@ -70,9 +69,8 @@ func TestWorkloadsEndpoint(t *testing.T) {
 		kubeObjects = append(kubeObjects, &o)
 	}
 	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
-	// TODO: Get rid of clock mocking side effect
-	newProject()
-	ts, _ := setupWorkloadList(t, k8s, kubeObjects...)
+	kialiCache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	ts, _ := setupWorkloadList(t, k8s, kialiCache)
 
 	url := ts.URL + "/api/namespaces/ns/workloads"
 

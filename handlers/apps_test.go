@@ -179,16 +179,12 @@ func setupAppMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheustest.Pr
 	return ts, xapi, k8s
 }
 
-// TODO: Combine with cache?
-func setupAppListEndpoint(k8s kubernetes.ClientInterface, objects ...runtime.Object) (*httptest.Server, *prometheustest.PromClientMock) {
+func setupAppListEndpoint(k8s kubernetes.ClientInterface, cache *cache.KialiCache) (*httptest.Server, *prometheustest.PromClientMock) {
 	conf := config.NewConfig()
 	config.Set(conf)
 	prom := new(prometheustest.PromClientMock)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	// TODO: Have a separated "started" kiali cache method.
-	cache := cache.NewFakeKialiCache(objects, nil)
-	cache.Refresh("")
 	business.SetWithBackends(mockClientFactory, prom, cache)
 	business.SetKialiControlPlaneCluster(&business.Cluster{Name: business.DefaultClusterID})
 
@@ -226,17 +222,15 @@ func TestAppsEndpoint(t *testing.T) {
 	assert := assert.New(t)
 	proj := newProject()
 	proj.Name = "Namespace"
-	cachedObjects := []runtime.Object{}
-	kubeObjects := []runtime.Object{}
+	kubeObjects := []runtime.Object{proj}
 	for _, obj := range business.FakeDeployments() {
 		o := obj
 		kubeObjects = append(kubeObjects, &o)
 	}
-	cachedObjects = append(cachedObjects, kubeObjects...)
-	kubeObjects = append(kubeObjects, proj)
 	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
+	kialiCache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
 	k8s.OpenShift = true
-	ts, _ := setupAppListEndpoint(k8s, cachedObjects...)
+	ts, _ := setupAppListEndpoint(k8s, kialiCache)
 	defer ts.Close()
 
 	url := ts.URL + "/api/namespaces/Namespace/apps"
@@ -255,8 +249,7 @@ func TestAppDetailsEndpoint(t *testing.T) {
 	assert := assert.New(t)
 	proj := newProject()
 	proj.Name = "Namespace"
-	kubeObjects := []runtime.Object{}
-	var cacheObjects []runtime.Object
+	kubeObjects := []runtime.Object{proj}
 	for _, obj := range business.FakeDeployments() {
 		o := obj
 		kubeObjects = append(kubeObjects, &o)
@@ -265,12 +258,10 @@ func TestAppDetailsEndpoint(t *testing.T) {
 		o := obj
 		kubeObjects = append(kubeObjects, &o)
 	}
-	cacheObjects = append(cacheObjects, kubeObjects...)
-	kubeObjects = append(kubeObjects, proj)
-	// TODO: Pass obj to cache.
 	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
 	k8s.OpenShift = true
-	ts, _ := setupAppListEndpoint(k8s, cacheObjects...)
+	kialiCache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	ts, _ := setupAppListEndpoint(k8s, kialiCache)
 	defer ts.Close()
 
 	url := ts.URL + "/api/namespaces/Namespace/apps/httpbin"
