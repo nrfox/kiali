@@ -72,6 +72,12 @@ type cacheLister struct {
 	workloadGroupLister   istionet_v1beta1_listers.WorkloadGroupLister
 }
 
+// KialiCache stores both kube objects and non-kube related data such as pods' proxy status.
+// It is exclusively used by the business layer where it's expected to be a singleton.
+// This business layer cache needs access to all the kiali service account has access
+// to so it uses the kiali service account token instead of a user token. Access to
+// the objects returned by the cache should be filtered/restricted to the user's
+// token access but the cache returns objects without any filtering or restrictions.
 type KialiCache struct {
 	clusterScoped          bool // Creates either cluster-scoped or namespace-scoped informers
 	istioClient            kubernetes.K8SClient

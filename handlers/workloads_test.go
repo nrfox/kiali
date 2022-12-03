@@ -23,18 +23,17 @@ import (
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
-	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/prometheus"
 	"github.com/kiali/kiali/prometheus/prometheustest"
 )
 
-// TODO: Combine client and cache
-func setupWorkloadList(t *testing.T, k8s kubernetes.ClientInterface, cache *cache.KialiCache) (*httptest.Server, *prometheustest.PromClientMock) {
+func setupWorkloadList(t *testing.T, k8s *kubetest.FakeK8sClient) (*httptest.Server, *prometheustest.PromClientMock) {
 	prom := new(prometheustest.PromClientMock)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
 	business.SetWithBackends(mockClientFactory, prom, cache)
 
 	mr := mux.NewRouter()
@@ -69,8 +68,7 @@ func TestWorkloadsEndpoint(t *testing.T) {
 		kubeObjects = append(kubeObjects, &o)
 	}
 	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
-	kialiCache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
-	ts, _ := setupWorkloadList(t, k8s, kialiCache)
+	ts, _ := setupWorkloadList(t, k8s)
 
 	url := ts.URL + "/api/namespaces/ns/workloads"
 

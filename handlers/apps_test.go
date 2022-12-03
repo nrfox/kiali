@@ -23,7 +23,6 @@ import (
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
-	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/prometheus"
@@ -179,12 +178,13 @@ func setupAppMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheustest.Pr
 	return ts, xapi, k8s
 }
 
-func setupAppListEndpoint(k8s kubernetes.ClientInterface, cache *cache.KialiCache) (*httptest.Server, *prometheustest.PromClientMock) {
+func setupAppListEndpoint(k8s *kubetest.FakeK8sClient) (*httptest.Server, *prometheustest.PromClientMock) {
 	conf := config.NewConfig()
 	config.Set(conf)
 	prom := new(prometheustest.PromClientMock)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
 	business.SetWithBackends(mockClientFactory, prom, cache)
 	business.SetKialiControlPlaneCluster(&business.Cluster{Name: business.DefaultClusterID})
 
@@ -228,9 +228,8 @@ func TestAppsEndpoint(t *testing.T) {
 		kubeObjects = append(kubeObjects, &o)
 	}
 	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
-	kialiCache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
 	k8s.OpenShift = true
-	ts, _ := setupAppListEndpoint(k8s, kialiCache)
+	ts, _ := setupAppListEndpoint(k8s)
 	defer ts.Close()
 
 	url := ts.URL + "/api/namespaces/Namespace/apps"
@@ -260,8 +259,7 @@ func TestAppDetailsEndpoint(t *testing.T) {
 	}
 	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
 	k8s.OpenShift = true
-	kialiCache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
-	ts, _ := setupAppListEndpoint(k8s, kialiCache)
+	ts, _ := setupAppListEndpoint(k8s)
 	defer ts.Close()
 
 	url := ts.URL + "/api/namespaces/Namespace/apps/httpbin"
