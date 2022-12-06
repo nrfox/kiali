@@ -120,7 +120,8 @@ type FakeK8sClient struct {
 	deploymentConfigs map[string][]osapps_v1.DeploymentConfig
 	projects          []osproject_v1.Project
 	// Underlying kubernetes clientset.
-	KubeClientset  kubernetes.Interface
+	KubeClientset kubernetes.Interface
+	// Underlying istio clientset.
 	IstioClientset istio.Interface
 }
 
@@ -136,6 +137,12 @@ func (c *FakeK8sClient) GetProject(name string) (*osproject_v1.Project, error) {
 		}
 	}
 	return nil, kubeerrors.NewNotFound(osproject_v1.Resource("project"), name)
+}
+
+// The openshift resources are stubbed out because Kiali talks directly to the
+// kube api for these instead of using the openshift client-go.
+func (c *FakeK8sClient) GetProjects(labelSelector string) ([]osproject_v1.Project, error) {
+	return c.projects, nil
 }
 
 func (c *FakeK8sClient) GetDeploymentConfig(namespace string, name string) (*osapps_v1.DeploymentConfig, error) {

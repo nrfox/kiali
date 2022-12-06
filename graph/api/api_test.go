@@ -978,7 +978,6 @@ func mockNamespaceGraph(t *testing.T) (*prometheus.Client, *prometheustest.PromA
 		},
 	}
 
-	// TODO: Here is where the mock is being setup.
 	client, api, _, err := setupMocked()
 	if err != nil {
 		return client, api, err

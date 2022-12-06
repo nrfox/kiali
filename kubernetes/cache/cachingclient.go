@@ -142,15 +142,15 @@ func (cc *CachingClient) UpdateService(namespace string, name string, jsonPatch 
 	return nil
 }
 
-func (cc *CachingClient) UpdateWorkload(namespace string, name string, workloadType string, jsonPatch string) error {
-	if err := cc.ClientInterface.UpdateWorkload(namespace, name, workloadType, jsonPatch); err != nil {
-		return err
-	}
+// func (cc *CachingClient) UpdateWorkload(namespace string, name string, workloadType string, jsonPatch string) error {
+// 	if err := cc.ClientInterface.UpdateWorkload(namespace, name, workloadType, jsonPatch); err != nil {
+// 		return err
+// 	}
 
-	// Cache is stopped after a Create/Update/Delete operation to force a refresh
-	cc.cache.Refresh(namespace)
-	return nil
-}
+// 	// Cache is stopped after a Create/Update/Delete operation to force a refresh
+// 	cc.cache.Refresh(namespace)
+// 	return nil
+// }
 
 func (cc *CachingClient) DeleteObject(namespace string, name string, kind string) error {
 	if err := cc.ClientInterface.DeleteObject(namespace, name, kind); err != nil {

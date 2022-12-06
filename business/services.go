@@ -626,12 +626,6 @@ func (in *SvcService) UpdateService(ctx context.Context, namespace, service stri
 		return nil, err
 	}
 
-	// Cache is stopped after a Create/Update/Delete operation to force a refresh
-	// TODO: Ensure this is handled by the caching client.
-	// if kialiCache != nil && err == nil {
-	// 	kialiCache.Refresh(namespace)
-	// }
-
 	// After the update we fetch the whole workload
 	return in.GetServiceDetails(ctx, namespace, service, interval, queryTime)
 }

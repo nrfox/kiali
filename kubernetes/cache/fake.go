@@ -24,6 +24,7 @@ func NewFakeKialiCache(kubeClientset kubernetes.Interface, istioClientset istio.
 		clusterScoped:         config.Get().KubernetesConfig.CacheClusterScoped,
 		stopClusterScopedChan: make(chan struct{}),
 		stopNSChans:           make(map[string]chan struct{}),
+		tokenNamespaces:       make(map[string]namespaceCache),
 		nsCacheLister:         make(map[string]*cacheLister),
 		clusterCacheLister:    &cacheLister{},
 		// TODO: Not sure if we should pass in opts here or what but we don't want to trigger the registry or proxy cache.

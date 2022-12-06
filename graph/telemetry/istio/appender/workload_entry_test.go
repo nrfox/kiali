@@ -13,7 +13,6 @@ import (
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/graph"
 	"github.com/kiali/kiali/graph/telemetry/istio/appender"
-	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 )
 
@@ -23,14 +22,8 @@ const (
 	appNamespace = "testNamespace"
 )
 
-// TODO: Revisit all the method calls.
 func setupBusinessLayer(istioObjects ...runtime.Object) *business.Layer {
 	k8s := kubetest.NewFakeK8sClient(istioObjects...)
-
-	return setupBusinessLayerWithKube(k8s, istioObjects...)
-}
-
-func setupBusinessLayerWithKube(k8s kubernetes.ClientInterface, istioObjects ...runtime.Object) *business.Layer {
 	config.Set(config.NewConfig())
 
 	businessLayer := business.NewWithBackends(k8s, nil, nil)

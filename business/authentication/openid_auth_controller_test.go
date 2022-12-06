@@ -14,12 +14,13 @@ import (
 
 	osproject_v1 "github.com/openshift/api/project/v1"
 	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/config"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/util"
 )
@@ -48,10 +49,10 @@ func TestOpenIdAuthControllerAuthenticatesCorrectlyWithImplicitFlow(t *testing.T
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	stateHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", "nonceString", clockTime.UTC().Format("060102150405"), config.GetSigningKey())))
 
@@ -105,10 +106,10 @@ func TestOpenIdImplicitFlowShouldRejectMissingToken(t *testing.T) {
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	// Calculate a hash of the wrong string.
 	stateHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", "nonceString", clockTime.UTC().Format("060102150405"), config.GetSigningKey())))
@@ -151,10 +152,10 @@ func TestOpenIdImplicitFlowShouldRejectTokenWithoutExpiration(t *testing.T) {
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	// same as openIdTestToken but without the "exp" claim
 	oidcToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqZG9lQGRvbWFpbi5jb20iLCJuYW1lIjoiSm9obiBEb2UiLCJpYXQiOjE1MTYyMzkwMjIsIm5vbmNlIjoiMWJhOWI4MzRkMDhhYzgxZmViMzRlMjA4NDAyZWIxOGU5MDliZTA4NDUxOGMzMjg1MTA5NDAxODQifQ.ih34Mh3Sao9bnXCjaobfAEO1BnHnuuLBWxihAzwUqw8"
@@ -200,10 +201,10 @@ func TestOpenIdImplicitFlowShouldRejectTokenWithNonNumericExpClaim(t *testing.T)
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	// same as openIdTestToken but with the claim exp=foo
 	oidcToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqZG9lQGRvbWFpbi5jb20iLCJuYW1lIjoiSm9obiBEb2UiLCJpYXQiOjE1MTYyMzkwMjIsIm5vbmNlIjoiMWJhOWI4MzRkMDhhYzgxZmViMzRlMjA4NDAyZWIxOGU5MDliZTA4NDUxOGMzMjg1MTA5NDAxODQiLCJleHAiOiJmb28ifQ.wdM3yQPwAXLaqZbVku_fcXpisC3tzES8_UUwjbxSPrc"
@@ -249,10 +250,10 @@ func TestOpenIdImplicitFlowShouldRejectRequestWithInvalidState(t *testing.T) {
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	// Calculate a hash of the wrong string.
 	stateHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", "badNonceString", clockTime.UTC().Format("060102150405"), config.GetSigningKey())))
@@ -295,10 +296,10 @@ func TestOpenIdImplicitFlowShouldRejectRequestWithBadStateFormat(t *testing.T) {
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	// Calculate a hash of the wrong string.
 	stateHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", "nonceString", clockTime.UTC().Format("060102150405"), config.GetSigningKey())))
@@ -341,10 +342,10 @@ func TestOpenIdImplicitFlowShouldRejectRequestWithMissingState(t *testing.T) {
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	requestBody := strings.NewReader(fmt.Sprintf("id_token=%s", openIdTestToken))
 	request := httptest.NewRequest(http.MethodPost, "/api/authenticate", requestBody)
@@ -384,10 +385,10 @@ func TestOpenIdImplicitFlowShouldRejectRequestWithMissingNonceCookie(t *testing.
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	stateHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", "nonceString", clockTime.UTC().Format("060102150405"), config.GetSigningKey())))
 
@@ -425,10 +426,10 @@ func TestOpenIdImplicitFlowShouldRejectRequestWithMissingNonceInToken(t *testing
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	stateHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", "nonceString", clockTime.UTC().Format("060102150405"), config.GetSigningKey())))
 
@@ -600,10 +601,10 @@ func TestOpenIdImplicitFlowAllowsLoginWithAllowedDomainInHdClaim(t *testing.T) {
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	stateHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", "nonceString", clockTime.UTC().Format("060102150405"), config.GetSigningKey())))
 
@@ -662,10 +663,10 @@ func TestOpenIdImplicitFlowAllowsLoginWithAllowedDomainInEmailClaim(t *testing.T
 
 	// Returning some namespace when a cluster API call is made should have the result of
 	// a successful authentication.
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, nil)
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	stateHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", "nonceString", clockTime.UTC().Format("060102150405"), config.GetSigningKey())))
 
@@ -720,8 +721,10 @@ func TestOpenIdImplicitFlowRejectsTokenWithoutPrivileges(t *testing.T) {
 	config.Set(cfg)
 
 	// No namespaces should result in auth failure
-	k8s := kubetest.NewK8SClientMock()
-	k8s.On("GetProjects", "").Return([]osproject_v1.Project{}, nil)
+	k8s := kubetest.NewFakeK8sClient()
+	k8s.OpenShift = true
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	stateHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", "nonceString", clockTime.UTC().Format("060102150405"), config.GetSigningKey())))
 
@@ -756,6 +759,12 @@ func TestOpenIdImplicitFlowRejectsTokenWithoutPrivileges(t *testing.T) {
 	assert.True(t, clockTime.After(response.Cookies()[0].Expires))
 }
 
+type tokenRejected struct{ *kubetest.FakeK8sClient }
+
+func (t *tokenRejected) GetNamespaces(labelSelector string) ([]corev1.Namespace, error) {
+	return nil, errors.New("token rejected")
+}
+
 func TestOpenIdImplicitFlowRejectsTokenNotAcceptedByK8sAPI(t *testing.T) {
 	clockTime := time.Date(2021, 12, 1, 0, 0, 0, 0, time.UTC)
 	util.Clock = util.ClockMock{Time: clockTime}
@@ -766,11 +775,10 @@ func TestOpenIdImplicitFlowRejectsTokenNotAcceptedByK8sAPI(t *testing.T) {
 	config.Set(cfg)
 
 	// Error from API to simulate a bad token
-	k8s := new(kubetest.K8SClientMock)
-	k8s.On("IsOpenShift").Return(false)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.On("GetKialiToken").Return("")
-	k8s.On("GetNamespaces", "").Return([]v1.Namespace{}, errors.New("token rejected"))
+	// No namespaces should result in auth failure
+	k8s := &tokenRejected{FakeK8sClient: kubetest.NewFakeK8sClient()}
+	cache := cache.NewFakeKialiCache(k8s.KubeClientset, k8s.IstioClientset)
+	business.SetWithBackends(nil, nil, cache)
 
 	stateHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", "nonceString", clockTime.UTC().Format("060102150405"), config.GetSigningKey())))
 	requestBody := strings.NewReader(fmt.Sprintf("id_token=%s&state=%x-%s", openIdTestToken, stateHash, clockTime.UTC().Format("060102150405")))

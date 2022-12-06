@@ -16,9 +16,6 @@ import (
 	"k8s.io/client-go/rest"
 	gatewayapiclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
 
-	// osproject_v1 "github.com/openshift/api/project/v1"
-	// osroutes_v1 "github.com/openshift/api/route/v1"
-
 	kialiConfig "github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/util/httputil"
@@ -182,7 +179,7 @@ func NewClientFromConfig(config *rest.Config) (*K8SClient, error) {
 	return &client, nil
 }
 
-// TODO: Token? What's that used for here?
+// NewClient is just used for testing purposes.
 func NewClient(kubeClient kube.Interface, istioClient istio.Interface, gatewayapiClient gatewayapiclient.Interface) *K8SClient {
 	return &K8SClient{
 		istioClientset: istioClient,

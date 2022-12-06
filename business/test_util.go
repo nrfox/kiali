@@ -895,7 +895,7 @@ func FakeCustomControllerRSSyncedWithPods() []apps_v1.ReplicaSet {
 func FakeServices() []core_v1.Service {
 	return []core_v1.Service{
 		{
-			ObjectMeta: meta_v1.ObjectMeta{Name: "httpbin"},
+			ObjectMeta: meta_v1.ObjectMeta{Name: "httpbin", Namespace: "Namespace"},
 			Spec: core_v1.ServiceSpec{
 				Selector: map[string]string{"app": "httpbin"},
 			},

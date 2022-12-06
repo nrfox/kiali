@@ -48,7 +48,6 @@ func (in *RegistryStatusService) GetRegistryEndpoints(criteria RegistryCriteria)
 	registryStatus := kialiCache.GetRegistryStatus()
 	registryEndpoints := filterRegistryEndpoints(registryStatus, criteria)
 	return registryEndpoints, nil
-
 }
 
 func (in *RegistryStatusService) GetRegistryServices(criteria RegistryCriteria) ([]*kubernetes.RegistryService, error) {
@@ -289,7 +288,6 @@ func (in *RegistryStatusService) refreshRegistryStatus() (*kubernetes.RegistrySt
 	}
 
 	return &registryStatus, nil
-
 }
 
 func getSAClient() (kubernetes.ClientInterface, error) {

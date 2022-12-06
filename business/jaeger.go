@@ -13,8 +13,10 @@ import (
 	"github.com/kiali/kiali/observability"
 )
 
-type JaegerLoader = func() (jaeger.ClientInterface, error)
-type SpanFilter = func(span *jaegerModels.Span) bool
+type (
+	JaegerLoader = func() (jaeger.ClientInterface, error)
+	SpanFilter   = func(span *jaegerModels.Span) bool
+)
 
 type JaegerService struct {
 	loader        JaegerLoader

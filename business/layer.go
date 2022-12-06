@@ -14,7 +14,9 @@ import (
 	"github.com/kiali/kiali/prometheus"
 )
 
-// Layer is a container for fast access to inner services
+// Layer is a container for fast access to inner services.
+// A business layer is created per token/user. Any data that
+// needs to be saved across layers is saved in the Kiali Cache.
 type Layer struct {
 	App            AppService
 	Health         HealthService
@@ -150,15 +152,6 @@ func Get(authInfo *api.AuthInfo) (*Layer, error) {
 	}
 
 	return NewWithBackends(cachingClient, prometheusClient, jaegerLoader), nil
-}
-
-// SetWithBackends allows for specifying the ClientFactory and Prometheus clients to be used.
-// Mock friendly. Used only with tests.
-// TODO: Can the bizz layer just own the cache or do other things need it too?
-func SetWithBackends(cf kubernetes.ClientFactory, prom prometheus.ClientInterface, cache *cache.KialiCache) {
-	clientFactory = cf
-	prometheusClient = prom
-	kialiCache = cache
 }
 
 // NewWithBackends creates the business layer using the passed k8s and prom clients

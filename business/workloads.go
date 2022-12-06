@@ -367,8 +367,6 @@ func (in *WorkloadService) UpdateWorkload(ctx context.Context, namespace string,
 		return nil, err
 	}
 
-	// TODO: Ensure cache isn't restarted once per workload type.
-
 	// After the update we fetch the whole workload
 	return in.GetWorkload(ctx, WorkloadCriteria{Namespace: namespace, WorkloadName: workloadName, WorkloadType: workloadType, IncludeServices: includeServices})
 }
@@ -1675,8 +1673,6 @@ func updateWorkload(layer *Layer, namespace string, workloadName string, workloa
 		return err
 	}
 
-	// TODO: Ensure this doesn't restart the cache once per workload type.
-
 	workloadTypes := []string{
 		kubernetes.DeploymentType,
 		kubernetes.ReplicaSetType,
@@ -1729,6 +1725,10 @@ func updateWorkload(layer *Layer, namespace string, workloadName string, workloa
 		err := <-errChan
 		return err
 	}
+
+	// Refresh once after all the updates have gone through since Update Workload will update
+	// every single workload type of that matches name/namespace and we only want to refresh once.
+	kialiCache.Refresh(namespace)
 
 	return nil
 }

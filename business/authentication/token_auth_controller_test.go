@@ -75,6 +75,12 @@ func TestTokenAuthControllerRejectsUserWithoutPrivilegesInAnyNamespace(t *testin
 	assert.Empty(t, response.Cookies())
 }
 
+type forbidden struct{ *kubetest.FakeK8sClient }
+
+func (f *forbidden) GetNamespaces(namespace string) ([]v1.Namespace, error) {
+	return nil, k8s_errors.NewForbidden(schema.GroupResource{Group: "v1", Resource: "Projects"}, "", errors.New("err"))
+}
+
 func TestTokenAuthControllerRejectsInvalidToken(t *testing.T) {
 	clockTime := time.Date(2021, 12, 1, 0, 0, 0, 0, time.UTC)
 	util.Clock = util.ClockMock{Time: clockTime}
@@ -85,12 +91,7 @@ func TestTokenAuthControllerRejectsInvalidToken(t *testing.T) {
 
 	// Returning a forbidden error when a cluster API call is made should have the result of
 	// a rejected authentication.
-	k8s := new(kubetest.K8SClientMock)
-	k8s.On("IsOpenShift").Return(false)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.On("GetNamespaces", "").Return([]v1.Namespace{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, k8s_errors.NewForbidden(schema.GroupResource{Group: "v1", Resource: "Projects"}, "", errors.New("err")))
+	k8s := &forbidden{kubetest.NewFakeK8sClient()}
 
 	requestBody := strings.NewReader("token=Foo")
 	request := httptest.NewRequest(http.MethodPost, "/api/authenticate", requestBody)
@@ -185,12 +186,7 @@ func TestTokenAuthControllerValidatesSessionForUserWithMissingPrivileges(t *test
 		request.AddCookie(c)
 	}
 
-	k8s := new(kubetest.K8SClientMock)
-	k8s.On("IsOpenShift").Return(false)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.On("GetNamespaces", "").Return([]v1.Namespace{
-		{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}},
-	}, k8s_errors.NewForbidden(schema.GroupResource{Group: "v1", Resource: "Projects"}, "", errors.New("err")))
+	k8s := &forbidden{kubetest.NewFakeK8sClient()}
 
 	controller := NewTokenAuthController(CookieSessionPersistor{}, func(authInfo *api.AuthInfo) (*business.Layer, error) {
 		return business.NewWithBackends(k8s, nil, nil), nil

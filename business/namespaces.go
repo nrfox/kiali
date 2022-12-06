@@ -68,10 +68,9 @@ func (in *NamespaceService) GetNamespaces(ctx context.Context) ([]models.Namespa
 	)
 	defer end()
 
-	// TODO: Do we need the namespace cache or can we use the k8s client directly?
-	// if ns := kialiCache.GetNamespaces(in.k8s.GetToken()); ns != nil {
-	// 	return ns, nil
-	// }
+	if ns := kialiCache.GetNamespaces(in.k8s.GetToken()); ns != nil {
+		return ns, nil
+	}
 
 	configObject := config.Get()
 
@@ -273,10 +272,9 @@ func (in *NamespaceService) GetNamespaces(ctx context.Context) ([]models.Namespa
 		}
 	}
 
-	// TODO: Do we need the namespace cache or can we use the k8s client directly?
-	// if kialiCache != nil {
-	// 	kialiCache.SetNamespaces(in.k8s.GetToken(), result)
-	// }
+	if kialiCache != nil {
+		kialiCache.SetNamespaces(in.k8s.GetToken(), result)
+	}
 
 	return result, nil
 }
@@ -390,11 +388,10 @@ func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) 
 	var err error
 
 	// Really need to make sure that we disallow accessing namespaces that are not accessible.
-	// Cache already has included/excluded namespaces applied
-	// TODO: Do we need the namespace cache or can we use the k8s client directly?
-	// if ns := kialiCache.GetNamespace(in.k8s.GetToken(), namespace); ns != nil {
-	// 	return ns, nil
-	// }
+	// Cache already has included/excluded namespaces applied.
+	if ns := kialiCache.GetNamespace(in.k8s.GetToken(), namespace); ns != nil {
+		return ns, nil
+	}
 
 	if !in.isAccessibleNamespace(namespace) {
 		return nil, &AccessibleNamespaceError{msg: "Namespace [" + namespace + "] is not accessible for Kiali"}
@@ -425,8 +422,11 @@ func (in *NamespaceService) GetNamespace(ctx context.Context, namespace string) 
 		result = models.CastNamespace(*ns)
 	}
 
-	// TODO: Do we need the namespace cache or can we use the k8s client directly?
 	// Refresh cache in case of cache expiration
+	if _, err = in.GetNamespaces(ctx); err != nil {
+		return nil, err
+	}
+
 	return &result, nil
 }
 
@@ -450,8 +450,7 @@ func (in *NamespaceService) UpdateNamespace(ctx context.Context, namespace strin
 		return nil, err
 	}
 
-	// TODO: Do we need the namespace cache or can we use the k8s client directly?
-	// Should actually just cast the result of updating the namespace.
+	// Call GetNamespace to update the caching
 	return in.GetNamespace(ctx, namespace)
 }
 

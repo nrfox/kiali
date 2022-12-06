@@ -344,7 +344,7 @@ func setupAggregateMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheust
 
 func TestPrepareStatsQueriesPartialError(t *testing.T) {
 	assert := assert.New(t)
-	prom, _, _ := utilSetupMocks(t)
+	prom := utilSetupMocks(t)
 
 	req := httptest.NewRequest("GET", "/foo", nil)
 	req = req.WithContext(authentication.SetAuthInfoContext(req.Context(), &api.AuthInfo{Token: "test"}))
@@ -421,10 +421,9 @@ func TestPrepareStatsQueriesPartialError(t *testing.T) {
 
 func TestPrepareStatsQueriesNoErrorIntervalAdjusted(t *testing.T) {
 	assert := assert.New(t)
-	prom, _, k8s := utilSetupMocks(t)
 	queryTime := time.Date(2020, 10, 22, 0, 0, 0, 0, time.UTC)
 	creation := meta_v1.NewTime(queryTime.Add(-1 * time.Hour))
-	k8s.On("GetNamespace", "ns3").Return(&core_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "ns3", CreationTimestamp: creation}}, nil)
+	prom := utilSetupMocks(t, &core_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "ns3", CreationTimestamp: creation}})
 
 	req := httptest.NewRequest("GET", "/foo", nil)
 	req = req.WithContext(authentication.SetAuthInfoContext(req.Context(), &api.AuthInfo{Token: "test"}))
@@ -455,7 +454,7 @@ func TestPrepareStatsQueriesNoErrorIntervalAdjusted(t *testing.T) {
 
 func TestValidateBadRequest(t *testing.T) {
 	assert := assert.New(t)
-	prom, _, _ := utilSetupMocks(t)
+	prom := utilSetupMocks(t)
 	queryTime := time.Date(2020, 10, 22, 0, 0, 0, 0, time.UTC)
 
 	req := httptest.NewRequest("GET", "/foo", nil)

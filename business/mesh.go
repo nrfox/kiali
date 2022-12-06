@@ -565,7 +565,6 @@ func (in *MeshService) OutboundTrafficPolicy() (*models.OutboundPolicy, error) {
 	cfg := config.Get()
 	otp := models.OutboundPolicy{Mode: "ALLOW_ANY"}
 
-	// TODO: Should this use cache?
 	istioConfig, err := in.k8s.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -597,7 +596,6 @@ func (in *MeshService) IstiodResourceThresholds() (*models.IstiodThresholds, err
 	conf := config.Get()
 	istioDeploymentConfig := conf.ExternalServices.Istio.IstiodDeploymentName
 
-	// TODO: should this use cache?
 	istioDeployment, err := in.k8s.GetDeployment(conf.IstioNamespace, istioDeploymentConfig)
 	if err != nil && !errors.IsNotFound(err) {
 		return nil, err
