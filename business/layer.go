@@ -165,6 +165,15 @@ func SetWithBackends(cf kubernetes.ClientFactory, prom prometheus.ClientInterfac
 	prometheusClient = prom
 }
 
+// TODO: Another way to pass this? Update original SetWithBackends?
+// SetWithBackends allows for specifying the ClientFactory and Prometheus clients to be used.
+// Mock friendly. Used only with tests.
+func SetWithBackendsWithCache(cf kubernetes.ClientFactory, prom prometheus.ClientInterface, cache cache.KialiCache) {
+	clientFactory = cf
+	prometheusClient = prom
+	kialiCache = cache
+}
+
 // NewWithBackends creates the business layer using the passed k8s and prom clients.
 // TODO: Pass multiple clients or the client factory.
 func NewWithBackends(k8s kubernetes.ClientInterface, prom prometheus.ClientInterface, jaegerClient JaegerLoader) *Layer {
@@ -188,8 +197,8 @@ func NewWithBackends(k8s kubernetes.ClientInterface, prom prometheus.ClientInter
 	temporaryLayer.TokenReview = NewTokenReview(k8s)
 	temporaryLayer.Validations = IstioValidationsService{k8s: k8s, businessLayer: temporaryLayer}
 
-	// TODO: Use client manager or passed in clients rather than hardcoding the home cluster.
 	clusterClients := map[string]kubernetes.ClientInterface{"home": k8s}
+
 	// TODO: Remove conditional once cache is fully mandatory.
 	if config.Get().KubernetesConfig.CacheEnabled {
 		// The caching client effectively uses two different SA account tokens.
@@ -201,8 +210,11 @@ func NewWithBackends(k8s kubernetes.ClientInterface, prom prometheus.ClientInter
 			clusterClients[cluster] = cache.NewCachingClient(kialiCache, client)
 		}
 		temporaryLayer.Workload = *NewWorkloadService(clusterClients, prom, kialiCache, temporaryLayer, config.Get())
+		temporaryLayer.Svc = SvcService{prom: prom, k8s: cache.NewCachingClient(kialiCache, k8s), businessLayer: temporaryLayer}
 	} else {
 		temporaryLayer.Workload = *NewWorkloadService(clusterClients, prom, kialiCache, temporaryLayer, config.Get())
+		cachingClient := cache.NewCachingClient(kialiCache, k8s)
+		temporaryLayer.Svc = SvcService{prom: prom, k8s: cachingClient, businessLayer: temporaryLayer}
 	}
 
 	return temporaryLayer

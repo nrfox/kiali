@@ -11,7 +11,6 @@ import (
 
 	osproject_v1 "github.com/openshift/api/project/v1"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/kiali/kiali/business"
@@ -19,7 +18,6 @@ import (
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/kubernetes/kubetest"
-	"github.com/kiali/kiali/prometheus/prometheustest"
 	"github.com/kiali/kiali/util"
 )
 
@@ -30,7 +28,6 @@ func TestStrategyTokenAuthentication(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.Auth.Strategy = config.AuthStrategyToken
 	cfg.LoginToken.SigningKey = util.RandomString(16)
-	cfg.KubernetesConfig.CacheEnabled = false
 	config.Set(cfg)
 
 	authentication.InitializeAuthenticationController("token")
@@ -65,7 +62,6 @@ func TestStrategyTokenAuthentication(t *testing.T) {
 // rejected if user provides wrong credentials
 func TestStrategyTokenFails(t *testing.T) {
 	cfg := config.NewConfig()
-	cfg.KubernetesConfig.CacheEnabled = false
 	cfg.Auth.Strategy = config.AuthStrategyToken
 	config.Set(cfg)
 
@@ -134,7 +130,6 @@ func TestStrategyHeaderOidcAuthentication(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.Auth.Strategy = config.AuthStrategyHeader
 	cfg.LoginToken.SigningKey = util.RandomString(16)
-	cfg.KubernetesConfig.CacheEnabled = false
 	config.Set(cfg)
 
 	clockTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -175,7 +170,6 @@ func TestStrategyHeaderAuthentication(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.Auth.Strategy = config.AuthStrategyHeader
 	cfg.LoginToken.SigningKey = util.RandomString(16)
-	cfg.KubernetesConfig.CacheEnabled = false
 	config.Set(cfg)
 
 	clockTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -216,7 +210,6 @@ func TestStrategyHeaderOidcWithImpersonationAuthentication(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.Auth.Strategy = config.AuthStrategyHeader
 	cfg.LoginToken.SigningKey = util.RandomString(16)
-	cfg.KubernetesConfig.CacheEnabled = false
 	config.Set(cfg)
 
 	clockTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -251,23 +244,19 @@ func TestStrategyHeaderOidcWithImpersonationAuthentication(t *testing.T) {
 	assert.Equal(t, clockTime.Add(time.Second*time.Duration(cfg.LoginToken.ExpirationSeconds)), cookie.Expires)
 }
 
+type rejectClient struct{ kubernetes.ClientInterface }
+
+func (r *rejectClient) GetProjects(labelSelector string) ([]osproject_v1.Project, error) {
+	return nil, fmt.Errorf("Rejecting")
+}
+
 func mockK8s(reject bool) {
 	kubernetes.KialiToken = "notrealtoken"
-	k8s := kubetest.NewK8SClientMock()
-	prom := new(prometheustest.PromClientMock)
-
-	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, prom)
-
+	k8s := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "tutorial"}})
+	k8s.OpenShift = true
+	var kubeClient kubernetes.ClientInterface = k8s
 	if reject {
-		k8s.On("GetProjects", mock.AnythingOfType("string")).Return([]osproject_v1.Project{}, fmt.Errorf("Rejecting"))
-	} else {
-		k8s.On("GetProjects", mock.AnythingOfType("string")).Return([]osproject_v1.Project{
-			{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name: "tutorial",
-				},
-			},
-		}, nil)
+		kubeClient = &rejectClient{k8s}
 	}
+	business.SetupBusinessLayer(kubeClient, *config.Get())
 }

@@ -9,9 +9,11 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	apps_v1 "k8s.io/api/apps/v1"
 	core_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
@@ -224,23 +226,30 @@ func TestGetWorkloadHealthWithoutIstio(t *testing.T) {
 }
 
 func TestGetNamespaceAppHealthWithoutIstio(t *testing.T) {
+	require := require.New(t)
 	// Setup mocks
-	k8s := new(kubetest.K8SClientMock)
 	prom := new(prometheustest.PromClientMock)
 	conf := config.NewConfig()
 	config.Set(conf)
 
-	k8s.On("IsOpenShift").Return(true)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.MockEmptyWorkloads("ns")
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-	k8s.On("GetServices", "ns", mock.AnythingOfType("map[string]string")).Return([]core_v1.Service{}, nil)
-	k8s.On("GetDeployments", "ns").Return(fakeDeploymentsHealthReview(), nil)
-	k8s.On("GetPods", "ns", "").Return(fakePodsHealthReviewWithoutIstio(), nil)
+	kubeObjects := []runtime.Object{&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "ns"}}}
+	for _, obj := range fakeDeploymentsHealthReview() {
+		o := obj
+		kubeObjects = append(kubeObjects, &o)
+	}
+	for _, obj := range fakePodsHealthReviewWithoutIstio() {
+		o := obj
+		kubeObjects = append(kubeObjects, &o)
+	}
+
+	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
+	k8s.OpenShift = true
+	SetupBusinessLayer(k8s, *conf)
 
 	hs := HealthService{k8s: k8s, prom: prom, businessLayer: NewWithBackends(k8s, prom, nil)}
 	criteria := NamespaceHealthCriteria{Namespace: "ns", RateInterval: "1m", QueryTime: time.Date(2017, 1, 15, 0, 0, 0, 0, time.UTC), IncludeMetrics: true}
-	_, _ = hs.GetNamespaceAppHealth(context.TODO(), criteria)
+	_, err := hs.GetNamespaceAppHealth(context.TODO(), criteria)
+	require.NoError(err)
 
 	// Make sure unnecessary call isn't performed
 	prom.AssertNumberOfCalls(t, "GetAllRequestRates", 0)
@@ -250,15 +259,19 @@ func TestGetNamespaceServiceHealthWithNA(t *testing.T) {
 	assert := assert.New(t)
 
 	// Setup mocks
-	k8s := new(kubetest.K8SClientMock)
 	prom := new(prometheustest.PromClientMock)
 	conf := config.NewConfig()
+	conf.ExternalServices.Istio.IstioAPIEnabled = false
 	config.Set(conf)
 
-	k8s.On("IsOpenShift").Return(true)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-	k8s.MockServices("tutorial", []string{"reviews", "httpbin"})
+	reviews := kubetest.FakeService("tutorial", "reviews")
+	httpbin := kubetest.FakeService("tutorial", "httpbin")
+	kubeObjects := []runtime.Object{&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "tutorial"}}, &reviews, &httpbin}
+	k8s := kubetest.NewFakeK8sClient(kubeObjects...)
+	k8s.OpenShift = true
+	SetupBusinessLayer(k8s, *conf)
+
+	// TODO: Prom?
 	prom.On("GetNamespaceServicesRequestRates", "tutorial", mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(serviceRates, nil)
 
 	hs := HealthService{k8s: k8s, prom: prom, businessLayer: NewWithBackends(k8s, prom, nil)}

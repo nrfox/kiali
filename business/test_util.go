@@ -15,11 +15,7 @@ import (
 
 // Consolidate fake/mock data used in tests per package
 
-func FakeDeployments() []apps_v1.Deployment {
-	conf := config.NewConfig()
-	config.Set(conf)
-	appLabel := conf.IstioLabels.AppLabelName
-	versionLabel := conf.IstioLabels.VersionLabelName
+func FakeDeployments(appLabel, versionLabel string) []apps_v1.Deployment {
 	t1, _ := time.Parse(time.RFC822Z, "08 Mar 18 17:44 +0300")
 	return []apps_v1.Deployment{
 		{
@@ -122,9 +118,7 @@ func FakeDuplicatedDeployments() []apps_v1.Deployment {
 	}
 }
 
-func FakeReplicaSets() []apps_v1.ReplicaSet {
-	conf := config.NewConfig()
-	config.Set(conf)
+func FakeReplicaSets(conf config.Config) []apps_v1.ReplicaSet {
 	appLabel := conf.IstioLabels.AppLabelName
 	versionLabel := conf.IstioLabels.VersionLabelName
 	t1, _ := time.Parse(time.RFC822Z, "08 Mar 18 17:44 +0300")
@@ -894,7 +888,11 @@ func FakeCustomControllerRSSyncedWithPods() []apps_v1.ReplicaSet {
 func FakeServices() []core_v1.Service {
 	return []core_v1.Service{
 		{
-			ObjectMeta: meta_v1.ObjectMeta{Name: "httpbin", Namespace: "Namespace"},
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "httpbin",
+				Namespace: "Namespace",
+				Labels:    map[string]string{"app": "httpbin"},
+			},
 			Spec: core_v1.ServiceSpec{
 				Selector: map[string]string{"app": "httpbin"},
 			},

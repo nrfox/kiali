@@ -11,6 +11,7 @@ import (
 	api_networking_v1beta1 "istio.io/api/networking/v1beta1"
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	auth_v1 "k8s.io/api/authorization/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kiali/kiali/config"
@@ -213,12 +214,7 @@ func TestGetIstioConfigDetails(t *testing.T) {
 }
 
 func mockGetIstioConfigList() IstioConfigService {
-	k8s := new(kubetest.K8SClientMock)
-	k8s.On("IsOpenShift").Return(true)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-
-	fakeIstioObjects := []runtime.Object{}
+	fakeIstioObjects := []runtime.Object{&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "test"}}}
 	for _, g := range fakeGetGateways() {
 		fakeIstioObjects = append(fakeIstioObjects, g.DeepCopyObject())
 	}
@@ -231,7 +227,11 @@ func mockGetIstioConfigList() IstioConfigService {
 	for _, s := range fakeGetServiceEntries() {
 		fakeIstioObjects = append(fakeIstioObjects, s.DeepCopyObject())
 	}
-	k8s.MockIstio(fakeIstioObjects...)
+	k8s := kubetest.NewFakeK8sClient(
+		fakeIstioObjects...,
+	)
+	k8s.OpenShift = true
+
 	return IstioConfigService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
 }
 
@@ -523,7 +523,6 @@ func TestFilterIstioObjectsForWorkloadSelector(t *testing.T) {
 	path := "../tests/data/filters/workload-selector-filter.yaml"
 	loader := &validations.YamlFixtureLoader{Filename: path}
 	err := loader.Load()
-
 	if err != nil {
 		t.Error("Error loading test data.")
 	}
