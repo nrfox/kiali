@@ -9,15 +9,12 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	osapps_v1 "github.com/openshift/api/apps/v1"
 	osproject_v1 "github.com/openshift/api/project/v1"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	apps_v1 "k8s.io/api/apps/v1"
-	batch_v1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/jaeger"
@@ -115,10 +112,7 @@ func TestComponentRunning(t *testing.T) {
 func TestComponentNamespaces(t *testing.T) {
 	a := assert.New(t)
 
-	conf := confWithComponentNamespaces()
-	config.Set(conf)
-
-	nss := getComponentNamespaces()
+	nss := getComponentNamespaces(*confWithComponentNamespaces())
 
 	a.Contains(nss, "istio-system")
 	a.Contains(nss, "istio-admin")
@@ -126,7 +120,7 @@ func TestComponentNamespaces(t *testing.T) {
 	a.Len(nss, 4)
 }
 
-func mockAddOnsCalls(ds []apps_v1.Deployment, daemonSets []apps_v1.DaemonSet, pods []v1.Pod, isIstioReachable bool, overrideAddonURLs bool) (*kubetest.K8SClientMock, *httptest.Server, *int, *int) {
+func mockAddOnsCalls(ds []apps_v1.Deployment, daemonSets []apps_v1.DaemonSet, pods []v1.Pod, isIstioReachable bool, overrideAddonURLs bool) (kubernetes.ClientInterface, *httptest.Server, *int, *int) {
 	// Prepare the Call counts for each Addon
 	grafanaCalls, prometheusCalls := 0, 0
 
@@ -154,27 +148,30 @@ func sampleIstioComponent() ([]apps_v1.Deployment, []apps_v1.DaemonSet, []v1.Pod
 				}),
 		},
 		[]apps_v1.DaemonSet{},
-		healthyIstiods(),
+		[]v1.Pod{},
 		true,
 		false
 }
 
-func healthyIstiods() []v1.Pod {
+func healthyIstiods(deployment *apps_v1.Deployment) []v1.Pod {
 	return []v1.Pod{
-		fakePod("istiod-x3v1kn0l-running", "istio-system", "istiod", "Running"),
-		fakePod("istiod-x3v1kn1l-running", "istio-system", "istiod", "Running"),
-		fakePod("istiod-x3v1kn0l-terminating", "istio-system", "istiod", "Terminating"),
-		fakePod("istiod-x3v1kn1l-terminating", "istio-system", "istiod", "Terminating"),
+		fakePod(deployment, "istiod-x3v1kn0l-running", "istio-system", "istiod", "Running"),
+		fakePod(deployment, "istiod-x3v1kn1l-running", "istio-system", "istiod", "Running"),
+		fakePod(deployment, "istiod-x3v1kn0l-terminating", "istio-system", "istiod", "Terminating"),
+		fakePod(deployment, "istiod-x3v1kn1l-terminating", "istio-system", "istiod", "Terminating"),
 	}
 }
 
-func fakePod(name, namespace, appLabel, phase string) v1.Pod {
+func fakePod(deployment *apps_v1.Deployment, name, namespace, appLabel, phase string) v1.Pod {
 	return v1.Pod{
 		ObjectMeta: meta_v1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
 				"app": appLabel,
+			},
+			OwnerReferences: []meta_v1.OwnerReference{
+				*meta_v1.NewControllerRef(deployment, apps_v1.SchemeGroupVersion.WithKind("Deployment")),
 			},
 		},
 		Status: v1.PodStatus{
@@ -355,7 +352,7 @@ func TestDefaults(t *testing.T) {
 		fakeDeploymentWithStatus("istiod", map[string]string{"app": "istiod", "istio": "pilot"}, healthyStatus),
 	}
 
-	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(depl, dss, healthyIstiods(), true, false)
+	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(depl, dss, healthyIstiods(&depl[1]), true, false)
 	defer httpServer.Close()
 
 	iss := NewWithBackends(k8s, nil, mockJaeger).IstioStatus
@@ -385,7 +382,7 @@ func TestNonDefaults(t *testing.T) {
 		fakeDeploymentWithStatus("istiod", map[string]string{"app": "istiod", "istio": "pilot"}, healthyStatus),
 	}
 
-	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(pods, dss, healthyIstiods(), true, false)
+	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(pods, dss, healthyIstiods(&pods[1]), true, false)
 	defer httpServer.Close()
 
 	c := config.Get()
@@ -428,7 +425,7 @@ func TestIstiodNotReady(t *testing.T) {
 		fakeDeploymentWithStatus("istiod", map[string]string{"app": "istiod", "istio": "pilot"}, notReadyStatus),
 	}
 
-	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(pods, dss, healthyIstiods(), false, false)
+	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(pods, dss, healthyIstiods(&pods[1]), false, false)
 	defer httpServer.Close()
 
 	c := config.Get()
@@ -474,7 +471,7 @@ func TestIstiodUnreachable(t *testing.T) {
 		fakeDeploymentWithStatus("istiod", map[string]string{"app": "istiod", "istio": "pilot"}, healthyStatus),
 	}
 
-	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(pods, dss, healthyIstiods(), false, false)
+	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(pods, dss, healthyIstiods(&pods[1]), false, false)
 	defer httpServer.Close()
 
 	c := config.Get()
@@ -521,7 +518,7 @@ func TestCustomizedAppLabel(t *testing.T) {
 		fakeDeploymentWithStatus("istiod", map[string]string{"app": "istiod", "istio": "pilot"}, healthyStatus),
 	}
 
-	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(depls, dss, healthyIstiods(), true, false)
+	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(depls, dss, healthyIstiods(&depls[1]), true, false)
 	defer httpServer.Close()
 
 	c := config.Get()
@@ -566,7 +563,7 @@ func TestDaemonSetComponentHealthy(t *testing.T) {
 		fakeDeploymentWithStatus("istiod", map[string]string{"app": "istiod", "istio": "pilot"}, healthyStatus),
 	}
 
-	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(depls, dss, healthyIstiods(), true, false)
+	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(depls, dss, healthyIstiods(&depls[1]), true, false)
 	defer httpServer.Close()
 
 	c := config.Get()
@@ -612,7 +609,7 @@ func TestDaemonSetComponentUnhealthy(t *testing.T) {
 		fakeDeploymentWithStatus("istiod", map[string]string{"app": "istiod", "istio": "pilot"}, healthyStatus),
 	}
 
-	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(depls, dss, healthyIstiods(), true, false)
+	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(depls, dss, healthyIstiods(&depls[1]), true, false)
 	defer httpServer.Close()
 
 	c := config.Get()
@@ -680,29 +677,31 @@ func mockFailingJaeger() (jaeger.ClientInterface, error) {
 	return jaeger.ClientInterface(j), nil
 }
 
+// TODO: Mock out actual server?
+type istioStatuser struct {
+	kubernetes.ClientInterface
+	IstioStatus kubernetes.IstioComponentStatus
+}
+
+func (is *istioStatuser) CanConnectToIstiod() (kubernetes.IstioComponentStatus, error) {
+	return is.IstioStatus, nil
+}
+
 // Setup K8S api call to fetch Pods
-func mockDeploymentCall(deployments []apps_v1.Deployment, daemonSets []apps_v1.DaemonSet, pods []v1.Pod, isIstioReachable bool) *kubetest.K8SClientMock {
-	k8s := new(kubetest.K8SClientMock)
-	k8s.On("GetDaemonSets", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(daemonSets, nil)
-	k8s.On("GetDeployments", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(deployments, nil)
-	k8s.On("GetPods", mock.AnythingOfType("string"), labels.Set(map[string]string{"app": "istiod"}).String()).Return(pods, nil)
-
-	k8s.On("IsOpenShift").Return(true)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-	k8s.On("GetDeploymentConfigs", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]osapps_v1.DeploymentConfig{}, nil)
-	k8s.On("GetReplicaSets", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]apps_v1.ReplicaSet{}, nil)
-	k8s.On("GetReplicationControllers", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]v1.ReplicationController{}, nil)
-	k8s.On("GetStatefulSets", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]apps_v1.StatefulSet{}, nil)
-	k8s.On("GetJobs", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]batch_v1.Job{}, nil)
-	k8s.On("GetCronJobs", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]batch_v1.CronJob{}, nil)
-	k8s.On("GetPod", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(v1.Pod{}, nil)
-	k8s.On("GetPods", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return([]v1.Pod{}, nil)
-	k8s.On("GetPodLogs", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.Anything).Return(&kubernetes.PodLogs{}, nil)
-
+func mockDeploymentCall(deployments []apps_v1.Deployment, daemonSets []apps_v1.DaemonSet, pods []v1.Pod, isIstioReachable bool) kubernetes.ClientInterface {
+	objects := []runtime.Object{&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "istio-system"}}}
+	for _, obj := range deployments {
+		o := obj
+		objects = append(objects, &o)
+	}
+	for _, obj := range daemonSets {
+		o := obj
+		objects = append(objects, &o)
+	}
 	var istioStatus kubernetes.IstioComponentStatus
-	if !isIstioReachable {
-		for _, pod := range pods {
+	for _, obj := range pods {
+		pod := obj
+		if !isIstioReachable {
 			// Only running pods are considered healthy.
 			if pod.Status.Phase == v1.PodRunning && pod.Labels["app"] == "istiod" {
 				istioStatus = append(istioStatus, kubernetes.ComponentStatus{
@@ -712,16 +711,24 @@ func mockDeploymentCall(deployments []apps_v1.Deployment, daemonSets []apps_v1.D
 				})
 			}
 		}
+		objects = append(objects, &pod)
 	}
-	k8s.On("CanConnectToIstiod").Return(istioStatus, nil)
+	k := kubetest.NewFakeK8sClient(objects...)
+	k.OpenShift = true
+	k8s := &istioStatuser{
+		ClientInterface: k,
+		IstioStatus:     istioStatus,
+	}
+
 	return k8s
 }
 
 func fakeDeploymentWithStatus(name string, labels map[string]string, status apps_v1.DeploymentStatus) apps_v1.Deployment {
 	return apps_v1.Deployment{
 		ObjectMeta: meta_v1.ObjectMeta{
-			Name:   name,
-			Labels: labels,
+			Name:      name,
+			Namespace: "istio-system",
+			Labels:    labels,
 		},
 		Status: status,
 		Spec: apps_v1.DeploymentSpec{
@@ -739,8 +746,9 @@ func fakeDeploymentWithStatus(name string, labels map[string]string, status apps
 func fakeDaemonSetWithStatus(name string, labels map[string]string, status apps_v1.DaemonSetStatus) apps_v1.DaemonSet {
 	return apps_v1.DaemonSet{
 		ObjectMeta: meta_v1.ObjectMeta{
-			Name:   name,
-			Labels: labels,
+			Name:      name,
+			Namespace: "istio-system",
+			Labels:    labels,
 		},
 		Status: status,
 		Spec: apps_v1.DaemonSetSpec{

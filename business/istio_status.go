@@ -20,6 +20,7 @@ import (
 type IstioStatusService struct {
 	k8s           kubernetes.ClientInterface
 	businessLayer *Layer
+	config        config.Config
 }
 
 func (iss *IstioStatusService) GetStatus(ctx context.Context) (kubernetes.IstioComponentStatus, error) {
@@ -29,7 +30,7 @@ func (iss *IstioStatusService) GetStatus(ctx context.Context) (kubernetes.IstioC
 	)
 	defer end()
 
-	if !config.Get().ExternalServices.Istio.ComponentStatuses.Enabled || !config.Get().ExternalServices.Istio.IstioAPIEnabled {
+	if !iss.config.ExternalServices.Istio.ComponentStatuses.Enabled || !iss.config.ExternalServices.Istio.IstioAPIEnabled {
 		return kubernetes.IstioComponentStatus{}, nil
 	}
 
@@ -67,7 +68,7 @@ func (iss *IstioStatusService) getComponentNamespacesWorkloads(ctx context.Conte
 	nss := map[string]bool{}
 	wls := make([]*models.Workload, 0)
 
-	comNs := getComponentNamespaces()
+	comNs := getComponentNamespaces(iss.config)
 
 	wlChan := make(chan []*models.Workload, len(comNs))
 	errChan := make(chan error, len(comNs))
@@ -107,14 +108,14 @@ func (iss *IstioStatusService) getComponentNamespacesWorkloads(ctx context.Conte
 	return wls, nil
 }
 
-func getComponentNamespaces() []string {
+func getComponentNamespaces(conf config.Config) []string {
 	nss := make([]string, 0)
 
 	// By default, add the istio control plane namespace
-	nss = append(nss, config.Get().IstioNamespace)
+	nss = append(nss, conf.IstioNamespace)
 
 	// Adding Istio Components namespaces
-	externalServices := config.Get().ExternalServices
+	externalServices := conf.ExternalServices
 	for _, cmp := range externalServices.Istio.ComponentStatuses.Components {
 		if cmp.Namespace != "" {
 			nss = append(nss, cmp.Namespace)
@@ -124,9 +125,9 @@ func getComponentNamespaces() []string {
 	return nss
 }
 
-func istioCoreComponents() map[string]bool {
+func istioCoreComponents(conf config.Config) map[string]bool {
 	components := map[string]bool{}
-	cs := config.Get().ExternalServices.Istio.ComponentStatuses
+	cs := conf.ExternalServices.Istio.ComponentStatuses
 	for _, c := range cs.Components {
 		components[c.AppLabel] = c.IsCore
 	}
@@ -134,7 +135,7 @@ func istioCoreComponents() map[string]bool {
 }
 
 func (iss *IstioStatusService) getStatusOf(workloads []*models.Workload) (kubernetes.IstioComponentStatus, error) {
-	statusComponents := istioCoreComponents()
+	statusComponents := istioCoreComponents(iss.config)
 	isc := kubernetes.IstioComponentStatus{}
 	cf := map[string]bool{}
 
