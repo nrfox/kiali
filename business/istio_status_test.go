@@ -208,8 +208,17 @@ func TestGrafanaDisabled(t *testing.T) {
 	assert := assert.New(t)
 
 	// TODO: Name something better
-	objs, b1, b2 := sampleIstioComponent()
-	k8s, httpServ, grafanaCalls, promCalls := mockAddOnsCalls(t, objs, b1, b2)
+	objects := []runtime.Object{
+		fakeDeploymentWithStatus(
+			"istio-egressgateway",
+			map[string]string{"app": "istio-egressgateway"},
+			apps_v1.DeploymentStatus{
+				Replicas:            2,
+				AvailableReplicas:   2,
+				UnavailableReplicas: 0,
+			}),
+	}
+	k8s, httpServ, grafanaCalls, promCalls := mockAddOnsCalls(t, objects, true, false)
 	defer httpServ.Close()
 
 	// Disable Grafana
@@ -239,8 +248,18 @@ func TestGrafanaDisabled(t *testing.T) {
 func TestGrafanaNotWorking(t *testing.T) {
 	assert := assert.New(t)
 	grafanaCalls, prometheusCalls := 0, 0
-	objects, istiodReachable, _ := sampleIstioComponent()
-	k8s := mockDeploymentCall(objects, istiodReachable)
+	objects := []runtime.Object{
+		fakeDeploymentWithStatus(
+			"istio-egressgateway",
+			map[string]string{"app": "istio-egressgateway"},
+			apps_v1.DeploymentStatus{
+				Replicas:            2,
+				AvailableReplicas:   2,
+				UnavailableReplicas: 0,
+			}),
+	}
+	objects = append(objects, &osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "istio-system"}})
+	k8s := mockDeploymentCall(objects, true)
 	addOnsStetup := defaultAddOnCalls(&grafanaCalls, &prometheusCalls)
 	addOnsStetup["grafana"] = addOnsSetup{
 		Url:        "/grafana/mock",
@@ -440,11 +459,6 @@ func TestIstiodNotReady(t *testing.T) {
 	objects := []runtime.Object{
 		fakeDeploymentWithStatus("istio-egressgateway", map[string]string{"app": "istio-egressgateway", "istio": "egressgateway"}, unhealthyStatus),
 		fakeDeploymentWithStatus("istiod", map[string]string{"app": "istiod", "istio": "pilot"}, notReadyStatus),
-	}
-
-	for _, obj := range healthyIstiods() {
-		o := obj
-		objects = append(objects, &o)
 	}
 
 	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(t, objects, false, false)
