@@ -506,13 +506,21 @@ func TestIstiodUnreachable(t *testing.T) {
 		fakeDeploymentWithStatus("istiod", map[string]string{"app": "istiod", "istio": "pilot"}, healthyStatus),
 	}
 
-	for _, obj := range healthyIstiods() {
-		o := obj
-		objects = append(objects, &o)
+	var istioStatus kubernetes.IstioComponentStatus
+	for _, pod := range healthyIstiods() {
+		// Only running pods are considered healthy.
+		if pod.Status.Phase == v1.PodRunning && pod.Labels["app"] == "istiod" {
+			istioStatus = append(istioStatus, kubernetes.ComponentStatus{
+				Name:   pod.Name,
+				Status: kubernetes.ComponentUnreachable,
+				IsCore: true,
+			})
+		}
 	}
-
 	k8s, httpServer, grafanaCalls, promCalls := mockAddOnsCalls(t, objects, false, false)
 	defer httpServer.Close()
+
+	k8s = &fakeIstiodConnecter{k8s, istioStatus}
 
 	c := config.Get()
 	c.IstioLabels.AppLabelName = "app.kubernetes.io/name"
