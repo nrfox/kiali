@@ -86,7 +86,7 @@ func (in *SvcService) GetServiceList(ctx context.Context, criteria ServiceCriter
 				log.Warningf("Services not filtered. Selector %s not valid", criteria.ServiceSelector)
 			}
 		}
-		svcs, err2 = in.k8s.GetServices(criteria.Namespace, selectorLabels)
+		svcs, err2 = in.kialiCache.GetServices(criteria.Namespace, selectorLabels)
 		if err2 != nil {
 			log.Errorf("Error fetching Services per namespace %s: %s", criteria.Namespace, err2)
 			errChan <- err2
@@ -113,7 +113,7 @@ func (in *SvcService) GetServiceList(ctx context.Context, criteria ServiceCriter
 		defer wg.Done()
 		var err2 error
 		if !criteria.IncludeOnlyDefinitions {
-			pods, err2 = in.k8s.GetPods(criteria.Namespace, "")
+			pods, err2 = in.kialiCache.GetPods(criteria.Namespace, "")
 			if err2 != nil {
 				log.Errorf("Error fetching Pods per namespace %s: %s", criteria.Namespace, err2)
 				errChan <- err2
@@ -125,7 +125,7 @@ func (in *SvcService) GetServiceList(ctx context.Context, criteria ServiceCriter
 		defer wg.Done()
 		var err2 error
 		if !criteria.IncludeOnlyDefinitions {
-			deployments, err2 = in.k8s.GetDeployments(criteria.Namespace)
+			deployments, err2 = in.kialiCache.GetDeployments(criteria.Namespace)
 			if err2 != nil {
 				log.Errorf("Error fetching Deployments per namespace %s: %s", criteria.Namespace, err2)
 				errChan <- err2
@@ -443,7 +443,7 @@ func (in *SvcService) GetServiceDetails(ctx context.Context, namespace, service,
 		go func() {
 			defer wg.Done()
 			var err2 error
-			pods, err2 = in.k8s.GetPods(namespace, labelsSelector)
+			pods, err2 = in.kialiCache.GetPods(namespace, labelsSelector)
 			if err2 != nil {
 				errChan <- err2
 			}
@@ -494,7 +494,7 @@ func (in *SvcService) GetServiceDetails(ctx context.Context, namespace, service,
 	go func(ctx context.Context) {
 		defer wg.Done()
 		var err2 error
-		eps, err2 = in.k8s.GetEndpoints(namespace, service)
+		eps, err2 = in.kialiCache.GetEndpoints(namespace, service)
 		if err2 != nil && !errors.IsNotFound(err2) {
 			log.Errorf("Error fetching Endpoints namespace %s and service %s: %s", namespace, service, err2)
 			errChan <- err2
@@ -667,7 +667,7 @@ func (in *SvcService) GetService(ctx context.Context, namespace, service string)
 	var err error
 	var kSvc *core_v1.Service
 	svc := models.Service{}
-	kSvc, err = in.k8s.GetService(namespace, service)
+	kSvc, err = in.kialiCache.GetService(namespace, service)
 	// Check if this service is in the Istio Registry
 	if kSvc != nil {
 		svc.Parse(kSvc)

@@ -7,7 +7,6 @@ import (
 	"github.com/golang/protobuf/ptypes/wrappers"
 	osproject_v1 "github.com/openshift/api/project/v1"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	api_networking_v1beta1 "istio.io/api/networking/v1beta1"
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	auth_v1 "k8s.io/api/authorization/v1"
@@ -180,8 +179,6 @@ func TestGetIstioConfigList(t *testing.T) {
 
 func TestGetIstioConfigDetails(t *testing.T) {
 	assert := assert.New(t)
-	conf := config.NewConfig()
-	config.Set(conf)
 
 	configService := mockGetIstioConfigDetails()
 
@@ -390,21 +387,29 @@ func fakeGetSelfSubjectAccessReview() []*auth_v1.SelfSubjectAccessReview {
 	return []*auth_v1.SelfSubjectAccessReview{&create, &update, &delete}
 }
 
+// Need to mock out the SelfSubjectAccessReview.
+type fakeAccessReview struct{ *kubetest.FakeK8sClient }
+
+func (a *fakeAccessReview) GetSelfSubjectAccessReview(ctx context.Context, namespace, api, resourceType string, verbs []string) ([]*auth_v1.SelfSubjectAccessReview, error) {
+	return fakeGetSelfSubjectAccessReview(), nil
+}
+
 func mockGetIstioConfigDetails() IstioConfigService {
-	k8s := new(kubetest.K8SClientMock)
-	fakeIstioObjects := []runtime.Object{}
-	fakeIstioObjects = append(fakeIstioObjects, fakeGetGateways()[0])
-	fakeIstioObjects = append(fakeIstioObjects, fakeGetVirtualServices()[0])
-	fakeIstioObjects = append(fakeIstioObjects, fakeGetDestinationRules()[0])
-	fakeIstioObjects = append(fakeIstioObjects, fakeGetServiceEntries()[0])
-	k8s.MockIstio(fakeIstioObjects...)
+	conf := config.NewConfig()
+	config.Set(conf)
+	fakeIstioObjects := []runtime.Object{
+		fakeGetGateways()[0],
+		fakeGetVirtualServices()[0],
+		fakeGetDestinationRules()[0],
+		fakeGetServiceEntries()[0],
+		&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "test"}},
+	}
+	k8s := kubetest.NewFakeK8sClient(fakeIstioObjects...)
+	k8s.OpenShift = true
 
-	k8s.On("IsOpenShift").Return(true)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-	k8s.On("GetSelfSubjectAccessReview", mock.Anything, "test", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return(fakeGetSelfSubjectAccessReview(), nil)
+	SetupBusinessLayer(k8s, *conf)
 
-	return IstioConfigService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
+	return IstioConfigService{k8s: &fakeAccessReview{k8s}, businessLayer: NewWithBackends(k8s, nil, nil)}
 }
 
 func TestIsValidHost(t *testing.T) {

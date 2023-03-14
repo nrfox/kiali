@@ -192,7 +192,7 @@ func NewWithBackends(k8s kubernetes.ClientInterface, prom prometheus.ClientInter
 	// Out of order because it relies on ProxyStatus
 	temporaryLayer.ProxyLogging = ProxyLoggingService{k8s: k8s, proxyStatus: &temporaryLayer.ProxyStatus}
 	temporaryLayer.RegistryStatus = RegistryStatusService{k8s: k8s, businessLayer: temporaryLayer}
-	temporaryLayer.Svc = SvcService{prom: prom, k8s: k8s, businessLayer: temporaryLayer}
+	temporaryLayer.Svc = SvcService{prom: prom, k8s: k8s, kialiCache: kialiCache, businessLayer: temporaryLayer}
 	temporaryLayer.TLS = TLSService{k8s: k8s, businessLayer: temporaryLayer}
 	temporaryLayer.TokenReview = NewTokenReview(k8s)
 	temporaryLayer.Validations = IstioValidationsService{k8s: k8s, businessLayer: temporaryLayer}
@@ -210,11 +210,8 @@ func NewWithBackends(k8s kubernetes.ClientInterface, prom prometheus.ClientInter
 			clusterClients[cluster] = cache.NewCachingClient(kialiCache, client)
 		}
 		temporaryLayer.Workload = *NewWorkloadService(clusterClients, prom, kialiCache, temporaryLayer, config.Get())
-		temporaryLayer.Svc = SvcService{prom: prom, k8s: cache.NewCachingClient(kialiCache, k8s), businessLayer: temporaryLayer}
 	} else {
 		temporaryLayer.Workload = *NewWorkloadService(clusterClients, prom, kialiCache, temporaryLayer, config.Get())
-		cachingClient := cache.NewCachingClient(kialiCache, k8s)
-		temporaryLayer.Svc = SvcService{prom: prom, k8s: cachingClient, businessLayer: temporaryLayer}
 	}
 
 	return temporaryLayer
