@@ -3,9 +3,7 @@ package appender
 import (
 	"testing"
 
-	osproject_v1 "github.com/openshift/api/project/v1"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	api_networking_v1beta1 "istio.io/api/networking/v1beta1"
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	core_v1 "k8s.io/api/core/v1"
@@ -47,9 +45,10 @@ func setupTrafficMap() (map[string]*graph.Node, string, string, string, string, 
 
 func TestCBAll(t *testing.T) {
 	assert := assert.New(t)
-	config.Set(config.NewConfig())
+	conf := config.NewConfig()
+	conf.ExternalServices.Istio.IstioAPIEnabled = false
+	config.Set(conf)
 
-	k8s := kubetest.NewK8SClientMock()
 	dRule := &networking_v1beta1.DestinationRule{}
 	dRule.Name = "dRule-1"
 	dRule.Namespace = "testNamespace"
@@ -61,11 +60,8 @@ func TestCBAll(t *testing.T) {
 			},
 		},
 	}
-	k8s.MockIstio(dRule)
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-	k8s.On("GetProjects", mock.AnythingOfType("string")).Return([]osproject_v1.Project{}, nil)
-	k8s.On("GetEndpoints", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&core_v1.Endpoints{}, nil)
-	k8s.On("GetServices", mock.AnythingOfType("string"), mock.Anything).Return([]core_v1.Service{{}}, nil)
+	k8s := kubetest.NewFakeK8sClient(dRule, &core_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "testNamespace"}})
+	business.SetupBusinessLayer(k8s, *conf)
 
 	businessLayer := business.NewWithBackends(k8s, nil, nil)
 	trafficMap, appNodeId, appNodeV1Id, appNodeV2Id, svcNodeId, wlNodeId, _ := setupTrafficMap()
@@ -104,9 +100,10 @@ func TestCBAll(t *testing.T) {
 
 func TestCBSubset(t *testing.T) {
 	assert := assert.New(t)
-	config.Set(config.NewConfig())
+	conf := config.NewConfig()
+	conf.ExternalServices.Istio.IstioAPIEnabled = false
+	config.Set(conf)
 
-	k8s := kubetest.NewK8SClientMock()
 	dRule := &networking_v1beta1.DestinationRule{}
 	dRule.Name = "dRule-1"
 	dRule.Namespace = "testNamespace"
@@ -125,12 +122,8 @@ func TestCBSubset(t *testing.T) {
 			},
 		},
 	}
-	k8s.MockIstio(dRule)
-
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-	k8s.On("GetProjects", mock.AnythingOfType("string")).Return([]osproject_v1.Project{}, nil)
-	k8s.On("GetEndpoints", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&core_v1.Endpoints{}, nil)
-	k8s.On("GetServices", mock.AnythingOfType("string"), mock.Anything).Return([]core_v1.Service{{}}, nil)
+	k8s := kubetest.NewFakeK8sClient(dRule, &core_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "testNamespace"}})
+	business.SetupBusinessLayer(k8s, *conf)
 
 	businessLayer := business.NewWithBackends(k8s, nil, nil)
 	trafficMap, appNodeId, appNodeV1Id, appNodeV2Id, svcNodeId, wlNodeId, _ := setupTrafficMap()
@@ -289,20 +282,22 @@ func TestCBSubset(t *testing.T) {
 
 func TestSEInAppBox(t *testing.T) {
 	check := assert.New(t)
-	config.Set(config.NewConfig())
+	conf := config.NewConfig()
+	conf.ExternalServices.Istio.IstioAPIEnabled = false
+	config.Set(conf)
 
-	k8s := kubetest.NewK8SClientMock()
-	k8s.MockIstio()
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-	k8s.On("GetServices", mock.AnythingOfType("string"), mock.Anything).Return([]core_v1.Service{{
+	svc := &core_v1.Service{
 		ObjectMeta: meta_v1.ObjectMeta{
-			Name: "foobar",
+			Name:      "foobar",
+			Namespace: "testNamespace",
 			Labels: map[string]string{
 				"app": "fooApp",
 			},
 		},
-	}}, nil)
+	}
+	k8s := kubetest.NewFakeK8sClient(svc, &core_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "testNamespace"}})
 
+	business.SetupBusinessLayer(k8s, *conf)
 	businessLayer := business.NewWithBackends(k8s, nil, nil)
 
 	trafficMap := graph.NewTrafficMap()

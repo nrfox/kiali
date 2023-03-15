@@ -3,12 +3,8 @@ package appender
 import (
 	"testing"
 
-	osapps_v1 "github.com/openshift/api/apps/v1"
-	osproject_v1 "github.com/openshift/api/project/v1"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	apps_v1 "k8s.io/api/apps/v1"
-	batch_v1 "k8s.io/api/batch/v1"
 	core_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,18 +36,16 @@ func setupLabelerTrafficMap() (map[string]*graph.Node, string, string, string, s
 }
 
 func setupLabelerK8S() *business.Layer {
-	k8s := kubetest.NewK8SClientMock()
 	conf := config.NewConfig()
+	conf.ExternalServices.Istio.IstioAPIEnabled = false
 	config.Set(conf)
 
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-
-	k8s.On("GetCronJobs", mock.AnythingOfType("string")).Return([]batch_v1.CronJob{}, nil)
-	k8s.On("GetDeployment", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return((*apps_v1.Deployment)(nil), nil)
-	k8s.On("GetDeployments", mock.AnythingOfType("string")).Return([]apps_v1.Deployment{
-		{
+	k8s := kubetest.NewFakeK8sClient(
+		&core_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "testNamespace"}},
+		&apps_v1.Deployment{
 			ObjectMeta: meta_v1.ObjectMeta{
-				Name: "test-v1",
+				Name:      "test-v1",
+				Namespace: "testNamespace",
 			},
 			Spec: apps_v1.DeploymentSpec{
 				Template: core_v1.PodTemplateSpec{
@@ -61,9 +55,10 @@ func setupLabelerK8S() *business.Layer {
 				},
 			},
 		},
-		{
+		&apps_v1.Deployment{
 			ObjectMeta: meta_v1.ObjectMeta{
-				Name: "test-v2",
+				Name:      "test-v2",
+				Namespace: "testNamespace",
 			},
 			Spec: apps_v1.DeploymentSpec{
 				Template: core_v1.PodTemplateSpec{
@@ -73,42 +68,36 @@ func setupLabelerK8S() *business.Layer {
 				},
 			},
 		},
-	}, nil)
-	k8s.On("GetDeploymentConfigs", mock.AnythingOfType("string")).Return([]osapps_v1.DeploymentConfig{}, nil)
-	k8s.On("GetJobs", mock.AnythingOfType("string")).Return([]batch_v1.Job{}, nil)
-	k8s.On("GetPods", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(
-		[]core_v1.Pod{
-			{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:   "test-v1-1234",
-					Labels: graph.LabelsMetadata{"app": "test", "version": "v1", "datacenter": "east"},
-				},
-				Status: core_v1.PodStatus{
-					Message: "foo"},
+		&core_v1.Pod{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "test-v1-1234",
+				Namespace: "testNamespace",
+				Labels:    graph.LabelsMetadata{"app": "test", "version": "v1", "datacenter": "east"},
 			},
-			{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:   "test-v2-1234",
-					Labels: graph.LabelsMetadata{"app": "test", "version": "v2", "datacenter": "west"},
-				},
-				Status: core_v1.PodStatus{
-					Message: "foo"},
+			Status: core_v1.PodStatus{
+				Message: "foo",
 			},
-		}, nil)
-	k8s.On("GetReplicationControllers", mock.AnythingOfType("string")).Return([]core_v1.ReplicationController{}, nil)
-	k8s.On("GetReplicaSets", mock.AnythingOfType("string")).Return([]apps_v1.ReplicaSet{}, nil)
-	k8s.On("GetStatefulSets", mock.AnythingOfType("string")).Return([]apps_v1.StatefulSet{}, nil)
-	k8s.On("GetDaemonSets", mock.AnythingOfType("string")).Return([]apps_v1.DaemonSet{}, nil)
-
-	k8s.On("GetServices", mock.AnythingOfType("string"), mock.Anything).Return([]core_v1.Service{{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:   "test",
-			Labels: graph.LabelsMetadata{"app": "test", "datacenter": "east"},
 		},
-	},
-	}, nil)
+		&core_v1.Pod{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "test-v2-1234",
+				Namespace: "testNamespace",
+				Labels:    graph.LabelsMetadata{"app": "test", "version": "v2", "datacenter": "west"},
+			},
+			Status: core_v1.PodStatus{
+				Message: "foo",
+			},
+		},
+		&core_v1.Service{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "test",
+				Namespace: "testNamespace",
+				Labels:    graph.LabelsMetadata{"app": "test", "datacenter": "east"},
+			},
+		},
+	)
 
-	config.Set(config.NewConfig())
+	business.SetupBusinessLayer(k8s, *conf)
 
 	businessLayer := business.NewWithBackends(k8s, nil, nil)
 	return businessLayer

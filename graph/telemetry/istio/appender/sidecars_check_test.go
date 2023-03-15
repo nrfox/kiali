@@ -4,14 +4,11 @@ import (
 	"testing"
 	"time"
 
-	osapps_v1 "github.com/openshift/api/apps/v1"
-	osproject_v1 "github.com/openshift/api/project/v1"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	apps_v1 "k8s.io/api/apps/v1"
-	batch_v1 "k8s.io/api/batch/v1"
 	core_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/config"
@@ -242,20 +239,22 @@ func buildFakeWorkloadPodsNoSidecar() []core_v1.Pod {
 }
 
 func setupSidecarsCheckWorkloads(deployments []apps_v1.Deployment, pods []core_v1.Pod) *business.Layer {
-	k8s := kubetest.NewK8SClientMock()
+	objects := []runtime.Object{&core_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "testNamespace"}}}
+	for _, obj := range deployments {
+		o := obj
+		objects = append(objects, &o)
+	}
+	for _, obj := range pods {
+		o := obj
+		objects = append(objects, &o)
+	}
+	k8s := kubetest.NewFakeK8sClient(objects...)
 
-	k8s.On("GetProject", mock.AnythingOfType("string")).Return(&osproject_v1.Project{}, nil)
-	k8s.On("GetCronJobs", mock.AnythingOfType("string")).Return([]batch_v1.CronJob{}, nil)
-	k8s.On("GetDeployments", mock.AnythingOfType("string")).Return(deployments, nil)
-	k8s.On("GetDeploymentConfigs", mock.AnythingOfType("string")).Return([]osapps_v1.DeploymentConfig{}, nil)
-	k8s.On("GetJobs", mock.AnythingOfType("string")).Return([]batch_v1.Job{}, nil)
-	k8s.On("GetPods", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(pods, nil)
-	k8s.On("GetReplicationControllers", mock.AnythingOfType("string")).Return([]core_v1.ReplicationController{}, nil)
-	k8s.On("GetReplicaSets", mock.AnythingOfType("string")).Return([]apps_v1.ReplicaSet{}, nil)
-	k8s.On("GetStatefulSets", mock.AnythingOfType("string")).Return([]apps_v1.StatefulSet{}, nil)
-	k8s.On("GetDaemonSets", mock.AnythingOfType("string")).Return([]apps_v1.DaemonSet{}, nil)
-	config.Set(config.NewConfig())
+	conf := config.NewConfig()
+	conf.ExternalServices.Istio.IstioAPIEnabled = false
+	config.Set(conf)
 
+	business.SetupBusinessLayer(k8s, *conf)
 	businessLayer := business.NewWithBackends(k8s, nil, nil)
 	return businessLayer
 }
