@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	core_v1 "k8s.io/api/core/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
@@ -17,31 +19,35 @@ import (
 
 func TestServiceListParsing(t *testing.T) {
 	assert := assert.New(t)
+	require := require.New(t)
 
 	// Setup mocks
-	k8s := new(kubetest.K8SClientMock)
-	k8s.MockServices("Namespace", []string{"reviews", "httpbin"})
-	k8s.On("GetToken").Return("SomeToken")
-	k8s.On("GetNamespaces", mock.AnythingOfType("string")).Return([]core_v1.Namespace{}, nil)
-	k8s.On("GetPods", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(kubetest.FakePodList(), nil)
-	k8s.On("IsOpenShift").Return(false)
-	k8s.On("IsGatewayAPI").Return(false)
-	k8s.On("GetNamespace", mock.AnythingOfType("string")).Return(&core_v1.Namespace{}, nil)
+	s1 := kubetest.FakeService("Namespace", "reviews")
+	s2 := kubetest.FakeService("Namespace", "httpbin")
+	objects := []runtime.Object{
+		&core_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "Namespace"}},
+		&s1,
+		&s2,
+	}
+	k8s := kubetest.NewFakeK8sClient(objects...)
 	conf := config.NewConfig()
+	conf.ExternalServices.Istio.IstioAPIEnabled = false
 	config.Set(conf)
 	setupGlobalMeshConfig()
-	svc := SvcService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
+	// TODO: Other way to setup cache?
+	SetupBusinessLayer(k8s, *conf)
+	svc := NewWithBackends(k8s, nil, nil).Svc
 
 	criteria := ServiceCriteria{Namespace: "Namespace", IncludeIstioResources: false, Health: false}
-	serviceList, _ := svc.GetServiceList(context.TODO(), criteria)
+	serviceList, err := svc.GetServiceList(context.TODO(), criteria)
+	require.NoError(err)
 
-	assert.Equal("Namespace", serviceList.Namespace.Name)
-	assert.Len(serviceList.Services, 2)
-	reviewsOverview := serviceList.Services[0]
-	httpbinOverview := serviceList.Services[1]
+	require.Equal("Namespace", serviceList.Namespace.Name)
+	require.Len(serviceList.Services, 2)
+	serviceNames := []string{serviceList.Services[0].Name, serviceList.Services[1].Name}
 
-	assert.Equal("reviews", reviewsOverview.Name)
-	assert.Equal("httpbin", httpbinOverview.Name)
+	assert.Contains(serviceNames, "reviews")
+	assert.Contains(serviceNames, "httpbin")
 }
 
 func TestParseRegistryServices(t *testing.T) {

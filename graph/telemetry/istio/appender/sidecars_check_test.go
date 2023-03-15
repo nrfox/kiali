@@ -200,7 +200,8 @@ func buildFakeWorkloadDeployments() []apps_v1.Deployment {
 	return []apps_v1.Deployment{
 		{
 			ObjectMeta: meta_v1.ObjectMeta{
-				Name: "workload-1",
+				Name:      "workload-1",
+				Namespace: "testNamespace",
 			},
 			Spec: apps_v1.DeploymentSpec{
 				Template: core_v1.PodTemplateSpec{
@@ -220,6 +221,7 @@ func buildFakeWorkloadPods() []core_v1.Pod {
 		{
 			ObjectMeta: meta_v1.ObjectMeta{
 				Name:              "wk-1-asdf",
+				Namespace:         "testNamespace",
 				Labels:            map[string]string{"app": "myTest", "wk": "wk-1"},
 				CreationTimestamp: meta_v1.NewTime(time.Date(2018, 8, 24, 14, 0, 0, 0, time.UTC)),
 				Annotations: map[string]string{
