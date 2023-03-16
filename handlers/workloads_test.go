@@ -23,6 +23,7 @@ import (
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/prometheus"
 	"github.com/kiali/kiali/prometheus/prometheustest"
@@ -301,6 +302,7 @@ func TestWorkloadMetricsBadRateFunc(t *testing.T) {
 	assert.Contains(t, string(actual), "query parameter 'rateFunc' must be either 'rate' or 'irate'")
 }
 
+// TODO:
 func TestWorkloadMetricsInaccessibleNamespace(t *testing.T) {
 	ts, _, k8s := setupWorkloadMetricsEndpoint(t)
 	defer ts.Close()
@@ -319,16 +321,14 @@ func TestWorkloadMetricsInaccessibleNamespace(t *testing.T) {
 	k8s.AssertCalled(t, "GetProject", "my_namespace")
 }
 
-func setupWorkloadMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheustest.PromAPIMock, *kubetest.K8SClientMock) {
+func setupWorkloadMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheustest.PromAPIMock) {
 	config.Set(config.NewConfig())
 	xapi := new(prometheustest.PromAPIMock)
-	k8s := kubetest.NewK8SClientMock()
 	prom, err := prometheus.NewClient()
 	if err != nil {
 		t.Fatal(err)
 	}
 	prom.Inject(xapi)
-	k8s.On("GetProject", "ns").Return(&osproject_v1.Project{}, nil)
 
 	mr := mux.NewRouter()
 	mr.HandleFunc("/api/namespaces/{namespace}/workloads/{workload}/metrics", http.HandlerFunc(
@@ -342,7 +342,8 @@ func setupWorkloadMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheuste
 	ts := httptest.NewServer(mr)
 
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	business.SetWithBackends(mockClientFactory, prom)
+	cache := cache.NewKialiCache(mockClientFactory)
+	business.SetWithBackendsWithCache(mockClientFactory, prom, cache)
 
 	return ts, xapi, k8s
 }
