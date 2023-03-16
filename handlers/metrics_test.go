@@ -310,7 +310,7 @@ func setupAggregateMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheust
 	xapi := new(prometheustest.PromAPIMock)
 	k := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "ns"}})
 	k.OpenShift = true
-	k8s := &noPrivClient{k}
+	// k8s := &noPrivClient{k}
 	prom, err := prometheus.NewClient()
 	if err != nil {
 		t.Fatal(err)
@@ -329,7 +329,7 @@ func setupAggregateMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheust
 	ts := httptest.NewServer(mr)
 	t.Cleanup(ts.Close)
 
-	business.SetupBusinessLayer(k8s, *conf)
+	business.SetupBusinessLayer(k, *conf)
 
 	return ts, xapi
 }

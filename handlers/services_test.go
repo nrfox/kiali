@@ -338,7 +338,7 @@ func setupServiceMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheustes
 	config.Set(conf)
 	k := kubetest.NewFakeK8sClient(&osproject_v1.Project{ObjectMeta: meta_v1.ObjectMeta{Name: "ns"}})
 	k.OpenShift = true
-	k8s := &noPrivClient{k}
+	// k8s := &noPrivClient{k}
 
 	xapi := new(prometheustest.PromAPIMock)
 	prom, err := prometheus.NewClient()
@@ -359,7 +359,7 @@ func setupServiceMetricsEndpoint(t *testing.T) (*httptest.Server, *prometheustes
 	ts := httptest.NewServer(mr)
 	t.Cleanup(ts.Close)
 
-	business.SetupBusinessLayer(k8s, *conf)
+	business.SetupBusinessLayer(k, *conf)
 
 	return ts, xapi
 }

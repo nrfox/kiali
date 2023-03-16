@@ -282,6 +282,7 @@ func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria I
 			if IsResourceCached(criteria.Namespace, kubernetes.Gateways) {
 				istioConfigList.Gateways, err = kialiCache.GetGateways(criteria.Namespace, criteria.LabelSelector)
 			} else {
+				log.Debugf("Listing Gateways for namespace [%s] with labelSelector [%s]", criteria.Namespace, criteria.LabelSelector)
 				gwl, e := in.k8s.Istio().NetworkingV1beta1().Gateways(criteria.Namespace).List(ctx, listOpts)
 				istioConfigList.Gateways = gwl.Items
 				err = e

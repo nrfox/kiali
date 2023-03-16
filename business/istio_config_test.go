@@ -116,6 +116,7 @@ func TestParseListParams(t *testing.T) {
 func TestGetIstioConfigList(t *testing.T) {
 	assert := assert.New(t)
 	conf := config.NewConfig()
+	conf.ExternalServices.Istio.IstioAPIEnabled = false
 	config.Set(conf)
 
 	criteria := IstioConfigCriteria{
@@ -139,6 +140,8 @@ func TestGetIstioConfigList(t *testing.T) {
 	criteria.IncludeGateways = true
 
 	istioconfigList, err = configService.GetIstioConfigList(context.TODO(), criteria)
+
+	t.Logf("IstioConfigList: %#v", istioconfigList)
 
 	assert.Equal(2, len(istioconfigList.Gateways))
 	assert.Equal(0, len(istioconfigList.VirtualServices))
@@ -228,6 +231,8 @@ func mockGetIstioConfigList() IstioConfigService {
 		fakeIstioObjects...,
 	)
 	k8s.OpenShift = true
+
+	SetupBusinessLayer(k8s, *config.NewConfig())
 
 	return IstioConfigService{k8s: k8s, businessLayer: NewWithBackends(k8s, nil, nil)}
 }
