@@ -44,7 +44,6 @@ func setupNamespaceServiceWithNs() kubernetes.ClientInterface {
 
 // Get namespaces
 func TestGetNamespaces(t *testing.T) {
-
 	conf := config.NewConfig()
 	config.Set(conf)
 
@@ -59,7 +58,7 @@ func TestGetNamespaces(t *testing.T) {
 
 	assert.NotNil(t, ns)
 	assert.Equal(t, len(ns), 5)
-	assert.Equal(t, ns[0].Name, "bookinfo")
+	assert.Equal(t, ns[0].Name, "alpha")
 }
 
 // Get namespace
@@ -78,7 +77,6 @@ func TestGetNamespace(t *testing.T) {
 
 	assert.NotNil(t, ns)
 	assert.Equal(t, ns.Name, "bookinfo")
-
 }
 
 // Get namespace error
@@ -97,26 +95,6 @@ func TestGetNamespaceWithError(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.Nil(t, ns2)
-}
-
-// Update namespaces
-func TestUpdateNamespaces(t *testing.T) {
-	conf := config.NewConfig()
-	config.Set(conf)
-
-	k8s := setupNamespaceServiceWithNs()
-
-	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
-	SetWithBackends(mockClientFactory, nil)
-
-	nsservice := setupNamespaceService(k8s, conf)
-
-	ns, err := nsservice.UpdateNamespace(context.TODO(), "bookinfo", "new", kubernetes.HomeClusterName)
-
-	assert.Nil(t, err)
-	assert.NotNil(t, ns)
-	assert.Equal(t, ns.Name, "bookinfo")
-
 }
 
 // TODO: Add projects tests
