@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	core_v1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -95,6 +96,27 @@ func TestGetNamespaceWithError(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.Nil(t, ns2)
+}
+
+// Update namespaces
+func TestUpdateNamespaces(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+	conf := config.NewConfig()
+	config.Set(conf)
+
+	k8s := setupNamespaceServiceWithNs()
+
+	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
+	SetWithBackends(mockClientFactory, nil)
+
+	nsservice := setupNamespaceService(k8s, conf)
+
+	ns, err := nsservice.UpdateNamespace(context.TODO(), "bookinfo", `{"metadata": {"labels": {"new": "label"}}}`, kubernetes.HomeClusterName)
+
+	require.NoError(err)
+	require.NotNil(ns)
+	assert.Equal(ns.Name, "bookinfo")
 }
 
 // TODO: Add projects tests
