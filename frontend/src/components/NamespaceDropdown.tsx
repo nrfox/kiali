@@ -77,18 +77,16 @@ const namespaceContainerStyle = style({
 export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProps, NamespaceDropdownState> {
   constructor(props: NamespaceDropdownProps) {
     super(props);
-    console.log(this.props.activeNamespaces);
 
     this.state = {
       isBulkSelectorOpen: false,
       isOpen: false,
       selectedNamespaces: this.getDisplayNamespaces()
-      // displayNamespaces: [...this.props.activeNamespaces],
     };
   }
 
   // Removes duplicates from active namespaces
-  getDisplayNamespaces = () => {
+  private getDisplayNamespaces = () => {
     let displayNamespaces = new Map<string, Namespace>();
     this.props.activeNamespaces.forEach(ns => displayNamespaces.set(ns.name, ns));
     return Array.from(displayNamespaces.values());
@@ -103,7 +101,6 @@ export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProp
   syncNamespacesURLParam = () => {
     const urlNamespaces = (HistoryManager.getParam(URLParam.NAMESPACES) || '').split(',').filter(Boolean);
 
-    // Remove duplicates
     const activeNamespaces = this.getDisplayNamespaces();
     if (
       urlNamespaces.length > 0 &&
@@ -131,20 +128,9 @@ export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProp
       } else {
         HistoryManager.setParam(URLParam.NAMESPACES, activeNamespaces.map(item => item.name).join(','));
       }
-      // TODO: Numbers should match. We probably need something like a "display namespaces state item"
-      this.setState({ selectedNamespaces: Array.from(activeNamespaces.values()) });
+      this.setState({ selectedNamespaces: activeNamespaces });
     }
   }
-  // componentDidUpdate(prevProps: NamespaceDropdownProps) {
-  //   if (prevProps.activeNamespaces !== this.props.activeNamespaces) {
-  //     if (this.props.activeNamespaces.length === 0) {
-  //       HistoryManager.deleteParam(URLParam.NAMESPACES);
-  //     } else {
-  //       HistoryManager.setParam(URLParam.NAMESPACES, this.props.activeNamespaces.map(item => item.name).join(','));
-  //     }
-  //     this.setState({ selectedNamespaces: this.props.activeNamespaces });
-  //   }
-  // }
 
   private namespaceButtonText() {
     if (this.state.selectedNamespaces.length === 0) {
@@ -221,12 +207,6 @@ export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProp
         map[namespace.name] = namespace.name;
         return map;
       }, {});
-      // Filter out duplicates by converting to a map first
-      // let filteredNamespaces = new Map<string, Namespace>();
-      // this.filtered().forEach(namespace => {
-      //   filteredNamespaces.set(namespace.name, namespace);
-      // });
-      // const namespaces = Array.from(filteredNamespaces.values()).map((namespace: Namespace) => (
       const namespaces = this.filtered().map((namespace: Namespace) => (
         <div
           className={checkboxStyle}
@@ -284,7 +264,6 @@ export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProp
     if (isOpen) {
       this.props.refresh();
     } else {
-      console.log('Toggled back');
       // Compare what we've selected and add back in all the duplicates that occur from
       // clusters with namespaces with the same name.
       const selectedSet = new Set(this.state.selectedNamespaces.map(ns => ns.name));
@@ -307,16 +286,6 @@ export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProp
     const remaining = this.state.selectedNamespaces.filter(s => filtered.findIndex(f => f.name === s.name) < 0);
     this.setState({ selectedNamespaces: remaining });
   };
-
-  // onNamespaceToggled = event => {
-  //   const namespace = event.target.value;
-  //   const selectedNamespaces = !!this.state.selectedNamespaces.find(n => n.name === namespace)
-  //     ? this.state.selectedNamespaces.filter(n => n.name !== namespace)
-  //     : this.state.selectedNamespaces.concat(this.props.namespaces.filter(n => n.name === event.target.value));
-  //   console.log('selectedNamespaces', selectedNamespaces)
-  //   console.log(this.props.namespaces)
-  //   this.setState({ selectedNamespaces: selectedNamespaces });
-  // };
 
   onNamespaceToggled = event => {
     const namespace = event.target.value;

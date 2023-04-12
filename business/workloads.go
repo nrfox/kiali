@@ -595,18 +595,9 @@ func isAccessLogEmpty(al *parser.AccessLog) bool {
 		al.UserAgent == "")
 }
 
+// TODO: Remove once everything is updated to pass cluster.
 func fetchWorkloads(ctx context.Context, layer *Layer, namespace string, labelSelector string) (models.Workloads, error) {
 	return fetchWorkloadsFromCluster(ctx, layer, kubernetes.HomeClusterName, namespace, labelSelector)
-	// allWls := models.Workloads{}
-	// for c := range layer.k8sClients {
-	// ws, err := fetchWorkloadsFromCluster(ctx, layer, c, namespace, labelSelector)
-	// if err != nil {
-	// } else {
-	// 	allWls = append(allWls, ws...)
-	// }
-	// }
-
-	// return allWls, nil
 }
 
 func fetchWorkloadsFromCluster(ctx context.Context, layer *Layer, cluster string, namespace string, labelSelector string) (models.Workloads, error) {
