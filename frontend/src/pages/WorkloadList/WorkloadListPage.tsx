@@ -87,9 +87,8 @@ class WorkloadListPageComponent extends FilterComponent.Component<
     this.promises.cancelAll();
     const activeFilters: ActiveFiltersInfo = FilterSelected.getSelected();
     const activeToggles: ActiveTogglesInfo = Toggles.getToggles();
-    const namespacesSelected = this.props.activeNamespaces.map(item => item.name);
-    if (namespacesSelected.length !== 0) {
-      this.fetchWorkloads(namespacesSelected, activeFilters, activeToggles, this.props.duration);
+    if (this.props.activeNamespaces.length !== 0) {
+      this.fetchWorkloads(this.props.activeNamespaces, activeFilters, activeToggles, this.props.duration);
     } else {
       this.setState({ listItems: [] });
     }
@@ -118,15 +117,24 @@ class WorkloadListPageComponent extends FilterComponent.Component<
     return [];
   };
 
-  fetchWorkloads(namespaces: string[], filters: ActiveFiltersInfo, toggles: ActiveTogglesInfo, rateInterval: number) {
+  fetchWorkloads(
+    namespaces: Namespace[],
+    filters: ActiveFiltersInfo,
+    toggles: ActiveTogglesInfo,
+    rateInterval: number
+  ) {
     const workloadsConfigPromises = namespaces.map(namespace => {
       const health = toggles.get('health') ? 'true' : 'false';
       const istioResources = toggles.get('istioResources') ? 'true' : 'false';
-      return API.getWorkloads(namespace, {
+      const params = {
         health: health,
         istioResources: istioResources,
         rateInterval: String(rateInterval) + 's'
-      });
+      };
+      if (namespace.cluster) {
+        params['cluster'] = namespace.cluster;
+      }
+      return API.getWorkloads(namespace.name, params);
     });
     this.promises
       .registerAll('workloads', workloadsConfigPromises)

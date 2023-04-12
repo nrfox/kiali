@@ -44,6 +44,8 @@ const namespaces = (state: NamespaceState = INITIAL_NAMESPACE_STATE, action: Kia
       if (state.activeNamespaces.length !== validActive.length) {
         updatedActive = { activeNamespaces: validActive };
       }
+      console.log('received neamespaces');
+      console.log(updatedActive);
       return updateState(state, {
         isFetching: false,
         items: action.payload.list,

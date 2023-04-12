@@ -132,6 +132,7 @@ func (in *WorkloadService) GetWorkloadList(ctx context.Context, criteria Workloa
 	var end observability.EndFunc
 	ctx, end = observability.StartSpan(ctx, "GetWorkloadList",
 		observability.Attribute("package", "business"),
+		observability.Attribute("cluster", criteria.Cluster),
 		observability.Attribute("includeHealth", criteria.IncludeHealth),
 		observability.Attribute("includeIstioResources", criteria.IncludeIstioResources),
 		observability.Attribute("namespace", criteria.Namespace),
@@ -160,7 +161,18 @@ func (in *WorkloadService) GetWorkloadList(ctx context.Context, criteria Workloa
 	go func(ctx context.Context) {
 		defer wg.Done()
 		var err2 error
-		ws, err2 = fetchWorkloads(ctx, in.businessLayer, criteria.Namespace, "")
+		// No cluster specified fetches from the home cluster.
+		// For backwards compatability, we also return an error if the cluster is not found.
+		if criteria.Cluster == "" {
+			ws, err2 = fetchWorkloads(ctx, in.businessLayer, criteria.Namespace, "")
+		} else {
+			ws, err2 = fetchWorkloadsFromCluster(ctx, in.businessLayer, criteria.Cluster, criteria.Namespace, "")
+			if errors.IsNotFound(err2) || errors.IsForbidden(err2) {
+				// If a cluster is not found or not accessible, then we skip it
+				log.Debugf("Error while accessing to cluster [%s]: %s", criteria.Cluster, err.Error())
+				err2 = nil
+			}
+		}
 		if err2 != nil {
 			log.Errorf("Error fetching Workloads per namespace %s: %s", criteria.Namespace, err2)
 			errChan <- err2
@@ -584,23 +596,17 @@ func isAccessLogEmpty(al *parser.AccessLog) bool {
 }
 
 func fetchWorkloads(ctx context.Context, layer *Layer, namespace string, labelSelector string) (models.Workloads, error) {
-	allWls := models.Workloads{}
-	for c := range layer.k8sClients {
-		ws, err := fetchWorkloadsFromCluster(ctx, layer, c, namespace, labelSelector)
-		if err != nil {
-			if errors.IsNotFound(err) || errors.IsForbidden(err) {
-				// If a cluster is not found or not accessible, then we skip it
-				log.Debugf("Error while accessing to cluster [%s]: %s", c, err.Error())
-			} else {
-				// On any other error, abort and return the error.
-				return nil, err
-			}
-		} else {
-			allWls = append(allWls, ws...)
-		}
-	}
+	return fetchWorkloadsFromCluster(ctx, layer, kubernetes.HomeClusterName, namespace, labelSelector)
+	// allWls := models.Workloads{}
+	// for c := range layer.k8sClients {
+	// ws, err := fetchWorkloadsFromCluster(ctx, layer, c, namespace, labelSelector)
+	// if err != nil {
+	// } else {
+	// 	allWls = append(allWls, ws...)
+	// }
+	// }
 
-	return allWls, nil
+	// return allWls, nil
 }
 
 func fetchWorkloadsFromCluster(ctx context.Context, layer *Layer, cluster string, namespace string, labelSelector string) (models.Workloads, error) {

@@ -38,9 +38,7 @@ func (p *workloadParams) extract(r *http.Request) {
 	p.Namespace = vars["namespace"]
 	p.WorkloadName = vars["workload"]
 	p.WorkloadType = query.Get("type")
-	if query.Has("cluster") && query.Get("cluster") != "null" {
-		p.Cluster = query.Get("cluster")
-	}
+	p.Cluster = query.Get("cluster")
 	var err error
 	p.IncludeHealth, err = strconv.ParseBool(query.Get("health"))
 	if err != nil {
@@ -57,11 +55,10 @@ func WorkloadList(w http.ResponseWriter, r *http.Request) {
 	p := workloadParams{}
 	p.extract(r)
 
-	criteria := business.WorkloadCriteria{Namespace: p.Namespace, IncludeHealth: p.IncludeHealth, IncludeIstioResources: p.IncludeIstioResources, RateInterval: p.RateInterval, QueryTime: p.QueryTime}
+	criteria := business.WorkloadCriteria{Cluster: p.Cluster, Namespace: p.Namespace, IncludeHealth: p.IncludeHealth, IncludeIstioResources: p.IncludeIstioResources, RateInterval: p.RateInterval, QueryTime: p.QueryTime}
 
 	// Get business layer
 	businessLayer, err := getBusiness(r)
-
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, "Workloads initialization error: "+err.Error())
 		return
@@ -105,7 +102,7 @@ func WorkloadDetails(w http.ResponseWriter, r *http.Request) {
 		includeValidations = true
 	}
 
-	var istioConfigValidations = models.IstioValidations{}
+	istioConfigValidations := models.IstioValidations{}
 	var errValidations error
 
 	wg := sync.WaitGroup{}
@@ -172,7 +169,7 @@ func WorkloadUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonPatch := string(body)
 
-	var istioConfigValidations = models.IstioValidations{}
+	istioConfigValidations := models.IstioValidations{}
 	var errValidations error
 
 	wg := sync.WaitGroup{}
@@ -246,7 +243,6 @@ func PodLogs(w http.ResponseWriter, r *http.Request) {
 		queryParams.Get("isProxy"),
 		queryParams.Get("sinceTime"),
 		queryParams.Get("maxLines"))
-
 	if err != nil {
 		handleErrorResponse(w, err)
 		return

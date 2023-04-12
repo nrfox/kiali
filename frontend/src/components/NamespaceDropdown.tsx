@@ -44,7 +44,13 @@ type NamespaceDropdownProps = ReduxProps & {
 type NamespaceDropdownState = {
   isBulkSelectorOpen: boolean;
   isOpen: boolean;
+  // What is checked.
   selectedNamespaces: Namespace[];
+  // displayNamespaces are the namespaces that are displayed in the dropdown.
+  // These are different than selected namespaces because we aggregate namespaces
+  // across clusters with the same name but we only want to display a single checkbox
+  // for each namespace name.
+  // displayNamespaces: Namespace[];
 };
 
 const checkboxBulkStyle = style({
@@ -71,12 +77,22 @@ const namespaceContainerStyle = style({
 export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProps, NamespaceDropdownState> {
   constructor(props: NamespaceDropdownProps) {
     super(props);
+    console.log(this.props.activeNamespaces);
+
     this.state = {
       isBulkSelectorOpen: false,
       isOpen: false,
-      selectedNamespaces: [...this.props.activeNamespaces]
+      selectedNamespaces: this.getDisplayNamespaces()
+      // displayNamespaces: [...this.props.activeNamespaces],
     };
   }
+
+  // Removes duplicates from active namespaces
+  getDisplayNamespaces = () => {
+    let displayNamespaces = new Map<string, Namespace>();
+    this.props.activeNamespaces.forEach(ns => displayNamespaces.set(ns.name, ns));
+    return Array.from(displayNamespaces.values());
+  };
 
   componentDidMount() {
     this.props.refresh();
@@ -86,31 +102,49 @@ export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProp
   // update redux with URL namespaces if set, otherwise update URL with redux
   syncNamespacesURLParam = () => {
     const urlNamespaces = (HistoryManager.getParam(URLParam.NAMESPACES) || '').split(',').filter(Boolean);
+
+    // Remove duplicates
+    const activeNamespaces = this.getDisplayNamespaces();
     if (
       urlNamespaces.length > 0 &&
       _.difference(
         urlNamespaces,
-        this.props.activeNamespaces.map(item => item.name)
+        activeNamespaces.map(ns => ns.name)
       )
     ) {
       // We must change the props of namespaces
-      const items = urlNamespaces.map(ns => ({ name: ns } as Namespace));
+      // Find all the namespaces from the redux state.
+      const items = urlNamespaces
+        .map(ns => this.props.namespaces.filter(n => n.name === ns))
+        .reduce((a, b) => a.concat(b), []);
       this.props.setActiveNamespaces(items);
     } else if (urlNamespaces.length === 0 && this.props.activeNamespaces.length !== 0) {
-      HistoryManager.setParam(URLParam.NAMESPACES, this.props.activeNamespaces.map(item => item.name).join(','));
+      HistoryManager.setParam(URLParam.NAMESPACES, activeNamespaces.map(item => item.name).join(','));
     }
   };
 
   componentDidUpdate(prevProps: NamespaceDropdownProps) {
     if (prevProps.activeNamespaces !== this.props.activeNamespaces) {
+      const activeNamespaces = this.getDisplayNamespaces();
       if (this.props.activeNamespaces.length === 0) {
         HistoryManager.deleteParam(URLParam.NAMESPACES);
       } else {
-        HistoryManager.setParam(URLParam.NAMESPACES, this.props.activeNamespaces.map(item => item.name).join(','));
+        HistoryManager.setParam(URLParam.NAMESPACES, activeNamespaces.map(item => item.name).join(','));
       }
-      this.setState({ selectedNamespaces: this.props.activeNamespaces });
+      // TODO: Numbers should match. We probably need something like a "display namespaces state item"
+      this.setState({ selectedNamespaces: Array.from(activeNamespaces.values()) });
     }
   }
+  // componentDidUpdate(prevProps: NamespaceDropdownProps) {
+  //   if (prevProps.activeNamespaces !== this.props.activeNamespaces) {
+  //     if (this.props.activeNamespaces.length === 0) {
+  //       HistoryManager.deleteParam(URLParam.NAMESPACES);
+  //     } else {
+  //       HistoryManager.setParam(URLParam.NAMESPACES, this.props.activeNamespaces.map(item => item.name).join(','));
+  //     }
+  //     this.setState({ selectedNamespaces: this.props.activeNamespaces });
+  //   }
+  // }
 
   private namespaceButtonText() {
     if (this.state.selectedNamespaces.length === 0) {
@@ -187,6 +221,12 @@ export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProp
         map[namespace.name] = namespace.name;
         return map;
       }, {});
+      // Filter out duplicates by converting to a map first
+      // let filteredNamespaces = new Map<string, Namespace>();
+      // this.filtered().forEach(namespace => {
+      //   filteredNamespaces.set(namespace.name, namespace);
+      // });
+      // const namespaces = Array.from(filteredNamespaces.values()).map((namespace: Namespace) => (
       const namespaces = this.filtered().map((namespace: Namespace) => (
         <div
           className={checkboxStyle}
@@ -244,7 +284,12 @@ export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProp
     if (isOpen) {
       this.props.refresh();
     } else {
-      this.props.setActiveNamespaces(this.state.selectedNamespaces);
+      console.log('Toggled back');
+      // Compare what we've selected and add back in all the duplicates that occur from
+      // clusters with namespaces with the same name.
+      const selectedSet = new Set(this.state.selectedNamespaces.map(ns => ns.name));
+      const activeNamespaces = this.props.namespaces.filter(ns => selectedSet.has(ns.name));
+      this.props.setActiveNamespaces(activeNamespaces);
       this.clearFilter();
     }
     this.setState({
@@ -263,6 +308,16 @@ export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProp
     this.setState({ selectedNamespaces: remaining });
   };
 
+  // onNamespaceToggled = event => {
+  //   const namespace = event.target.value;
+  //   const selectedNamespaces = !!this.state.selectedNamespaces.find(n => n.name === namespace)
+  //     ? this.state.selectedNamespaces.filter(n => n.name !== namespace)
+  //     : this.state.selectedNamespaces.concat(this.props.namespaces.filter(n => n.name === event.target.value));
+  //   console.log('selectedNamespaces', selectedNamespaces)
+  //   console.log(this.props.namespaces)
+  //   this.setState({ selectedNamespaces: selectedNamespaces });
+  // };
+
   onNamespaceToggled = event => {
     const namespace = event.target.value;
     const selectedNamespaces = !!this.state.selectedNamespaces.find(n => n.name === namespace)
@@ -280,7 +335,9 @@ export class NamespaceDropdown extends React.PureComponent<NamespaceDropdownProp
   };
 
   private filtered = (): Namespace[] => {
-    return this.props.namespaces.filter(ns => ns.name.includes(this.props.filter));
+    let namespaces = new Map<string, Namespace>();
+    this.props.namespaces.forEach(ns => namespaces.set(ns.name, ns));
+    return Array.from(namespaces.values()).filter(ns => ns.name.includes(this.props.filter));
   };
 
   private filteredSelected = (): Namespace[] => {
