@@ -10,7 +10,10 @@ const mockIcon = (componentList: ComponentStatus[]) => {
     <IstioStatus
       status={componentList}
       lastRefreshAt={848152}
-      namespaces={[{ name: 'bookinfo' }, { name: 'istio-system' }]}
+      namespaces={[
+        { name: 'bookinfo', cluster: 'east' },
+        { name: 'istio-system', cluster: 'east' }
+      ]}
       setIstioStatus={jest.fn()}
       refreshNamespaces={jest.fn()}
     />

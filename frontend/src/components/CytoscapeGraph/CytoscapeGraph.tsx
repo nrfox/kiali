@@ -113,6 +113,8 @@ export interface GraphNodeTapEvent {
   aggregate?: string;
   aggregateValue?: string;
   app: string;
+  // TODO: Make required?
+  cluster?: string;
   hasMissingSC: boolean;
   isBox?: string;
   isInaccessible: boolean;

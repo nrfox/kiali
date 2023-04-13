@@ -40,7 +40,8 @@ const buildCommonQueryParams = (params: GraphUrlParams): string => {
 export const makeNamespacesGraphUrlFromParams = (params: GraphUrlParams): string => {
   let queryParams = buildCommonQueryParams(params);
   if (params.activeNamespaces.length > 0) {
-    const namespaces = params.activeNamespaces.map(namespace => namespace.name).join(',');
+    // Filter duplicates
+    const namespaces = Array.from(new Set(params.activeNamespaces.map(namespace => namespace.name))).join(',');
     queryParams += `&${URLParam.NAMESPACES}=${namespaces}`;
   }
   if (isKioskMode()) {

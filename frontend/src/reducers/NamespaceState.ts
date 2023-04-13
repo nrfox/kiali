@@ -18,7 +18,7 @@ const namespaces = (state: NamespaceState = INITIAL_NAMESPACE_STATE, action: Kia
       const namespaceIndex = state.activeNamespaces.findIndex(namespace => namespace.name === action.payload.name);
       if (namespaceIndex === -1) {
         return updateState(state, {
-          activeNamespaces: [...state.activeNamespaces, { name: action.payload.name }]
+          activeNamespaces: [...state.activeNamespaces, { ...action.payload }]
         });
       } else {
         const activeNamespaces = [...state.activeNamespaces];

@@ -410,10 +410,11 @@ export default class GraphDataSource {
       includeHealth: true,
       includeLabels: false,
       injectServiceNodes: true,
-      namespaces: [{ name: namespace }],
+      // TODO: Is empty ok?
+      namespaces: [{ name: namespace, cluster: '' }],
       node: {
         app: '',
-        namespace: { name: namespace },
+        namespace: { name: namespace, cluster: '' },
         nodeType: NodeType.UNKNOWN,
         service: '',
         version: '',

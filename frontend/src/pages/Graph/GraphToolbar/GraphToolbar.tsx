@@ -13,8 +13,10 @@ import { bindActionCreators } from 'redux';
 import { KialiAppState } from '../../../store/Store';
 import {
   activeNamespacesSelector,
+  displayNamespacesSelector,
   edgeLabelsSelector,
   graphTypeSelector,
+  namespaceItemsSelector,
   showIdleNodesSelector,
   replayActiveSelector,
   trafficRatesSelector
@@ -24,7 +26,7 @@ import { GraphType, NodeParamsType, EdgeLabelMode, SummaryData, TrafficRate, Ran
 import GraphFindContainer from './GraphFind';
 import GraphSettingsContainer from './GraphSettings';
 import history, { HistoryManager, URLParam } from '../../../app/History';
-import Namespace, { namespacesFromString, namespacesToString } from '../../../types/Namespace';
+import Namespace, { namespacesToString } from '../../../types/Namespace';
 import { KialiDispatch } from '../../../types/Redux';
 import { NamespaceActions } from '../../../actions/NamespaceAction';
 import { GraphActions } from '../../../actions/GraphActions';
@@ -40,8 +42,10 @@ import GraphResetContainer from './GraphReset';
 
 type ReduxProps = {
   activeNamespaces: Namespace[];
+  displayNamespaces: Namespace[];
   edgeLabels: EdgeLabelMode[];
   graphType: GraphType;
+  namespaces?: Namespace[];
   node?: NodeParamsType;
   rankBy: RankMode[];
   replayActive: boolean;
@@ -123,11 +127,13 @@ export class GraphToolbar extends React.PureComponent<GraphToolbarProps> {
 
     const urlNamespaces = HistoryManager.getParam(URLParam.NAMESPACES, urlParams);
     if (!!urlNamespaces) {
-      if (urlNamespaces !== namespacesToString(props.activeNamespaces)) {
-        props.setActiveNamespaces(namespacesFromString(urlNamespaces));
+      if (urlNamespaces !== namespacesToString(props.displayNamespaces)) {
+        const namespaceNames = new Set(urlNamespaces.split(','));
+        const activeNamespaces = this.props.namespaces!.filter(ns => namespaceNames.has(ns.name));
+        props.setActiveNamespaces(activeNamespaces);
       }
-    } else if (props.activeNamespaces.length > 0) {
-      HistoryManager.setParam(URLParam.NAMESPACES, namespacesToString(props.activeNamespaces));
+    } else if (props.displayNamespaces.length > 0) {
+      HistoryManager.setParam(URLParam.NAMESPACES, namespacesToString(props.displayNamespaces));
     }
   }
 
@@ -244,8 +250,10 @@ export class GraphToolbar extends React.PureComponent<GraphToolbarProps> {
 
 const mapStateToProps = (state: KialiAppState) => ({
   activeNamespaces: activeNamespacesSelector(state),
+  displayNamespaces: displayNamespacesSelector(state),
   edgeLabels: edgeLabelsSelector(state),
   graphType: graphTypeSelector(state),
+  namespaces: namespaceItemsSelector(state),
   node: state.graph.node,
   rankBy: state.graph.toolbarState.rankBy,
   replayActive: replayActiveSelector(state),

@@ -87,6 +87,8 @@ type GraphURLPathProps = {
   aggregate: string;
   aggregateValue: string;
   app: string;
+  // TODO: Make required?
+  cluster?: string;
   namespace: string;
   service: string;
   version: string;
@@ -258,6 +260,7 @@ export class GraphPage extends React.Component<GraphPageProps, GraphPageState> {
     const serviceOk = service && service !== UNKNOWN;
     const workload = props.match.params.workload;
     const workloadOk = workload && workload !== UNKNOWN;
+    const cluster = props.match.params.cluster;
     if (!aggregateOk && !aggregateValueOk && !appOk && !namespaceOk && !serviceOk && !workloadOk) {
       // @ts-ignore
       return;
@@ -279,7 +282,7 @@ export class GraphPage extends React.Component<GraphPageProps, GraphPageState> {
       aggregate: aggregate!,
       aggregateValue: aggregateValue!,
       app: app!,
-      namespace: { name: namespace! },
+      namespace: { name: namespace!, cluster: cluster! },
       nodeType: nodeType,
       service: service!,
       version: version,
@@ -357,6 +360,7 @@ export class GraphPage extends React.Component<GraphPageProps, GraphPageState> {
     const urlNode = GraphPage.getNodeParamsFromProps(this.props);
     if (GraphPage.isNodeChanged(urlNode, this.props.node)) {
       // add the node namespace if necessary, but don't lose previously selected namespaces
+      // TODO: Is this the spot?
       if (urlNode && !this.props.activeNamespaces.map(ns => ns.name).includes(urlNode.namespace.name)) {
         this.props.setActiveNamespaces([urlNode.namespace, ...this.props.activeNamespaces]);
       }
@@ -655,7 +659,8 @@ export class GraphPage extends React.Component<GraphPageProps, GraphPageState> {
       return;
     }
     if (event.isOutside && this.props.setActiveNamespaces) {
-      this.props.setActiveNamespaces([{ name: event.namespace }]);
+      // TODO: Pass through cluster.
+      this.props.setActiveNamespaces([{ name: event.namespace, cluster: '' }]);
       return;
     }
 
@@ -690,7 +695,8 @@ export class GraphPage extends React.Component<GraphPageProps, GraphPageState> {
       }
     }
 
-    const targetNode: NodeParamsType = { ...event, namespace: { name: event.namespace } };
+    // TODO: Passthrough cluster.
+    const targetNode: NodeParamsType = { ...event, namespace: { name: event.namespace, cluster: '' } };
 
     // If, while in the drilled-down graph, the user double clicked the same
     // node as in the main graph, it doesn't make sense to re-load the same view.

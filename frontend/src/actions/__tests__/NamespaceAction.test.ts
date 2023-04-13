@@ -22,11 +22,16 @@ describe('NamespaceActions', () => {
   });
 
   it('should set active namespaces', () => {
-    expect(NamespaceActions.setActiveNamespaces([{ name: 'istio' }]).payload).toEqual([{ name: 'istio' }]);
+    expect(NamespaceActions.setActiveNamespaces([{ name: 'istio', cluster: 'east' }]).payload).toEqual([
+      { name: 'istio', cluster: 'east' }
+    ]);
   });
 
   it('should toggle active namespace', () => {
-    expect(NamespaceActions.toggleActiveNamespace({ name: 'istio' }).payload).toEqual({ name: 'istio' });
+    expect(NamespaceActions.toggleActiveNamespace({ name: 'istio', cluster: 'east' }).payload).toEqual({
+      name: 'istio',
+      cluster: 'east'
+    });
   });
 
   it('should set filter', () => {
@@ -36,10 +41,21 @@ describe('NamespaceActions', () => {
   it('request is success', () => {
     const currentDate = new Date();
     const expectedAction = {
-      list: [{ name: 'a' }, { name: 'b' }],
+      list: [
+        { name: 'a', cluster: 'east' },
+        { name: 'b', cluster: 'west' }
+      ],
       receivedAt: currentDate
     };
-    expect(NamespaceActions.receiveList([{ name: 'a' }, { name: 'b' }], currentDate).payload).toEqual(expectedAction);
+    expect(
+      NamespaceActions.receiveList(
+        [
+          { name: 'a', cluster: 'east' },
+          { name: 'b', cluster: 'west' }
+        ],
+        currentDate
+      ).payload
+    ).toEqual(expectedAction);
   });
 
   it('should success if api request success', () => {
@@ -47,10 +63,21 @@ describe('NamespaceActions', () => {
     mockDate(currentDate);
     const expectedActions = [
       NamespaceActions.requestStarted(),
-      NamespaceActions.receiveList([{ name: 'a' }, { name: 'b' }, { name: 'c' }], currentDate)
+      NamespaceActions.receiveList(
+        [
+          { name: 'a', cluster: 'east' },
+          { name: 'b', cluster: 'west' },
+          { name: 'c', cluster: 'east' }
+        ],
+        currentDate
+      )
     ];
     const axiosMock = new axiosMockAdapter(axios);
-    axiosMock.onGet('/api/namespaces').reply(200, [{ name: 'a' }, { name: 'b' }, { name: 'c' }]);
+    axiosMock.onGet('/api/namespaces').reply(200, [
+      { name: 'a', cluster: 'east' },
+      { name: 'b', cluster: 'west' },
+      { name: 'c', cluster: 'east' }
+    ]);
 
     const store = mockStore({});
     return store.dispatch(NamespaceThunkActions.asyncFetchNamespaces()).then(() => {

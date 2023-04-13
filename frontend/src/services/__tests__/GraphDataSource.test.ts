@@ -20,7 +20,7 @@ const FETCH_PARAMS = {
   includeHealth: false,
   includeLabels: false,
   injectServiceNodes: false,
-  namespaces: [{ name: 'foo' }],
+  namespaces: [{ name: 'foo', cluster: '' }],
   queryTime: 0,
   showIdleEdges: false,
   showIdleNodes: false,

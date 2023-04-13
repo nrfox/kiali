@@ -1,6 +1,7 @@
 import { createSelector } from 'reselect';
 import { KialiAppState } from './Store';
 import { TimeRange } from '../types/Common';
+import Namespace from '../types/Namespace';
 // These memoized selectors are from Redux Reselect package
 
 type Selector<T> = (state: KialiAppState) => T;
@@ -13,6 +14,16 @@ const activeNamespaces = (state: KialiAppState) => state.namespaces.activeNamesp
 
 // Select from the above field(s) and the last function is the formatter
 export const activeNamespacesSelector = createIdentitySelector(activeNamespaces);
+
+// These are active namespaces that have been filtered for duplicates coming from
+// multiple clusters.
+const displayNamespaces = (state: KialiAppState) => {
+  let displayNamespaces = new Map<string, Namespace>();
+  state.namespaces.activeNamespaces.forEach(ns => displayNamespaces.set(ns.name, ns));
+  return Array.from(displayNamespaces.values());
+};
+
+export const displayNamespacesSelector = createIdentitySelector(displayNamespaces);
 
 const duration = (state: KialiAppState) => state.userSettings.duration;
 
