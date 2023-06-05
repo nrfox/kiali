@@ -114,3 +114,9 @@ core-ui
 
 # Do not commit plugin code to this repo
 ossmc
+
+# Terraform
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+.terraform/

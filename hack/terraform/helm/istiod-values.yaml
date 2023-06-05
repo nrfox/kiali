@@ -1,0 +1,10 @@
+pilot:
+  resources:
+    requests:
+      cpu: 1m
+      memory: 1Mi
+global:
+  proxy:
+    resources:
+      cpu: 1m
+      memory: 1Mi

@@ -1,0 +1,17 @@
+cr:
+  create: true
+  spec:
+    server:
+      web_port: 443
+    auth:
+      strategy: openid
+      openid:
+        username_claim: preferred_username
+        disable_rbac: true
+    deployment:
+      logger:
+        log_level: debug
+      resources:
+        limits:
+          memory: 1Gi
+      service_type: ClusterIP

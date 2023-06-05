@@ -1,0 +1,7 @@
+server:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  global:
+    scrape_interval: 15s
