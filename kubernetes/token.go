@@ -10,15 +10,17 @@ import (
 
 var DefaultServiceAccountPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
-var KialiTokenForHomeCluster string
-var tokenRead time.Time
+var (
+	KialiTokenForHomeCluster string
+	tokenRead                time.Time
+)
 
 // GetKialiTokenForHomeCluster returns the Kiali SA token to be used to communicate with the local data plane k8s api endpoint.
 func GetKialiTokenForHomeCluster() (string, error) {
 	// TODO:refresh the token when it changes rather than after it expires
 	if KialiTokenForHomeCluster == "" || shouldRefreshToken() {
 		if remoteSecret, err := GetRemoteSecret(RemoteSecretData); err == nil { // for experimental feature - for when data plane is in a remote cluster
-			KialiTokenForHomeCluster = remoteSecret.Users[0].User.Token
+			KialiTokenForHomeCluster = remoteSecret.AuthInfos[0].User.Token
 		} else {
 			token, err := os.ReadFile(DefaultServiceAccountPath)
 			if err != nil {
