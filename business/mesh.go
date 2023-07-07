@@ -55,11 +55,12 @@ func NewMeshService(kialiSAClients map[string]kubernetes.ClientInterface, cache 
 // GetClusters resolves the Kubernetes clusters that are hosting the mesh. Resolution
 // is done as best-effort using the resources that are present in the cluster.
 func (in *MeshService) GetClusters(r *http.Request) ([]kubernetes.Cluster, error) {
-	log.Trace("GetClusters")
+	log.Debug("GetClusters")
 	if clusters := in.kialiCache.GetClusters(); clusters != nil {
-		log.Trace("GetClusters: cache hit")
+		log.Debug("GetClusters: cache hit")
 		return clusters, nil
 	}
+	log.Debug("GetClusters: cache miss")
 
 	// Even if somehow there are no clusters found, which there should always be at least the homecluster,
 	// setting this to an empty slice will prevent us from trying to resolve again.

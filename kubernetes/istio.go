@@ -862,6 +862,7 @@ func DestinationRuleHasMTLSEnabled(destinationRule *networking_v1beta1.Destinati
 // ClusterInfoFromIstiod attempts to resolve the cluster info of the "home" cluster where kiali is running
 // by inspecting the istiod deployment. Assumes that the istiod deployment is in the same cluster as the kiali pod.
 func ClusterInfoFromIstiod(conf config.Config, k8s ClientInterface) (string, bool, error) {
+	log.Debug("Getting cluster info from istiod")
 	// The "cluster_id" is set in an environment variable of
 	// the "istiod" deployment. Let's try to fetch it.
 	istioDeploymentConfig := conf.ExternalServices.Istio.IstiodDeploymentName

@@ -9,6 +9,7 @@ import (
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
+	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
 )
 
@@ -87,7 +88,6 @@ func (ics *IstioCertsService) getCertificateFromSecret(secretName, certName stri
 	cert.SecretNamespace = cfg.IstioNamespace
 
 	secret, err := ics.k8s.GetSecret(cfg.IstioNamespace, secretName)
-
 	if err != nil {
 		if errors.IsForbidden(err) {
 			cert.Accessible = false
@@ -136,7 +136,6 @@ func (ics *IstioCertsService) getChironCertificates(certsConfig []certConfig) ([
 
 			cert.DNSNames = dnsNames
 			certChan <- cert
-
 		}(certConfig.SecretName, certConfig.DNSNames)
 	}
 
@@ -163,6 +162,7 @@ func (ics *IstioCertsService) getChironCertificates(certsConfig []certConfig) ([
 }
 
 func (ics *IstioCertsService) GetTlsMinVersion() (string, error) {
+	log.Debug("GetTlsMinVersion")
 	cfg := config.Get()
 
 	istioConfigMap, err := ics.k8s.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
