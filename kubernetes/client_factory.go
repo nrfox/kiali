@@ -133,6 +133,10 @@ func newClientFactory(restConfig *rest.Config) (*clientFactory, error) {
 
 // newClient creates a new ClientInterface based on a users k8s token
 func (cf *clientFactory) newClient(authInfo *api.AuthInfo, expirationTime time.Duration, cluster string) (ClientInterface, error) {
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("newClient took %v", time.Since(startTime))
+	}()
 	config := *cf.baseRestConfig
 
 	config.BearerToken = authInfo.Token
