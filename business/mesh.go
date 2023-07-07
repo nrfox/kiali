@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	core_v1 "k8s.io/api/core/v1"
@@ -56,6 +57,10 @@ func NewMeshService(kialiSAClients map[string]kubernetes.ClientInterface, cache 
 // is done as best-effort using the resources that are present in the cluster.
 func (in *MeshService) GetClusters(r *http.Request) ([]kubernetes.Cluster, error) {
 	log.Debug("GetClusters")
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("GetClusters completed in %v", time.Since(startTime))
+	}()
 	if clusters := in.kialiCache.GetClusters(); clusters != nil {
 		log.Debug("GetClusters: cache hit")
 		return clusters, nil
@@ -125,6 +130,7 @@ func (in *MeshService) discoverKiali(ctx context.Context, clusterName string, r 
 	// The operator and the helm charts set this fixed label. It's also
 	// present in the Istio addon manifest of Kiali.
 	kialiAppLabel := "app.kubernetes.io/part-of=kiali"
+	log.Debug("Listing manually")
 	services, err := client.Kube().CoreV1().Services(metav1.NamespaceAll).List(ctx, metav1.ListOptions{LabelSelector: kialiAppLabel})
 	if err != nil {
 		log.Warningf("Discovery for Kiali instances in cluster [%s] failed: %s", clusterName, err.Error())
@@ -215,6 +221,7 @@ func (in *MeshService) resolveNetwork(clusterName string) string {
 			return ""
 		}
 
+		log.Debug("Getting remote namespace")
 		// Let's assume that the istio namespace has the same name on all clusters in the mesh.
 		istioNamespace, getNsErr := remoteClientSet.GetNamespace(in.conf.IstioNamespace)
 		if getNsErr != nil {

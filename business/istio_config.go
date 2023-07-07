@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	extentions_v1alpha1 "istio.io/client-go/pkg/apis/extensions/v1alpha1"
@@ -125,6 +126,10 @@ var newSecurityConfigTypes = []string{
 // per a given Namespace.
 // @TODO this method should be replaced by GetIstioConfigMap
 func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria IstioConfigCriteria) (models.IstioConfigList, error) {
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("GetIstioConfigList took %v", time.Since(startTime))
+	}()
 	istioConfigList := models.IstioConfigList{
 		Namespace: models.Namespace{Name: criteria.Namespace},
 
@@ -227,6 +232,10 @@ func (in *IstioConfigService) GetIstioConfigMap(ctx context.Context, criteria Is
 }
 
 func (in *IstioConfigService) getIstioConfigListForCluster(ctx context.Context, criteria IstioConfigCriteria, cluster string) (models.IstioConfigList, error) {
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("getIstioConfigListForCluster took %v", time.Since(startTime))
+	}()
 	var end observability.EndFunc
 	ctx, end = observability.StartSpan(ctx, "GetIstioConfigList",
 		observability.Attribute("package", "business"),
@@ -261,6 +270,7 @@ func (in *IstioConfigService) getIstioConfigListForCluster(ctx context.Context, 
 	// Use the Istio Registry when AllNamespaces is present
 	// TODO use Istio Registry for Home cluster only now
 	if criteria.AllNamespaces && in.config.ExternalServices.Istio.IstioAPIEnabled && cluster == config.Get().KubernetesConfig.ClusterName {
+		log.Debug("Getting everything from Istio Registry")
 		registryCriteria := RegistryCriteria{
 			AllNamespaces: true,
 		}
@@ -368,6 +378,7 @@ func (in *IstioConfigService) getIstioConfigListForCluster(ctx context.Context, 
 
 	listOpts := meta_v1.ListOptions{LabelSelector: criteria.LabelSelector}
 
+	log.Debug("Waitiong on all the syncs to return")
 	go func(ctx context.Context, errChan chan error) {
 		defer wg.Done()
 		if criteria.Include(kubernetes.DestinationRules) {
@@ -1271,7 +1282,6 @@ func (in *IstioConfigService) IsGatewayAPI(cluster string) bool {
 // Check if istio Ambient profile was enabled
 // ATM it is defined in the istio-cni-config configmap
 func (in *IstioConfigService) IsAmbientEnabled() bool {
-
 	var cniNetwork map[string]any
 	istioConfigMap, err := in.kialiCache.GetConfigMap(config.Get().IstioNamespace, "istio-cni-config")
 	if err != nil {

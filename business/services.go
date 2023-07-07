@@ -107,6 +107,10 @@ func (in *SvcService) GetServiceList(ctx context.Context, criteria ServiceCriter
 }
 
 func (in *SvcService) getServiceListForCluster(ctx context.Context, criteria ServiceCriteria, cluster string) (*models.ServiceList, error) {
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("getServiceListForCluster [%s] took %v", cluster, time.Since(startTime))
+	}()
 	var (
 		svcs            []core_v1.Service
 		rSvcs           []*kubernetes.RegistryService
@@ -116,7 +120,6 @@ func (in *SvcService) getServiceListForCluster(ctx context.Context, criteria Ser
 		err             error
 		kubeCache       cache.KubeCache
 	)
-	conf := config.Get()
 
 	kubeCache, err = in.kialiCache.GetKubeCache(cluster)
 	if err != nil {
@@ -130,7 +133,7 @@ func (in *SvcService) getServiceListForCluster(ctx context.Context, criteria Ser
 	if criteria.IncludeIstioResources {
 		nFetches = 5
 	}
-	if !in.config.ExternalServices.Istio.IstioAPIEnabled || cluster != conf.KubernetesConfig.ClusterName {
+	if !in.config.ExternalServices.Istio.IstioAPIEnabled || cluster != in.config.KubernetesConfig.ClusterName {
 		nFetches--
 	}
 
@@ -156,9 +159,16 @@ func (in *SvcService) getServiceListForCluster(ctx context.Context, criteria Ser
 		}
 	}()
 
-	if in.config.ExternalServices.Istio.IstioAPIEnabled && cluster == conf.KubernetesConfig.ClusterName {
+	if in.config.ExternalServices.Istio.IstioAPIEnabled && cluster == in.config.KubernetesConfig.ClusterName {
 		go func() {
 			defer wg.Done()
+			if in.config.InCluster {
+				return
+			}
+			startTime := time.Now()
+			defer func() {
+				log.Debugf("GetRegistryServices [%s] took %v", cluster, time.Since(startTime))
+			}()
 			var err2 error
 			registryCriteria := RegistryCriteria{
 				Namespace:       criteria.Namespace,

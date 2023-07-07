@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	networking_v1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -39,6 +40,10 @@ func (a IstioAppender) IsFinalizer() bool {
 
 // AppendGraph implements Appender
 func (a IstioAppender) AppendGraph(trafficMap graph.TrafficMap, globalInfo *graph.AppenderGlobalInfo, namespaceInfo *graph.AppenderNamespaceInfo) {
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("IstioAppender.AppendGraph() took %v", time.Since(startTime))
+	}()
 	if len(trafficMap) == 0 {
 		return
 	}
@@ -237,7 +242,6 @@ func decorateMatchingGateways(cluster string, gwCrd *networking_v1beta1.Gateway,
 		}
 
 		if gwSelector.Matches(labels.Set(gw.Labels)) {
-
 			// If we are here, the GatewayCrd selects the Gateway workload.
 			// So, all node graphs associated with the GW workload should be listening
 			// requests for the hostnames listed in the GatewayCRD.
@@ -267,7 +271,6 @@ func decorateMatchingAPIGateways(cluster string, gwCrd *k8s_networking_v1beta1.G
 		}
 
 		if gwSelector.Matches(labels.Set(gw.Labels)) {
-
 			// If we are here, the GatewayCrd selects the GatewayAPI workload.
 			// So, all node graphs associated with the GW API workload should be listening
 			// requests for the hostnames listed in the GatewayAPI CRD.
@@ -314,6 +317,10 @@ func resolveGatewayNodeMapping(gatewayWorkloads map[string][]models.WorkloadList
 }
 
 func (a IstioAppender) decorateGateways(trafficMap graph.TrafficMap, globalInfo *graph.AppenderGlobalInfo, namespaceInfo *graph.AppenderNamespaceInfo) {
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("IstioAppender.decorateGateways() took %v", time.Since(startTime))
+	}()
 	// Get ingress-gateways deployments in the namespace. Then, find if the graph is showing any of them. If so, flag the GW nodes.
 	ingressWorkloads := a.getIngressGatewayWorkloads(globalInfo)
 	ingressNodeMapping := resolveGatewayNodeMapping(ingressWorkloads, graph.IsIngressGateway, trafficMap)

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	osproject_v1 "github.com/openshift/api/project/v1"
 	core_v1 "k8s.io/api/core/v1"
@@ -281,6 +282,7 @@ func (in *NamespaceService) getNamespacesByCluster(cluster string) ([]models.Nam
 
 	namespaces := []models.Namespace{}
 	_, queryAllNamespaces := in.isAccessibleNamespaces["**"]
+	log.Debugf("Query all namespaces: %v", queryAllNamespaces)
 	// If we are running in OpenShift, we will use the project names since these are the list of accessible namespaces
 	if in.hasProjects {
 		projects, err2 := in.userClients[cluster].GetProjects(labelSelectorInclude)
@@ -537,6 +539,10 @@ func (in *NamespaceService) GetNamespaceClusters(ctx context.Context, namespace 
 // GetNamespace returns the definition of the specified namespace.
 // TODO: Multicluster: We are going to need something else to identify the namespace, the cluster (OR Return a list/array/map)
 func (in *NamespaceService) GetNamespaceByCluster(ctx context.Context, namespace string, cluster string) (*models.Namespace, error) {
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("GetNamespaceByCluster namespace: [%s] cluster: [%s] time: %v", namespace, cluster, time.Since(startTime))
+	}()
 	var end observability.EndFunc
 	ctx, end = observability.StartSpan(ctx, "GetNamespaceByCluster",
 		observability.Attribute("package", "business"),
@@ -659,6 +665,10 @@ func (in *NamespaceService) UpdateNamespace(ctx context.Context, namespace strin
 }
 
 func (in *NamespaceService) getNamespacesUsingKialiSA(cluster string, labelSelector string, forwardedError error) ([]core_v1.Namespace, error) {
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("getNamespacesUsingKialiSA cluster: [%s] labelSelector: [%s] time: %v", cluster, labelSelector, time.Since(startTime))
+	}()
 	// Check if we already are using the Kiali ServiceAccount token. If we are, no need to do further processing, since
 	// this would just circle back to the same results.
 	kialiToken := in.kialiSAClients[cluster].GetToken()

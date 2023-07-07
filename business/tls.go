@@ -2,6 +2,7 @@ package business
 
 import (
 	"context"
+	"time"
 
 	security_v1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 
@@ -29,6 +30,10 @@ const (
 )
 
 func (in *TLSService) MeshWidemTLSStatus(ctx context.Context, namespaces []string, cluster string) (models.MTLSStatus, error) {
+	startTime := time.Now()
+	defer func() {
+		log.Tracef("MeshWidemTLSStatus took %v", time.Since(startTime))
+	}()
 	var end observability.EndFunc
 	ctx, end = observability.StartSpan(ctx, "MeshWidemTLSStatus",
 		observability.Attribute("package", "business"),
@@ -74,6 +79,10 @@ func (in *TLSService) MeshWidemTLSStatus(ctx context.Context, namespaces []strin
 }
 
 func (in *TLSService) NamespaceWidemTLSStatus(ctx context.Context, namespace, cluster string) (models.MTLSStatus, error) {
+	startTime := time.Now()
+	defer func() {
+		log.Tracef("NamespaceWidemTLSStatus took %v", time.Since(startTime))
+	}()
 	var end observability.EndFunc
 	ctx, end = observability.StartSpan(ctx, "NamespaceWidemTLSStatus",
 		observability.Attribute("package", "business"),

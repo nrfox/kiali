@@ -866,6 +866,7 @@ func ClusterInfoFromIstiod(conf config.Config, k8s ClientInterface) (string, boo
 	// The "cluster_id" is set in an environment variable of
 	// the "istiod" deployment. Let's try to fetch it.
 	istioDeploymentConfig := conf.ExternalServices.Istio.IstiodDeploymentName
+	log.Debug("Getting deployment manually")
 	istiodDeployment, err := k8s.GetDeployment(conf.IstioNamespace, istioDeploymentConfig)
 	if err != nil {
 		return "", false, err

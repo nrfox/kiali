@@ -3,6 +3,7 @@ package business
 import (
 	"sort"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -162,7 +163,10 @@ func (ics *IstioCertsService) getChironCertificates(certsConfig []certConfig) ([
 }
 
 func (ics *IstioCertsService) GetTlsMinVersion() (string, error) {
-	log.Debug("GetTlsMinVersion")
+	startTime := time.Now()
+	defer func() {
+		log.Tracef("IstioCertsService.GetTlsMinVersion() %v", time.Since(startTime))
+	}()
 	cfg := config.Get()
 
 	istioConfigMap, err := ics.k8s.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)

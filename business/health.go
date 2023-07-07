@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/kiali/kiali/kubernetes"
+	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
 	"github.com/kiali/kiali/observability"
 	"github.com/kiali/kiali/prometheus"
@@ -34,6 +35,10 @@ var HealthAnnotation = []models.AnnotationKey{models.RateHealthAnnotation}
 
 // GetServiceHealth returns a service health (service request error rate)
 func (in *HealthService) GetServiceHealth(ctx context.Context, namespace, cluster, service, rateInterval string, queryTime time.Time, svc *models.Service) (models.ServiceHealth, error) {
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("GetServiceHealth took %v", time.Since(startTime))
+	}()
 	var end observability.EndFunc
 	_, end = observability.StartSpan(ctx, "GetServiceHealth",
 		observability.Attribute("package", "business"),

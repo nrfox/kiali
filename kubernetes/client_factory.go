@@ -395,6 +395,12 @@ func (cf *clientFactory) GetSAClient(cluster string) ClientInterface {
 
 // Check for kiali token changes and refresh the client when it does.
 func (cf *clientFactory) refreshClientIfTokenChanged(cluster string) error {
+	log.Debug("Checking if token needs a refresh")
+	startTime := time.Now()
+	defer func() {
+		log.Debugf("Token refresh check took %v", time.Since(startTime))
+	}()
+	// TODO: Check ShouldToken?
 	var refreshTheClient bool // will be true if the client needs to be refreshed
 	var rci *RemoteClusterInfo
 
