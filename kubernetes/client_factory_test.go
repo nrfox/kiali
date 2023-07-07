@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	// "gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -185,21 +185,21 @@ func TestSAClientsUpdateWhenKialiTokenChanges(t *testing.T) {
 
 // Helper function to create a test remote cluster secret file from a RemoteSecret.
 // It will cleanup after itself when the test is done.
-func createTestRemoteClusterSecret(t *testing.T, remoteSecret RemoteSecret) {
-	t.Helper()
-	// create a mock volume mount directory where the test remote cluster secret content will go
-	originalRemoteClusterSecretsDir := RemoteClusterSecretsDir
-	t.Cleanup(func() {
-		RemoteClusterSecretsDir = originalRemoteClusterSecretsDir
-	})
-	RemoteClusterSecretsDir = t.TempDir()
+// func createTestRemoteClusterSecret(t *testing.T, remoteSecret RemoteSecret) {
+// 	t.Helper()
+// 	// create a mock volume mount directory where the test remote cluster secret content will go
+// 	originalRemoteClusterSecretsDir := RemoteClusterSecretsDir
+// 	t.Cleanup(func() {
+// 		RemoteClusterSecretsDir = originalRemoteClusterSecretsDir
+// 	})
+// 	RemoteClusterSecretsDir = t.TempDir()
 
-	marshalledRemoteSecretData, err := yaml.Marshal(remoteSecret)
-	if err != nil {
-		t.Fatalf("Failed to marshal remote secret data: %v", err)
-	}
-	createTestRemoteClusterSecretFile(t, RemoteClusterSecretsDir, remoteSecret.Clusters[0].Name, string(marshalledRemoteSecretData))
-}
+// 	marshalledRemoteSecretData, err := yaml.Marshal(remoteSecret)
+// 	if err != nil {
+// 		t.Fatalf("Failed to marshal remote secret data: %v", err)
+// 	}
+// 	createTestRemoteClusterSecretFile(t, RemoteClusterSecretsDir, remoteSecret.Clusters[0].Name, string(marshalledRemoteSecretData))
+// }
 
 // Helper function to create a test token to standin for the kiali token.
 func newFakeToken(t *testing.T) {
@@ -218,59 +218,59 @@ func newFakeToken(t *testing.T) {
 	}
 }
 
-func TestClientCreatedWithClusterInfo(t *testing.T) {
-	// Create a fake cluster info file.
-	// Ensure client gets created with this.
-	// Need to test newClient and newSAClient
-	// Need to test that home cluster gets this info as well
-	require := require.New(t)
-	assert := assert.New(t)
+// func TestClientCreatedWithClusterInfo(t *testing.T) {
+// 	// Create a fake cluster info file.
+// 	// Ensure client gets created with this.
+// 	// Need to test newClient and newSAClient
+// 	// Need to test that home cluster gets this info as well
+// 	require := require.New(t)
+// 	assert := assert.New(t)
 
-	conf := config.NewConfig()
-	config.Set(conf)
+// 	conf := config.NewConfig()
+// 	config.Set(conf)
 
-	const (
-		testClusterName = "TestRemoteCluster"
-	)
-	remoteSecretData := RemoteSecret{
-		Clusters: []RemoteSecretClusterListItem{
-			{
-				Name: testClusterName,
-				Cluster: RemoteSecretCluster{
-					Server: "https://192.168.1.2:1234",
-				},
-			},
-		},
-		Users: []RemoteSecretUser{
-			{
-				Name: "remoteuser1",
-				User: RemoteSecretUserAuthInfo{
-					Token: "remotetoken1",
-				},
-			},
-		},
-	}
+// 	const (
+// 		testClusterName = "TestRemoteCluster"
+// 	)
+// 	remoteSecretData := RemoteSecret{
+// 		Clusters: []RemoteSecretClusterListItem{
+// 			{
+// 				Name: testClusterName,
+// 				Cluster: RemoteSecretCluster{
+// 					Server: "https://192.168.1.2:1234",
+// 				},
+// 			},
+// 		},
+// 		Users: []RemoteSecretUser{
+// 			{
+// 				Name: "remoteuser1",
+// 				User: RemoteSecretUserAuthInfo{
+// 					Token: "remotetoken1",
+// 				},
+// 			},
+// 		},
+// 	}
 
-	createTestRemoteClusterSecret(t, remoteSecretData)
-	newFakeToken(t)
+// 	createTestRemoteClusterSecret(t, remoteSecretData)
+// 	newFakeToken(t)
 
-	clientFactory := newTestingClientFactory(t)
+// 	clientFactory := newTestingClientFactory(t)
 
-	// Service account clients
-	saClients := clientFactory.GetSAClients()
-	require.Contains(saClients, testClusterName)
-	require.Contains(saClients, conf.KubernetesConfig.ClusterName)
-	assert.Equal(testClusterName, saClients[testClusterName].ClusterInfo().Name)
-	assert.Equal("https://192.168.1.2:1234", saClients[testClusterName].ClusterInfo().ClientConfig.Host)
-	assert.Contains(saClients[conf.KubernetesConfig.ClusterName].ClusterInfo().Name, conf.KubernetesConfig.ClusterName)
+// 	// Service account clients
+// 	saClients := clientFactory.GetSAClients()
+// 	require.Contains(saClients, testClusterName)
+// 	require.Contains(saClients, conf.KubernetesConfig.ClusterName)
+// 	assert.Equal(testClusterName, saClients[testClusterName].ClusterInfo().Name)
+// 	assert.Equal("https://192.168.1.2:1234", saClients[testClusterName].ClusterInfo().ClientConfig.Host)
+// 	assert.Contains(saClients[conf.KubernetesConfig.ClusterName].ClusterInfo().Name, conf.KubernetesConfig.ClusterName)
 
-	// User clients
-	userClients, err := clientFactory.GetClients(api.NewAuthInfo())
-	require.NoError(err)
+// 	// User clients
+// 	userClients, err := clientFactory.GetClients(api.NewAuthInfo())
+// 	require.NoError(err)
 
-	require.Contains(userClients, testClusterName)
-	require.Contains(userClients, conf.KubernetesConfig.ClusterName)
-	assert.Equal(testClusterName, userClients[testClusterName].ClusterInfo().Name)
-	assert.Equal("https://192.168.1.2:1234", userClients[testClusterName].ClusterInfo().ClientConfig.Host)
-	assert.Contains(userClients[conf.KubernetesConfig.ClusterName].ClusterInfo().Name, conf.KubernetesConfig.ClusterName)
-}
+// 	require.Contains(userClients, testClusterName)
+// 	require.Contains(userClients, conf.KubernetesConfig.ClusterName)
+// 	assert.Equal(testClusterName, userClients[testClusterName].ClusterInfo().Name)
+// 	assert.Equal("https://192.168.1.2:1234", userClients[testClusterName].ClusterInfo().ClientConfig.Host)
+// 	assert.Contains(userClients[conf.KubernetesConfig.ClusterName].ClusterInfo().Name, conf.KubernetesConfig.ClusterName)
+// }

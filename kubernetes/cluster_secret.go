@@ -1,9 +1,13 @@
 package kubernetes
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
+
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/kiali/kiali/log"
 )
@@ -11,42 +15,42 @@ import (
 // RemoteClusterInfo is data that identifies a cluster particpating in the mesh. Multi-cluster meshes have multiple RemoteClusterInfos.
 // Information obtained for a RemoteClusterInfo comes from remote cluster secrets.
 type RemoteClusterInfo struct {
-	// Cluster contains information necessary to connect to the remote cluster
-	Cluster RemoteSecretClusterListItem
+	// Config contains information necessary to connect to the remote cluster
+	Config clientcmd.ClientConfig
 	// SecretFile is the absolute file location of the secret as found on the file system
 	SecretFile string
 	// SecretName is the name of the secret where the data about this cluster was found
 	SecretName string
 	// User contains information about the user credentials that can be used to connect to the remote cluster
-	User RemoteSecretUser
+	// User RemoteSecretUser
 }
 
 // newRemoteClusterInfo returns a new RemoteClusterInfo with Cluster and User data that are extracted from the given kubeconfig data.
 // It is assumed there is a single cluster in the given kubeconfig - otherwise, an error is returned.
 // If multiple users are defined in the given kubeconfig, the first one in the user list is used.
-func newRemoteClusterInfo(secretName string, secretFile string, kubeconfig []byte) (RemoteClusterInfo, error) {
-	parsedSecret, parseErr := ParseRemoteSecretBytes(kubeconfig)
-	if parseErr != nil {
-		return RemoteClusterInfo{}, fmt.Errorf("Failed to parse bytes from remote cluster secret [%s](%s): %v", secretName, secretFile, parseErr)
+func newRemoteClusterInfo(secretName string, secretFile string) (RemoteClusterInfo, error) {
+	// TODO: Fix this to read file.
+	cfg, err := clientcmd.LoadFromFile(secretFile)
+	if err != nil {
+		return RemoteClusterInfo{}, fmt.Errorf("Failed to parse bytes from remote cluster secret [%s](%s): %v", secretName, secretFile, err)
 	}
 
-	if len(parsedSecret.Clusters) != 1 {
-		return RemoteClusterInfo{}, fmt.Errorf("Bytes for remote cluster secret [%s](%s) has [%v] clusters associated with it", secretName, secretFile, len(parsedSecret.Clusters))
+	if len(cfg.Clusters) != 1 {
+		return RemoteClusterInfo{}, fmt.Errorf("Bytes for remote cluster secret [%s](%s) has [%v] clusters associated with it", secretName, secretFile, len(cfg.Clusters))
 	}
 
-	if len(parsedSecret.Users) == 0 {
+	if len(cfg.AuthInfos) == 0 {
 		return RemoteClusterInfo{}, fmt.Errorf("Bytes for remote cluster secret [%s](%s) has 0 users associated with it", secretName, secretFile)
 	}
 
-	if len(parsedSecret.Users) > 1 {
-		log.Warningf("Bytes for remote cluster secret [%s](%s) has [%v] users associated with it - will use the first one", secretName, secretFile, len(parsedSecret.Users))
+	if len(cfg.AuthInfos) > 1 {
+		log.Warningf("Bytes for remote cluster secret [%s](%s) has [%v] users associated with it - will use the first one", secretName, secretFile, len(cfg.AuthInfos))
 	}
 
 	return RemoteClusterInfo{
-		Cluster:    parsedSecret.Clusters[0],
+		Config:     clientcmd.NewDefaultClientConfig(*cfg, nil),
 		SecretFile: secretFile,
 		SecretName: secretName,
-		User:       parsedSecret.Users[0],
 	}, nil
 }
 
@@ -107,21 +111,14 @@ func getRemoteClusterInfosFromDir(rootSecretsDir string) (map[string]RemoteClust
 			if statinfo.IsDir() || staterr != nil {
 				continue // we only want to process readable files - we are not interested in other files that get mounted here
 			}
+
+			// TODO: Can we use custom loading rules for these validations? Do we need these?
 			if previousSecret, ok := remoteClusterSecretNames[clusterName]; ok {
 				log.Errorf("Cluster [%s] was already defined in secret [%v]. Two secrets must not provide information on the same cluster.", clusterName, previousSecret)
 				continue
 			}
-			b, err := os.ReadFile(secretAbsFile)
-			if err != nil {
-				log.Errorf("Failed to read remote cluster secret file [%s]: %v", secretAbsFile, err)
-				continue
-			}
-			if len(b) == 0 {
-				log.Errorf("There is no data in remote cluster secret file [%s]", secretAbsFile)
-				continue
-			}
 
-			nextCluster, err := newRemoteClusterInfo(secretName, secretAbsFile, b)
+			nextCluster, err := newRemoteClusterInfo(secretName, secretAbsFile)
 			if err != nil {
 				log.Errorf("Failed to process data for remote cluster [%s] and file [%s]. Err: %s", clusterName, secretAbsFile, err)
 				continue
@@ -135,24 +132,44 @@ func getRemoteClusterInfosFromDir(rootSecretsDir string) (map[string]RemoteClust
 	return meshClusters, nil
 }
 
+// Assuming there's only one cluster in the kubeconfig, returns the first one.
+// TODO: Use this.
+func getClusterName(config *api.Config) string {
+	var clusterName string
+	for name := range config.Clusters {
+		clusterName = name
+		break
+	}
+	return clusterName
+}
+
 // reloadRemoteClusterInfoFromFile will re-read the remote cluster secret from the file system and if the data is different
 // than the given RemoteClusterInfo, a new one is returned. Otherwise, nil is returned to indicate nothing has changed and
 // the given RemoteClusterInfo is already up to date.
 func reloadRemoteClusterInfoFromFile(rci RemoteClusterInfo) (*RemoteClusterInfo, error) {
-	b, err := os.ReadFile(rci.SecretFile)
+	// TODO: Do we need that interface? Why'd I add it to begin with?
+	newRci, err := newRemoteClusterInfo(rci.SecretName, rci.SecretFile)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to reload remote cluster [%s] secret file [%s]: %v", rci.Cluster.Name, rci.SecretFile, err)
-	}
-	if len(b) == 0 {
-		return nil, fmt.Errorf("There is no data in remote cluster [%s] secret file [%s]", rci.Cluster.Name, rci.SecretFile)
+		// return nil, fmt.Errorf("Failed to process data for remote cluster [%s] secret file [%s]", getClusterName(rci.Config), rci.SecretFile)
+		return nil, fmt.Errorf("failed to process data for remote cluster secret file [%s]", rci.SecretFile)
 	}
 
-	newRci, err := newRemoteClusterInfo(rci.SecretName, rci.SecretFile, b)
+	// Compare the byte representation of the two?
+	// TODO: Better way of comparing?
+	o, _ := rci.Config.RawConfig()
+	old, err := clientcmd.Write(o)
+	// old, err := clientcmd.Write(rci.Config)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to process data for remote cluster [%s] secret file [%s]", rci.Cluster.Name, rci.SecretFile)
+		return nil, fmt.Errorf("unable to marshal old config. Err: %s", err)
+	}
+	n, _ := rci.Config.RawConfig()
+	new, err := clientcmd.Write(n)
+	// new, err := clientcmd.Write(newRci.Config)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal old config. Err: %s", err)
 	}
 
-	if rci != newRci {
+	if !bytes.Equal(old, new) {
 		return &newRci, nil
 	}
 

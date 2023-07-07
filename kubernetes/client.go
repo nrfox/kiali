@@ -2,21 +2,14 @@ package kubernetes
 
 import (
 	"context"
-	"encoding/base64"
-	"fmt"
-	"net"
-	"os"
-	"strings"
 
 	istio "istio.io/client-go/pkg/clientset/versioned"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
 	kube "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd/api"
 	gatewayapiclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
 
-	kialiConfig "github.com/kiali/kiali/config"
 	kialiconfig "github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/util/httputil"
@@ -95,136 +88,76 @@ func (client *K8SClient) GetToken() string {
 	return client.token
 }
 
-func SetUserIdentificationFromRemoteSecretUser(config *rest.Config, user *RemoteSecretUser) {
-	if len(user.User.Token) > 0 {
-		config.BearerToken = user.User.Token
+func getConfig(clusterInfo *RemoteClusterInfo) (*rest.Config, error) {
+	// TODO: QPS and Burst
+	if clusterInfo != nil {
+		// clientcmd.R
+		return clusterInfo.Config.ClientConfig()
 	}
-	exec := user.User.Exec
-	if exec != nil {
-		c := kialiConfig.Get()
-		if c.KialiFeatureFlags.Clustering.EnableExecProvider {
-			config.ExecProvider = &api.ExecConfig{
-				Command:            exec.Command,
-				Args:               exec.Args,
-				Env:                exec.Env,
-				APIVersion:         exec.APIVersion,
-				InstallHint:        cleanANSIEscapeCodes(exec.InstallHint),
-				ProvideClusterInfo: exec.ProvideClusterInfo,
-				InteractiveMode:    exec.InteractiveMode,
-			}
-			SetDefaultsExecConfig(config.ExecProvider)
-			log.Debugf("Auth ExecProvider has been detected: cmd=[%v], args=%v", exec.Command, exec.Args)
-		} else {
-			log.Warningf("Auth ExecProvider has been disabled. Connecting to remote clusters via an ExecProvider is prohibited.")
-		}
-	}
+
+	// If there's no remote cluster info then it must be in cluster.
+	return rest.InClusterConfig()
 }
 
 // GetConfigForRemoteClusterInfo points the returned k8s client config to a remote cluster's API server.
 // The returned config will have the user's token and ExecProvider associated with it.
 // If both are set, the bearer token takes precedence.
-func GetConfigForRemoteClusterInfo(cluster RemoteClusterInfo) (*rest.Config, error) {
-	config, err := GetConfigForRemoteCluster(cluster.Cluster)
-	if err != nil {
-		return nil, err
-	}
-	SetUserIdentificationFromRemoteSecretUser(config, &cluster.User)
-	return config, nil
+func GetConfigForRemoteClusterInfo(cluster *RemoteClusterInfo) (*rest.Config, error) {
+	return getConfig(cluster)
 }
 
 func (client *K8SClient) ClusterInfo() ClusterInfo {
 	return client.clusterInfo
 }
 
-// getConfigWithTokenForRemoteCluster points the returned k8s client config to a remote cluster's API server.
-// The returned config will have the given user's token associated with it.
-func getConfigWithTokenForRemoteCluster(cluster RemoteSecretClusterListItem, user RemoteSecretUser) (*rest.Config, error) {
-	config, err := GetConfigForRemoteCluster(cluster)
-	if err != nil {
-		return nil, err
-	}
-	config.BearerToken = user.User.Token
-	return config, nil
-}
-
-// GetConfigForRemoteCluster points the returned k8s client config to a remote cluster's API server.
-// The returned config will not have any user token associated with it.
-func GetConfigForRemoteCluster(cluster RemoteSecretClusterListItem) (*rest.Config, error) {
-	caData := cluster.Cluster.CertificateAuthorityData
-	rootCaDecoded, err := base64.StdEncoding.DecodeString(caData)
-	if err != nil {
-		return nil, err
-	}
-	// Basically implement rest.InClusterConfig() with the remote creds
-	tlsClientConfig := rest.TLSClientConfig{
-		CAData: []byte(rootCaDecoded),
-	}
-
-	serverParse := strings.Split(cluster.Cluster.Server, ":")
-	if len(serverParse) != 3 && len(serverParse) != 2 {
-		return nil, fmt.Errorf("invalid remote API server URL [%s]" + cluster.Cluster.Server)
-	}
-	host := strings.TrimPrefix(serverParse[1], "//")
-
-	port := "443"
-	if len(serverParse) == 3 {
-		port = serverParse[2]
-	}
-
-	if !strings.EqualFold(serverParse[0], "https") {
-		return nil, fmt.Errorf("only HTTPS protocol is allowed in remote API server URL [%s]", cluster.Cluster.Server)
-	}
-
-	// Leave the bearer token unset - the caller will be responsible to set that later, if it is needed.
-	c := kialiConfig.Get()
-	return &rest.Config{
-		Host:            "https://" + net.JoinHostPort(host, port),
-		TLSClientConfig: tlsClientConfig,
-		QPS:             c.KubernetesConfig.QPS,
-		Burst:           c.KubernetesConfig.Burst,
-	}, nil
-}
-
 // GetConfigForLocalCluster return a client with the correct configuration
 // Returns configuration if Kiali is in Cluster when InCluster is true
 // Returns configuration if Kiali is not in Cluster when InCluster is false
 // It returns an error on any problem
-func GetConfigForLocalCluster() (*rest.Config, error) {
-	c := kialiConfig.Get()
+// func GetConfigForLocalCluster() (*rest.Config, error) {
+// 	c := kialiConfig.Get()
 
-	if c.InCluster {
-		var incluster *rest.Config
-		var err error
-		if remoteSecret, readErr := GetRemoteSecret(RemoteSecretData); readErr == nil {
-			incluster, err = GetConfigForRemoteCluster(remoteSecret.Clusters[0])
-		} else {
-			incluster, err = rest.InClusterConfig()
-			if err != nil {
-				log.Errorf("Error '%v' getting config for local cluster", err.Error())
-				return nil, err
-			}
-			incluster.QPS = c.KubernetesConfig.QPS
-			incluster.Burst = c.KubernetesConfig.Burst
-		}
-		if err != nil {
-			return nil, err
-		}
-		return incluster, nil
-	}
+// 	// this is mainly for testing/running Kiali outside of the cluster
+// 	if !c.InCluster {
+// 		host, port := os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")
+// 		if len(host) == 0 || len(port) == 0 {
+// 			return nil, fmt.Errorf("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined")
+// 		}
 
-	// this is mainly for testing/running Kiali outside of the cluster
-	host, port := os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")
-	if len(host) == 0 || len(port) == 0 {
-		return nil, fmt.Errorf("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined")
-	}
+// 		return &rest.Config{
+// 			// TODO: switch to using cluster DNS.
+// 			Host:  "http://" + net.JoinHostPort(host, port),
+// 			QPS:   c.KubernetesConfig.QPS,
+// 			Burst: c.KubernetesConfig.Burst,
+// 		}, nil
+// 	}
+// 	clientcmd.BuildConfigFromFlags(masterUrl string, kubeconfigPath string)
 
-	return &rest.Config{
-		// TODO: switch to using cluster DNS.
-		Host:  "http://" + net.JoinHostPort(host, port),
-		QPS:   c.KubernetesConfig.QPS,
-		Burst: c.KubernetesConfig.Burst,
-	}, nil
-}
+// 	if c.InCluster {
+// 		var incluster *rest.Config
+// 		var err error
+// 		if remoteSecret, readErr := GetRemoteSecret(RemoteSecretData); readErr == nil {
+// 			for _, cluster := range remoteSecret.Clusters {
+// 				// TODO: Assume there's only one
+// 				incluster, err = GetConfigForRemoteCluster(*cluster)
+// 				break
+// 			}
+// 		} else {
+// 			incluster, err = rest.InClusterConfig()
+// 			if err != nil {
+// 				log.Errorf("Error '%v' getting config for local cluster", err.Error())
+// 				return nil, err
+// 			}
+// 			incluster.QPS = c.KubernetesConfig.QPS
+// 			incluster.Burst = c.KubernetesConfig.Burst
+// 		}
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		return incluster, nil
+// 	}
+
+// }
 
 func NewClientWithRemoteClusterInfo(config *rest.Config, remoteClusterInfo *RemoteClusterInfo) (*K8SClient, error) {
 	client, err := NewClientFromConfig(config)
@@ -232,9 +165,21 @@ func NewClientWithRemoteClusterInfo(config *rest.Config, remoteClusterInfo *Remo
 		return nil, err
 	}
 
+	// TODO: Figure out structure of this. Where should we get cluster name from? The kube cluster config is a map.
 	if remoteClusterInfo != nil {
+		cfg, err := remoteClusterInfo.Config.RawConfig()
+		if err != nil {
+			return nil, err
+		}
+
+		// TODO: Just get the first
+		var clusterName string
+		for cluster := range cfg.Clusters {
+			clusterName = cluster
+			break
+		}
 		client.clusterInfo = ClusterInfo{
-			Name:       remoteClusterInfo.Cluster.Name,
+			Name:       clusterName,
 			SecretName: remoteClusterInfo.SecretName,
 		}
 	} else {

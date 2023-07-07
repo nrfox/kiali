@@ -67,7 +67,7 @@ func GetClientFactory() (ClientFactory, error) {
 	once.Do(func() {
 		// Get the normal configuration
 		var config *rest.Config
-		config, err = GetConfigForLocalCluster()
+		config, err = getConfig(nil)
 		if err != nil {
 			return
 		}
@@ -88,6 +88,7 @@ func GetClientFactory() (ClientFactory, error) {
 // newClientFactory allows for specifying the config and expiry duration
 // Mock friendly for testing purposes
 func newClientFactory(restConfig *rest.Config) (*clientFactory, error) {
+	log.Debug("Creating new client factory")
 	f := &clientFactory{
 		baseRestConfig:  restConfig,
 		clientEntries:   make(map[string]map[string]ClientInterface),
@@ -118,12 +119,13 @@ func newClientFactory(restConfig *rest.Config) (*clientFactory, error) {
 
 	f.saClientEntries[f.homeCluster] = homeClient
 
-	for _, clusterInfo := range remoteClusterInfos {
+	// TODO: Should we use cluster here for the name?
+	for cluster, clusterInfo := range remoteClusterInfos {
 		client, err := f.newSAClient(&clusterInfo)
 		if err != nil {
 			return nil, err
 		}
-		f.saClientEntries[clusterInfo.Cluster.Name] = client
+		f.saClientEntries[cluster] = client
 	}
 
 	return f, nil
@@ -164,18 +166,13 @@ func (cf *clientFactory) newClient(authInfo *api.AuthInfo, expirationTime time.D
 		}
 
 		if kialiToken != authInfo.Token {
-			// Using `UseRemoteCreds` function as a helper
-			apiProxyConfig, errProxy := GetConfigForRemoteCluster(RemoteSecretClusterListItem{
-				Cluster: RemoteSecretCluster{
-					CertificateAuthorityData: cfg.Auth.OpenId.ApiProxyCAData,
-					Server:                   cfg.Auth.OpenId.ApiProxy,
-				},
-				Name: "api_proxy",
-			})
-
+			apiProxyConfig, errProxy := getConfig(nil)
 			if errProxy != nil {
 				return nil, errProxy
 			}
+
+			apiProxyConfig.CAData = []byte(cfg.Auth.OpenId.ApiProxyCAData)
+			apiProxyConfig.ServerName = cfg.Auth.OpenId.ApiProxy
 
 			config.Host = apiProxyConfig.Host
 			config.TLSClientConfig = apiProxyConfig.TLSClientConfig
@@ -210,19 +207,16 @@ func (cf *clientFactory) newClient(authInfo *api.AuthInfo, expirationTime time.D
 			return nil, fmt.Errorf("unable to find cluster [%s] in remote cluster info", cluster)
 		}
 
-		var remoteConfig *rest.Config
-		// In auth strategy should we use SA token
-		if cfg.Auth.Strategy == kialiConfig.AuthStrategyAnonymous {
-			remoteConfig, err = GetConfigForRemoteClusterInfo(clusterInfo)
-		} else {
-			remoteConfig, err = getConfigWithTokenForRemoteCluster(clusterInfo.Cluster,
-				RemoteSecretUser{
-					Name: authInfo.Username, User: RemoteSecretUserAuthInfo{Token: authInfo.Token},
-				})
-		}
+		remoteConfig, err := getConfig(&clusterInfo)
 		if err != nil {
 			log.Errorf("Error getting remote cluster [%s] info: %s", cluster, err)
 			return nil, err
+		}
+
+		// Replace the Kiali SA token with the user's auth token.
+		// In anonymous mode we'll keep the Kiali SA token.
+		if cfg.Auth.Strategy != kialiConfig.AuthStrategyAnonymous {
+			remoteConfig.BearerToken = authInfo.Token
 		}
 
 		newClient, err = NewClientWithRemoteClusterInfo(remoteConfig, &clusterInfo)
@@ -244,25 +238,12 @@ func (cf *clientFactory) newClient(authInfo *api.AuthInfo, expirationTime time.D
 // newSAClient returns a new client for the given cluster. If clusterInfo is nil then a client for the local cluster is returned.
 func (cf *clientFactory) newSAClient(remoteClusterInfo *RemoteClusterInfo) (*K8SClient, error) {
 	// if no cluster info is provided, we are being asked to create a new client for the home cluster
-	var config rest.Config
-	if remoteClusterInfo == nil {
-		config = *cf.baseRestConfig
-		if kialiConfig.Get().InCluster {
-			if saToken, err := GetKialiTokenForHomeCluster(); err != nil {
-				return nil, err
-			} else {
-				config.BearerToken = saToken
-			}
-		}
-	} else {
-		remoteConfig, err := GetConfigForRemoteClusterInfo(*remoteClusterInfo)
-		if err != nil {
-			return nil, err
-		}
-		config = *remoteConfig
+	config, err := getConfig(remoteClusterInfo)
+	if err != nil {
+		return nil, err
 	}
 
-	client, err := NewClientWithRemoteClusterInfo(&config, remoteClusterInfo)
+	client, err := NewClientWithRemoteClusterInfo(config, remoteClusterInfo)
 	if err != nil {
 		return nil, err
 	}

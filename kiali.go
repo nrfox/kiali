@@ -218,6 +218,12 @@ func determineContainerVersion(defaultVersion string) string {
 
 func updateConfigWithIstioInfo() {
 	conf := *config.Get()
+
+	if !conf.InCluster {
+		// If it's not an in-cluster kiali, we don't need to do anything
+		return
+	}
+
 	homeCluster := conf.KubernetesConfig.ClusterName
 	if homeCluster != "" {
 		// If the cluster name is already set, we don't need to do anything
@@ -225,7 +231,9 @@ func updateConfigWithIstioInfo() {
 	}
 
 	err := func() error {
-		restConf, err := kubernetes.GetConfigForLocalCluster()
+		// Basically we need to know if it's an "external kiali" or if it's an "in cluster kiali".
+		// If it's external then we shouldn't try to get the cluster name from the k8s API.
+		restConf, err := kubernetes.GetConfigForRemoteClusterInfo(nil)
 		if err != nil {
 			return err
 		}
