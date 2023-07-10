@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"gopkg.in/yaml.v2"
 	extentions_v1alpha1 "istio.io/client-go/pkg/apis/extensions/v1alpha1"
@@ -126,10 +125,6 @@ var newSecurityConfigTypes = []string{
 // per a given Namespace.
 // @TODO this method should be replaced by GetIstioConfigMap
 func (in *IstioConfigService) GetIstioConfigList(ctx context.Context, criteria IstioConfigCriteria) (models.IstioConfigList, error) {
-	startTime := time.Now()
-	defer func() {
-		log.Debugf("GetIstioConfigList took %v", time.Since(startTime))
-	}()
 	istioConfigList := models.IstioConfigList{
 		Namespace: models.Namespace{Name: criteria.Namespace},
 
@@ -232,10 +227,6 @@ func (in *IstioConfigService) GetIstioConfigMap(ctx context.Context, criteria Is
 }
 
 func (in *IstioConfigService) getIstioConfigListForCluster(ctx context.Context, criteria IstioConfigCriteria, cluster string) (models.IstioConfigList, error) {
-	startTime := time.Now()
-	defer func() {
-		log.Debugf("getIstioConfigListForCluster took %v", time.Since(startTime))
-	}()
 	var end observability.EndFunc
 	ctx, end = observability.StartSpan(ctx, "GetIstioConfigList",
 		observability.Attribute("package", "business"),

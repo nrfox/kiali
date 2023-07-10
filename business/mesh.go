@@ -129,7 +129,6 @@ func (in *MeshService) discoverKiali(ctx context.Context, clusterName string, r 
 	// The operator and the helm charts set this fixed label. It's also
 	// present in the Istio addon manifest of Kiali.
 	kialiAppLabel := "app.kubernetes.io/part-of=kiali"
-	log.Debug("Listing manually")
 	services, err := client.Kube().CoreV1().Services(metav1.NamespaceAll).List(ctx, metav1.ListOptions{LabelSelector: kialiAppLabel})
 	if err != nil {
 		log.Warningf("Discovery for Kiali instances in cluster [%s] failed: %s", clusterName, err.Error())

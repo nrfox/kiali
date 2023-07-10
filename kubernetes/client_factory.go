@@ -88,7 +88,6 @@ func GetClientFactory() (ClientFactory, error) {
 // newClientFactory allows for specifying the config and expiry duration
 // Mock friendly for testing purposes
 func newClientFactory(restConfig *rest.Config) (*clientFactory, error) {
-	log.Debug("Creating new client factory")
 	f := &clientFactory{
 		baseRestConfig:  restConfig,
 		clientEntries:   make(map[string]map[string]ClientInterface),
@@ -119,7 +118,6 @@ func newClientFactory(restConfig *rest.Config) (*clientFactory, error) {
 
 	f.saClientEntries[f.homeCluster] = homeClient
 
-	// TODO: Should we use cluster here for the name?
 	for cluster, clusterInfo := range remoteClusterInfos {
 		client, err := f.newSAClient(&clusterInfo)
 		if err != nil {
@@ -133,10 +131,6 @@ func newClientFactory(restConfig *rest.Config) (*clientFactory, error) {
 
 // newClient creates a new ClientInterface based on a users k8s token
 func (cf *clientFactory) newClient(authInfo *api.AuthInfo, expirationTime time.Duration, cluster string) (ClientInterface, error) {
-	startTime := time.Now()
-	defer func() {
-		log.Debugf("newClient took %v", time.Since(startTime))
-	}()
 	config := *cf.baseRestConfig
 
 	config.BearerToken = authInfo.Token
@@ -399,12 +393,6 @@ func (cf *clientFactory) GetSAClient(cluster string) ClientInterface {
 
 // Check for kiali token changes and refresh the client when it does.
 func (cf *clientFactory) refreshClientIfTokenChanged(cluster string) error {
-	log.Debug("Checking if token needs a refresh")
-	startTime := time.Now()
-	defer func() {
-		log.Debugf("Token refresh check took %v", time.Since(startTime))
-	}()
-	// TODO: Check ShouldToken?
 	var refreshTheClient bool // will be true if the client needs to be refreshed
 	var rci *RemoteClusterInfo
 

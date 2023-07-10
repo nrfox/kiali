@@ -2,7 +2,6 @@ package business
 
 import (
 	"sync"
-	"time"
 
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -239,10 +238,6 @@ func (in *RegistryStatusService) checkAndRefresh() error {
 }
 
 func (in *RegistryStatusService) refreshRegistryStatus() (*kubernetes.RegistryStatus, error) {
-	startTime := time.Now()
-	defer func() {
-		log.Debugf("refreshRegistryStatus took %v", time.Since(startTime))
-	}()
 	var registryConfiguration *kubernetes.RegistryConfiguration
 	var registryEndpoints []*kubernetes.RegistryEndpoint
 	var registryServices []*kubernetes.RegistryService

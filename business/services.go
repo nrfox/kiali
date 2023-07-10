@@ -107,10 +107,6 @@ func (in *SvcService) GetServiceList(ctx context.Context, criteria ServiceCriter
 }
 
 func (in *SvcService) getServiceListForCluster(ctx context.Context, criteria ServiceCriteria, cluster string) (*models.ServiceList, error) {
-	startTime := time.Now()
-	defer func() {
-		log.Debugf("getServiceListForCluster [%s] took %v", cluster, time.Since(startTime))
-	}()
 	var (
 		svcs            []core_v1.Service
 		rSvcs           []*kubernetes.RegistryService
@@ -165,10 +161,6 @@ func (in *SvcService) getServiceListForCluster(ctx context.Context, criteria Ser
 			if in.config.InCluster {
 				return
 			}
-			startTime := time.Now()
-			defer func() {
-				log.Debugf("GetRegistryServices [%s] took %v", cluster, time.Since(startTime))
-			}()
 			var err2 error
 			registryCriteria := RegistryCriteria{
 				Namespace:       criteria.Namespace,

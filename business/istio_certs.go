@@ -3,14 +3,12 @@ package business
 import (
 	"sort"
 	"sync"
-	"time"
 
 	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
-	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/models"
 )
 
@@ -163,10 +161,6 @@ func (ics *IstioCertsService) getChironCertificates(certsConfig []certConfig) ([
 }
 
 func (ics *IstioCertsService) GetTlsMinVersion() (string, error) {
-	startTime := time.Now()
-	defer func() {
-		log.Tracef("IstioCertsService.GetTlsMinVersion() %v", time.Since(startTime))
-	}()
 	cfg := config.Get()
 
 	istioConfigMap, err := ics.k8s.GetConfigMap(cfg.IstioNamespace, cfg.ExternalServices.Istio.ConfigMapName)
