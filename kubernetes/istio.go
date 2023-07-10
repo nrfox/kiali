@@ -276,6 +276,10 @@ func (in *K8SClient) GetProxyStatus() ([]*ProxyStatus, error) {
 }
 
 func (in *K8SClient) GetRegistryServices() ([]*RegistryService, error) {
+	start := time.Now()
+	defer func() {
+		log.Debugf("GetRegistryServices() took %v", time.Since(start))
+	}()
 	const registryzPath = "/debug/registryz"
 	var result map[string][]byte
 
@@ -299,6 +303,10 @@ func (in *K8SClient) GetRegistryServices() ([]*RegistryService, error) {
 }
 
 func (in *K8SClient) GetRegistryEndpoints() ([]*RegistryEndpoint, error) {
+	start := time.Now()
+	defer func() {
+		log.Debugf("GetRegistryEndpoints() took %v", time.Since(start))
+	}()
 	const endpointzPath = "/debug/endpointz"
 	var result map[string][]byte
 
@@ -322,6 +330,10 @@ func (in *K8SClient) GetRegistryEndpoints() ([]*RegistryEndpoint, error) {
 }
 
 func (in *K8SClient) GetRegistryConfiguration() (*RegistryConfiguration, error) {
+	start := time.Now()
+	defer func() {
+		log.Debugf("GetRegistryConfiguration() took %v", time.Since(start))
+	}()
 	const configzPath = "/debug/configz"
 	var result map[string][]byte
 

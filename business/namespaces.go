@@ -539,10 +539,10 @@ func (in *NamespaceService) GetNamespaceClusters(ctx context.Context, namespace 
 // GetNamespace returns the definition of the specified namespace.
 // TODO: Multicluster: We are going to need something else to identify the namespace, the cluster (OR Return a list/array/map)
 func (in *NamespaceService) GetNamespaceByCluster(ctx context.Context, namespace string, cluster string) (*models.Namespace, error) {
-	startTime := time.Now()
-	defer func() {
-		log.Debugf("GetNamespaceByCluster namespace: [%s] cluster: [%s] time: %v", namespace, cluster, time.Since(startTime))
-	}()
+	// startTime := time.Now()
+	// defer func() {
+	// 	log.Debugf("GetNamespaceByCluster namespace: [%s] cluster: [%s] time: %v", namespace, cluster, time.Since(startTime))
+	// }()
 	var end observability.EndFunc
 	ctx, end = observability.StartSpan(ctx, "GetNamespaceByCluster",
 		observability.Attribute("package", "business"),
