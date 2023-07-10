@@ -89,14 +89,26 @@ func (client *K8SClient) GetToken() string {
 }
 
 func getConfig(clusterInfo *RemoteClusterInfo) (*rest.Config, error) {
-	// TODO: QPS and Burst
+	var (
+		clientConfig *rest.Config
+		err          error
+	)
 	if clusterInfo != nil {
-		// clientcmd.R
-		return clusterInfo.Config.ClientConfig()
+		clientConfig, err = clusterInfo.Config.ClientConfig()
+	} else {
+		// If there's no remote cluster info then it must be in cluster.
+		clientConfig, err = rest.InClusterConfig()
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	// If there's no remote cluster info then it must be in cluster.
-	return rest.InClusterConfig()
+	// Override some settings with what's in kiali config
+	kialiConfig := kialiconfig.Get()
+	clientConfig.QPS = kialiConfig.KubernetesConfig.QPS
+	clientConfig.Burst = kialiConfig.KubernetesConfig.Burst
+
+	return clientConfig, nil
 }
 
 // GetConfigForRemoteClusterInfo points the returned k8s client config to a remote cluster's API server.
@@ -114,50 +126,9 @@ func (client *K8SClient) ClusterInfo() ClusterInfo {
 // Returns configuration if Kiali is in Cluster when InCluster is true
 // Returns configuration if Kiali is not in Cluster when InCluster is false
 // It returns an error on any problem
-// func GetConfigForLocalCluster() (*rest.Config, error) {
-// 	c := kialiConfig.Get()
-
-// 	// this is mainly for testing/running Kiali outside of the cluster
-// 	if !c.InCluster {
-// 		host, port := os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")
-// 		if len(host) == 0 || len(port) == 0 {
-// 			return nil, fmt.Errorf("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined")
-// 		}
-
-// 		return &rest.Config{
-// 			// TODO: switch to using cluster DNS.
-// 			Host:  "http://" + net.JoinHostPort(host, port),
-// 			QPS:   c.KubernetesConfig.QPS,
-// 			Burst: c.KubernetesConfig.Burst,
-// 		}, nil
-// 	}
-// 	clientcmd.BuildConfigFromFlags(masterUrl string, kubeconfigPath string)
-
-// 	if c.InCluster {
-// 		var incluster *rest.Config
-// 		var err error
-// 		if remoteSecret, readErr := GetRemoteSecret(RemoteSecretData); readErr == nil {
-// 			for _, cluster := range remoteSecret.Clusters {
-// 				// TODO: Assume there's only one
-// 				incluster, err = GetConfigForRemoteCluster(*cluster)
-// 				break
-// 			}
-// 		} else {
-// 			incluster, err = rest.InClusterConfig()
-// 			if err != nil {
-// 				log.Errorf("Error '%v' getting config for local cluster", err.Error())
-// 				return nil, err
-// 			}
-// 			incluster.QPS = c.KubernetesConfig.QPS
-// 			incluster.Burst = c.KubernetesConfig.Burst
-// 		}
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		return incluster, nil
-// 	}
-
-// }
+func GetConfigForLocalCluster() (*rest.Config, error) {
+	return getConfig(nil)
+}
 
 func NewClientWithRemoteClusterInfo(config *rest.Config, remoteClusterInfo *RemoteClusterInfo) (*K8SClient, error) {
 	client, err := NewClientFromConfig(config)

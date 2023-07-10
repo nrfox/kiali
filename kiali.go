@@ -233,7 +233,7 @@ func updateConfigWithIstioInfo() {
 	err := func() error {
 		// Basically we need to know if it's an "external kiali" or if it's an "in cluster kiali".
 		// If it's external then we shouldn't try to get the cluster name from the k8s API.
-		restConf, err := kubernetes.GetConfigForRemoteClusterInfo(nil)
+		restConf, err := kubernetes.GetConfigForLocalCluster()
 		if err != nil {
 			return err
 		}
