@@ -147,7 +147,6 @@ func getClusterName(config *api.Config) string {
 // than the given RemoteClusterInfo, a new one is returned. Otherwise, nil is returned to indicate nothing has changed and
 // the given RemoteClusterInfo is already up to date.
 func reloadRemoteClusterInfoFromFile(rci RemoteClusterInfo) (*RemoteClusterInfo, error) {
-	// TODO: Do we need that interface? Why'd I add it to begin with?
 	newRci, err := newRemoteClusterInfo(rci.SecretName, rci.SecretFile)
 	if err != nil {
 		// return nil, fmt.Errorf("Failed to process data for remote cluster [%s] secret file [%s]", getClusterName(rci.Config), rci.SecretFile)

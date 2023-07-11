@@ -43,6 +43,7 @@ import (
 	"github.com/kiali/kiali/server"
 	"github.com/kiali/kiali/status"
 	"github.com/kiali/kiali/util"
+	"k8s.io/client-go/rest"
 )
 
 // Identifies the build. These are set via ldflags during the build (see Makefile).
@@ -233,7 +234,7 @@ func updateConfigWithIstioInfo() {
 	err := func() error {
 		// Basically we need to know if it's an "external kiali" or if it's an "in cluster kiali".
 		// If it's external then we shouldn't try to get the cluster name from the k8s API.
-		restConf, err := kubernetes.GetConfigForLocalCluster()
+		restConf, err := rest.InClusterConfig()
 		if err != nil {
 			return err
 		}

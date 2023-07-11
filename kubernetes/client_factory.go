@@ -67,7 +67,7 @@ func GetClientFactory() (ClientFactory, error) {
 	once.Do(func() {
 		// Get the normal configuration
 		var config *rest.Config
-		config, err = getConfig(nil)
+		config, err = rest.InClusterConfig()
 		if err != nil {
 			return
 		}
@@ -113,7 +113,7 @@ func newClientFactory(restConfig *rest.Config) (*clientFactory, error) {
 	// remote cluster secret token must be given the same permissions as the local cluster Kiali SA.
 	homeClient, err := f.newSAClient(nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to create home cluster Kiali Service Account client. Err: %s", err)
 	}
 
 	f.saClientEntries[f.homeCluster] = homeClient
@@ -121,7 +121,7 @@ func newClientFactory(restConfig *rest.Config) (*clientFactory, error) {
 	for cluster, clusterInfo := range remoteClusterInfos {
 		client, err := f.newSAClient(&clusterInfo)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to create remote Kiali Service Account client. Err: %s", err)
 		}
 		f.saClientEntries[cluster] = client
 	}
@@ -164,7 +164,7 @@ func (cf *clientFactory) newClient(authInfo *api.AuthInfo, expirationTime time.D
 		}
 
 		if kialiToken != authInfo.Token {
-			apiProxyConfig, errProxy := getConfig(nil)
+			apiProxyConfig, errProxy := cf.getConfig(nil)
 			if errProxy != nil {
 				return nil, errProxy
 			}
@@ -205,15 +205,17 @@ func (cf *clientFactory) newClient(authInfo *api.AuthInfo, expirationTime time.D
 			return nil, fmt.Errorf("unable to find cluster [%s] in remote cluster info", cluster)
 		}
 
-		remoteConfig, err := getConfig(&clusterInfo)
+		remoteConfig, err := cf.getConfig(&clusterInfo)
 		if err != nil {
 			log.Errorf("Error getting remote cluster [%s] info: %s", cluster, err)
 			return nil, err
 		}
 
 		// Replace the Kiali SA token with the user's auth token.
-		// In anonymous mode we'll keep the Kiali SA token.
-		if cfg.Auth.Strategy != kialiConfig.AuthStrategyAnonymous {
+		// In anonymous mode and when OpenID RBAC is disabled use the Kiali SA token
+		// since these modes don't have a user token.
+		if (cfg.Auth.Strategy != kialiConfig.AuthStrategyAnonymous) ||
+			(cfg.Auth.Strategy == kialiConfig.AuthStrategyOpenId && cfg.Auth.OpenId.DisableRBAC) {
 			remoteConfig.BearerToken = authInfo.Token
 		}
 
@@ -236,7 +238,7 @@ func (cf *clientFactory) newClient(authInfo *api.AuthInfo, expirationTime time.D
 // newSAClient returns a new client for the given cluster. If clusterInfo is nil then a client for the local cluster is returned.
 func (cf *clientFactory) newSAClient(remoteClusterInfo *RemoteClusterInfo) (*K8SClient, error) {
 	// if no cluster info is provided, we are being asked to create a new client for the home cluster
-	config, err := getConfig(remoteClusterInfo)
+	config, err := cf.getConfig(remoteClusterInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -444,4 +446,39 @@ func (cf *clientFactory) refreshClientIfTokenChanged(cluster string) error {
 // KialiSAHomeClusterClient returns the Kiali service account client for the cluster where Kiali is running.
 func (cf *clientFactory) GetSAHomeClusterClient() ClientInterface {
 	return cf.GetSAClient(cf.homeCluster)
+}
+
+func (cf *clientFactory) getConfig(clusterInfo *RemoteClusterInfo) (*rest.Config, error) {
+	kialiConfig := kialiConfig.Get()
+	clientConfig := *cf.baseRestConfig
+
+	// Remote Cluster
+	if clusterInfo != nil {
+		remoteConfig, err := clusterInfo.Config.ClientConfig()
+		if err != nil {
+			return nil, err
+		}
+
+		if !kialiConfig.KialiFeatureFlags.Clustering.EnableExecProvider {
+			remoteConfig.ExecProvider = nil
+		}
+
+		// Use the remote config entirely for remote clusters.
+		clientConfig = *remoteConfig
+	} else {
+		// We're an in cluster client. Read the kiali service account token.
+		kialiToken, err := GetKialiTokenForHomeCluster()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get Kiali service account token: %s", err)
+		}
+
+		// Copy just the token for in cluster
+		clientConfig.BearerToken = kialiToken
+	}
+
+	// Override some settings with what's in kiali config
+	clientConfig.QPS = kialiConfig.KubernetesConfig.QPS
+	clientConfig.Burst = kialiConfig.KubernetesConfig.Burst
+
+	return &clientConfig, nil
 }

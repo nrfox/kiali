@@ -88,46 +88,8 @@ func (client *K8SClient) GetToken() string {
 	return client.token
 }
 
-func getConfig(clusterInfo *RemoteClusterInfo) (*rest.Config, error) {
-	var (
-		clientConfig *rest.Config
-		err          error
-	)
-	if clusterInfo != nil {
-		clientConfig, err = clusterInfo.Config.ClientConfig()
-	} else {
-		// If there's no remote cluster info then it must be in cluster.
-		clientConfig, err = rest.InClusterConfig()
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	// Override some settings with what's in kiali config
-	kialiConfig := kialiconfig.Get()
-	clientConfig.QPS = kialiConfig.KubernetesConfig.QPS
-	clientConfig.Burst = kialiConfig.KubernetesConfig.Burst
-
-	return clientConfig, nil
-}
-
-// GetConfigForRemoteClusterInfo points the returned k8s client config to a remote cluster's API server.
-// The returned config will have the user's token and ExecProvider associated with it.
-// If both are set, the bearer token takes precedence.
-func GetConfigForRemoteClusterInfo(cluster *RemoteClusterInfo) (*rest.Config, error) {
-	return getConfig(cluster)
-}
-
 func (client *K8SClient) ClusterInfo() ClusterInfo {
 	return client.clusterInfo
-}
-
-// GetConfigForLocalCluster return a client with the correct configuration
-// Returns configuration if Kiali is in Cluster when InCluster is true
-// Returns configuration if Kiali is not in Cluster when InCluster is false
-// It returns an error on any problem
-func GetConfigForLocalCluster() (*rest.Config, error) {
-	return getConfig(nil)
 }
 
 func NewClientWithRemoteClusterInfo(config *rest.Config, remoteClusterInfo *RemoteClusterInfo) (*K8SClient, error) {
