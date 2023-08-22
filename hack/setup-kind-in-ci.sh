@@ -174,7 +174,7 @@ ${HELM} install \
   --set health_config.rate[0].tolerance[0].degraded=2 \
   --set health_config.rate[0].tolerance[0].failure=100 \
   kiali-server \
-  helm-charts/_output/charts/kiali-server-*-SNAPSHOT.tgz
+  helm-charts/_output/charts/kiali-server-*.tgz
 
 # Create the citest service account whose token will be used to log into Kiali
 infomsg "Installing the test ServiceAccount with read-write permissions"
