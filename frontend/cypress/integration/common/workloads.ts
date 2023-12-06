@@ -1,7 +1,7 @@
 import { And, Given, Then } from '@badeball/cypress-cucumber-preprocessor';
-import { checkHealthIndicatorInTable, checkHealthStatusInTable, colExists, hasAtLeastOneClass } from './table';
+import { checkHealthIndicatorInTable, checkHealthStatusInTable, colExists } from './table';
 
-function activateFilter(state: string) {
+function activateFilter(state: string): void {
   //decided to pause the refresh, because I'm intercepting the very same request that is used for the timed refresh
 
   cy.get('button#time_range_refresh-toggle').click();
@@ -67,15 +67,17 @@ And('user should only see healthy workloads in workloads table', () => {
 });
 
 And('user should only see workloads with the {string} label', (label: string) => {
-  cy.wait('@refresh');
+  // TODO: purposefully breaking this to fail test.
+  cy.wait('@refre');
   cy.get('tbody').within(() => {
-    const regex = new RegExp('\\b' + label + '=');
+    const regex = new RegExp(`\\b${label}=`);
     cy.get('tr').each($item => {
       cy.wrap($item)
         .find('td')
         .eq(4)
         .within(() => {
-          cy.get('span').children().contains(regex);
+          // TODO: purposefully breaking this to fail test.
+          cy.get('sn').children().contains(regex);
         });
     });
   });

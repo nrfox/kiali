@@ -37,7 +37,7 @@ import (
 )
 
 // checkIstioAPIsExist checks if the istio APIs are present in the cluster
-// and returns an error if they are not.
+// and returns an error if they are not. This is not thread safe.
 func checkIstioAPIsExist(client kubernetes.ClientInterface) error {
 	if !client.IsIstioAPI() {
 		return fmt.Errorf("istio APIs and resources are not present in cluster [%s]", client.ClusterInfo().Name)
@@ -824,14 +824,15 @@ func (c *kubeCache) GetReplicaSets(namespace string) ([]apps_v1.ReplicaSet, erro
 }
 
 func (c *kubeCache) GetDestinationRule(namespace, name string) (*networking_v1beta1.DestinationRule, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	dr, err := c.getCacheLister(namespace).destinationRuleLister.DestinationRules(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -844,6 +845,11 @@ func (c *kubeCache) GetDestinationRule(namespace, name string) (*networking_v1be
 }
 
 func (c *kubeCache) GetDestinationRules(namespace, labelSelector string) ([]*networking_v1beta1.DestinationRule, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -852,11 +858,6 @@ func (c *kubeCache) GetDestinationRules(namespace, labelSelector string) ([]*net
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	drs := []*networking_v1beta1.DestinationRule{}
 	if namespace == metav1.NamespaceAll {
@@ -892,14 +893,15 @@ func (c *kubeCache) GetDestinationRules(namespace, labelSelector string) ([]*net
 }
 
 func (c *kubeCache) GetEnvoyFilter(namespace, name string) (*networking_v1alpha3.EnvoyFilter, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	ef, err := c.getCacheLister(namespace).envoyFilterLister.EnvoyFilters(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -912,6 +914,11 @@ func (c *kubeCache) GetEnvoyFilter(namespace, name string) (*networking_v1alpha3
 }
 
 func (c *kubeCache) GetEnvoyFilters(namespace, labelSelector string) ([]*networking_v1alpha3.EnvoyFilter, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -920,11 +927,6 @@ func (c *kubeCache) GetEnvoyFilters(namespace, labelSelector string) ([]*network
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	envoyFilters := []*networking_v1alpha3.EnvoyFilter{}
 	if namespace == metav1.NamespaceAll {
@@ -959,14 +961,15 @@ func (c *kubeCache) GetEnvoyFilters(namespace, labelSelector string) ([]*network
 }
 
 func (c *kubeCache) GetGateway(namespace, name string) (*networking_v1beta1.Gateway, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	gw, err := c.getCacheLister(namespace).gatewayLister.Gateways(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -978,6 +981,11 @@ func (c *kubeCache) GetGateway(namespace, name string) (*networking_v1beta1.Gate
 }
 
 func (c *kubeCache) GetGateways(namespace, labelSelector string) ([]*networking_v1beta1.Gateway, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -986,11 +994,6 @@ func (c *kubeCache) GetGateways(namespace, labelSelector string) ([]*networking_
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	gateways := []*networking_v1beta1.Gateway{}
 	if namespace == metav1.NamespaceAll {
@@ -1025,14 +1028,15 @@ func (c *kubeCache) GetGateways(namespace, labelSelector string) ([]*networking_
 }
 
 func (c *kubeCache) GetServiceEntry(namespace, name string) (*networking_v1beta1.ServiceEntry, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	se, err := c.getCacheLister(namespace).serviceEntryLister.ServiceEntries(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1044,6 +1048,11 @@ func (c *kubeCache) GetServiceEntry(namespace, name string) (*networking_v1beta1
 }
 
 func (c *kubeCache) GetServiceEntries(namespace, labelSelector string) ([]*networking_v1beta1.ServiceEntry, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1052,11 +1061,6 @@ func (c *kubeCache) GetServiceEntries(namespace, labelSelector string) ([]*netwo
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	serviceEntries := []*networking_v1beta1.ServiceEntry{}
 	if namespace == metav1.NamespaceAll {
@@ -1091,14 +1095,15 @@ func (c *kubeCache) GetServiceEntries(namespace, labelSelector string) ([]*netwo
 }
 
 func (c *kubeCache) GetSidecar(namespace, name string) (*networking_v1beta1.Sidecar, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	sc, err := c.getCacheLister(namespace).sidecarLister.Sidecars(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1110,6 +1115,11 @@ func (c *kubeCache) GetSidecar(namespace, name string) (*networking_v1beta1.Side
 }
 
 func (c *kubeCache) GetSidecars(namespace, labelSelector string) ([]*networking_v1beta1.Sidecar, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1118,11 +1128,6 @@ func (c *kubeCache) GetSidecars(namespace, labelSelector string) ([]*networking_
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	sidecars := []*networking_v1beta1.Sidecar{}
 	if namespace == metav1.NamespaceAll {
@@ -1157,14 +1162,15 @@ func (c *kubeCache) GetSidecars(namespace, labelSelector string) ([]*networking_
 }
 
 func (c *kubeCache) GetVirtualService(namespace, name string) (*networking_v1beta1.VirtualService, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	vs, err := c.getCacheLister(namespace).virtualServiceLister.VirtualServices(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1176,6 +1182,11 @@ func (c *kubeCache) GetVirtualService(namespace, name string) (*networking_v1bet
 }
 
 func (c *kubeCache) GetVirtualServices(namespace, labelSelector string) ([]*networking_v1beta1.VirtualService, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1184,11 +1195,6 @@ func (c *kubeCache) GetVirtualServices(namespace, labelSelector string) ([]*netw
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	vs := []*networking_v1beta1.VirtualService{}
 	if namespace == metav1.NamespaceAll {
@@ -1223,14 +1229,15 @@ func (c *kubeCache) GetVirtualServices(namespace, labelSelector string) ([]*netw
 }
 
 func (c *kubeCache) GetWorkloadEntry(namespace, name string) (*networking_v1beta1.WorkloadEntry, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	we, err := c.getCacheLister(namespace).workloadEntryLister.WorkloadEntries(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1242,6 +1249,11 @@ func (c *kubeCache) GetWorkloadEntry(namespace, name string) (*networking_v1beta
 }
 
 func (c *kubeCache) GetWorkloadEntries(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadEntry, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1250,11 +1262,6 @@ func (c *kubeCache) GetWorkloadEntries(namespace, labelSelector string) ([]*netw
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	workloadEntries := []*networking_v1beta1.WorkloadEntry{}
 	if namespace == metav1.NamespaceAll {
@@ -1289,14 +1296,15 @@ func (c *kubeCache) GetWorkloadEntries(namespace, labelSelector string) ([]*netw
 }
 
 func (c *kubeCache) GetWorkloadGroup(namespace, name string) (*networking_v1beta1.WorkloadGroup, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	wg, err := c.getCacheLister(namespace).workloadGroupLister.WorkloadGroups(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1308,6 +1316,11 @@ func (c *kubeCache) GetWorkloadGroup(namespace, name string) (*networking_v1beta
 }
 
 func (c *kubeCache) GetWorkloadGroups(namespace, labelSelector string) ([]*networking_v1beta1.WorkloadGroup, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1316,11 +1329,6 @@ func (c *kubeCache) GetWorkloadGroups(namespace, labelSelector string) ([]*netwo
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	workloadGroups := []*networking_v1beta1.WorkloadGroup{}
 	if namespace == metav1.NamespaceAll {
@@ -1355,14 +1363,15 @@ func (c *kubeCache) GetWorkloadGroups(namespace, labelSelector string) ([]*netwo
 }
 
 func (c *kubeCache) GetWasmPlugin(namespace, name string) (*extentions_v1alpha1.WasmPlugin, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	wp, err := c.getCacheLister(namespace).wasmPluginLister.WasmPlugins(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1374,6 +1383,11 @@ func (c *kubeCache) GetWasmPlugin(namespace, name string) (*extentions_v1alpha1.
 }
 
 func (c *kubeCache) GetWasmPlugins(namespace, labelSelector string) ([]*extentions_v1alpha1.WasmPlugin, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1382,11 +1396,6 @@ func (c *kubeCache) GetWasmPlugins(namespace, labelSelector string) ([]*extentio
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	wasmPlugins := []*extentions_v1alpha1.WasmPlugin{}
 	if namespace == metav1.NamespaceAll {
@@ -1421,14 +1430,15 @@ func (c *kubeCache) GetWasmPlugins(namespace, labelSelector string) ([]*extentio
 }
 
 func (c *kubeCache) GetTelemetry(namespace, name string) (*v1alpha1.Telemetry, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	t, err := c.getCacheLister(namespace).telemetryLister.Telemetries(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1440,6 +1450,11 @@ func (c *kubeCache) GetTelemetry(namespace, name string) (*v1alpha1.Telemetry, e
 }
 
 func (c *kubeCache) GetTelemetries(namespace, labelSelector string) ([]*v1alpha1.Telemetry, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1448,11 +1463,6 @@ func (c *kubeCache) GetTelemetries(namespace, labelSelector string) ([]*v1alpha1
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	telemetries := []*v1alpha1.Telemetry{}
 	if namespace == metav1.NamespaceAll {
@@ -1487,14 +1497,15 @@ func (c *kubeCache) GetTelemetries(namespace, labelSelector string) ([]*v1alpha1
 }
 
 func (c *kubeCache) GetK8sGateway(namespace, name string) (*gatewayapi_v1beta1.Gateway, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	g, err := c.getCacheLister(namespace).k8sgatewayLister.Gateways(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1506,6 +1517,11 @@ func (c *kubeCache) GetK8sGateway(namespace, name string) (*gatewayapi_v1beta1.G
 }
 
 func (c *kubeCache) GetK8sGateways(namespace, labelSelector string) ([]*gatewayapi_v1beta1.Gateway, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1514,11 +1530,6 @@ func (c *kubeCache) GetK8sGateways(namespace, labelSelector string) ([]*gatewaya
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	k8sGateways := []*gatewayapi_v1beta1.Gateway{}
 	if namespace == metav1.NamespaceAll {
@@ -1553,14 +1564,15 @@ func (c *kubeCache) GetK8sGateways(namespace, labelSelector string) ([]*gatewaya
 }
 
 func (c *kubeCache) GetK8sHTTPRoute(namespace, name string) (*gatewayapi_v1beta1.HTTPRoute, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	g, err := c.getCacheLister(namespace).k8shttprouteLister.HTTPRoutes(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1572,6 +1584,11 @@ func (c *kubeCache) GetK8sHTTPRoute(namespace, name string) (*gatewayapi_v1beta1
 }
 
 func (c *kubeCache) GetK8sHTTPRoutes(namespace, labelSelector string) ([]*gatewayapi_v1beta1.HTTPRoute, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1580,11 +1597,6 @@ func (c *kubeCache) GetK8sHTTPRoutes(namespace, labelSelector string) ([]*gatewa
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	k8sHTTPRoutes := []*gatewayapi_v1beta1.HTTPRoute{}
 	if namespace == metav1.NamespaceAll {
@@ -1619,14 +1631,15 @@ func (c *kubeCache) GetK8sHTTPRoutes(namespace, labelSelector string) ([]*gatewa
 }
 
 func (c *kubeCache) GetAuthorizationPolicy(namespace, name string) (*security_v1beta1.AuthorizationPolicy, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	ap, err := c.getCacheLister(namespace).authzLister.AuthorizationPolicies(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1638,6 +1651,11 @@ func (c *kubeCache) GetAuthorizationPolicy(namespace, name string) (*security_v1
 }
 
 func (c *kubeCache) GetAuthorizationPolicies(namespace, labelSelector string) ([]*security_v1beta1.AuthorizationPolicy, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1646,11 +1664,6 @@ func (c *kubeCache) GetAuthorizationPolicies(namespace, labelSelector string) ([
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	authorizationPolicies := []*security_v1beta1.AuthorizationPolicy{}
 	if namespace == metav1.NamespaceAll {
@@ -1685,14 +1698,15 @@ func (c *kubeCache) GetAuthorizationPolicies(namespace, labelSelector string) ([
 }
 
 func (c *kubeCache) GetPeerAuthentication(namespace, name string) (*security_v1beta1.PeerAuthentication, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	pa, err := c.getCacheLister(namespace).peerAuthnLister.PeerAuthentications(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1704,6 +1718,11 @@ func (c *kubeCache) GetPeerAuthentication(namespace, name string) (*security_v1b
 }
 
 func (c *kubeCache) GetPeerAuthentications(namespace, labelSelector string) ([]*security_v1beta1.PeerAuthentication, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1712,11 +1731,6 @@ func (c *kubeCache) GetPeerAuthentications(namespace, labelSelector string) ([]*
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	peerAuthentications := []*security_v1beta1.PeerAuthentication{}
 	if namespace == metav1.NamespaceAll {
@@ -1751,14 +1765,15 @@ func (c *kubeCache) GetPeerAuthentications(namespace, labelSelector string) ([]*
 }
 
 func (c *kubeCache) GetRequestAuthentication(namespace, name string) (*security_v1beta1.RequestAuthentication, error) {
-	if err := checkIstioAPIsExist(c.client); err != nil {
-		return nil, err
-	}
-
 	// Read lock will prevent the cache from being refreshed while we are reading from the lister
 	// but it won't prevent other routines from reading from the lister.
 	defer c.cacheLock.RUnlock()
 	c.cacheLock.RLock()
+
+	if err := checkIstioAPIsExist(c.client); err != nil {
+		return nil, err
+	}
+
 	ra, err := c.getCacheLister(namespace).requestAuthnLister.RequestAuthentications(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -1770,6 +1785,11 @@ func (c *kubeCache) GetRequestAuthentication(namespace, name string) (*security_
 }
 
 func (c *kubeCache) GetRequestAuthentications(namespace, labelSelector string) ([]*security_v1beta1.RequestAuthentication, error) {
+	// Read lock will prevent the cache from being refreshed while we are reading from the lister
+	// but it won't prevent other routines from reading from the lister.
+	defer c.cacheLock.RUnlock()
+	c.cacheLock.RLock()
+
 	if err := checkIstioAPIsExist(c.client); err != nil {
 		return nil, err
 	}
@@ -1778,11 +1798,6 @@ func (c *kubeCache) GetRequestAuthentications(namespace, labelSelector string) (
 	if err != nil {
 		return nil, err
 	}
-
-	// Read lock will prevent the cache from being refreshed while we are reading from the lister
-	// but it won't prevent other routines from reading from the lister.
-	defer c.cacheLock.RUnlock()
-	c.cacheLock.RLock()
 
 	requestAuthentications := []*security_v1beta1.RequestAuthentication{}
 	if namespace == metav1.NamespaceAll {
