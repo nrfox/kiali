@@ -61,13 +61,12 @@ When(
 );
 
 When('user deletes gateway named {string} and the resource is no longer available in any cluster', (name: string) => {
-  cy.exec(`kubectl delete gateway.networking.istio.io ${name} -n bookinfo --context ${CLUSTER1_CONTEXT}`, {
-    failOnNonZeroExit: false
-  });
-
-  cy.exec(`kubectl delete gateway.networking.istio.io ${name} -n bookinfo --context ${CLUSTER2_CONTEXT}`, {
-    failOnNonZeroExit: false
-  });
+  cy.exec(
+    `kubectl delete gateway.networking.istio.io ${name} -n bookinfo --context ${CLUSTER1_CONTEXT} --ignore-not-found true`
+  );
+  cy.exec(
+    `kubectl delete gateway.networking.istio.io ${name} -n bookinfo --context ${CLUSTER2_CONTEXT} --ignore-not-found true`
+  );
 
   ensureKialiFinishedLoading();
 });

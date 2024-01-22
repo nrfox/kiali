@@ -184,14 +184,30 @@ Then('{string} should be in preview', (value: string) => {
   cy.get('#ace-editor').contains(value);
 });
 
-Then('user selects {string} from the cluster dropdown',(clusters:string)=>{
-  clusters.split(",").forEach((value:string) =>{
+Then('user selects {string} from the cluster dropdown', (clusters: string) => {
+  clusters.split(',').forEach((value: string) => {
     cy.getBySel('cluster-dropdown').click();
     cy.get(`input[type="checkbox"][value="${value}"]`).check();
     cy.getBySel('cluster-dropdown').click();
-  })
+  });
 });
 
-Then('the {string} {string} should not be listed in {string} {string} namespace', (type:string, svc:string, cluster:string, ns:string) => {
-  cy.get(`[data-test="VirtualItem_Cluster${cluster}_Ns${ns}_${type.toLowerCase()}_${svc}"]`).should('not.exist');
-})
+Then(
+  'the {string} {string} should not be listed in {string} {string} namespace',
+  (type: string, svc: string, cluster: string, ns: string) => {
+    cy.get(`[data-test="VirtualItem_Cluster${cluster}_Ns${ns}_${type.toLowerCase()}_${svc}"]`).should('not.exist');
+  }
+);
+
+Then('the {string} namespace exists on the {string} cluster', (namespace: string, cluster: string) => {
+  cy.exec(
+    `kubectl get namespace --context kind-${cluster} ${namespace} || kubectl create namespace ${namespace} --context kind-${cluster}`
+  );
+  cy.getBySel('namespace-dropdown').should(dropdown => {
+    Cypress.$('[data-test="namespace-dropdown"]').trigger('click');
+    // TODO: Need a data-test for the namespace menu
+    const namespaceMenu = Cypress.$('.pf-v5-c-menu');
+    expect(namespaceMenu).to.contain.text(namespace);
+    // TODO: intercept namespaces request
+  });
+});
