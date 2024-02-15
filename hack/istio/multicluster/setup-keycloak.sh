@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)"
 source ${SCRIPT_DIR}/env.sh $*
 
 # backdoor delete functionality - set "DELETE_KEYCLOAK" to "true" to have this script delete things rather than install them
-if [ "${DELETE_KEYCLOAK}" == "true" ]; then
+if [ "${DELETE_KEYCLOAK:-}" == "true" ]; then
   echo "DELETING KEYCLOAK / OIDC FROM CLUSTER 1"
   helm uninstall --kube-context "${CLUSTER1_CONTEXT}" -n keycloak postgresql
   kubectl --context "${CLUSTER1_CONTEXT}" delete --ignore-not-found=true namespace keycloak
