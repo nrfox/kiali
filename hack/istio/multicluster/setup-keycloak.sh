@@ -168,7 +168,10 @@ EOF
 
 KEYCLOAK_ISSUER_URI="https://keycloak-keycloak.${APPS_DOMAIN}"
 
-# Create the configmap with the CA in it for the west cluster.
+# Create the configmap with the CA in it for cluster 1.
+kubectl --context "${CLUSTER1_CONTEXT}" create configmap keycloak-oidc-client-ca-cert --from-file=ca.crt="${INGRESS_ROUTER_CA_FILE}" -n openshift-config
+
+# Create the configmap with the CA in it for cluster 2.
 kubectl --context "${CLUSTER2_CONTEXT}" create configmap keycloak-oidc-client-ca-cert --from-file=ca.crt="${INGRESS_ROUTER_CA_FILE}" -n openshift-config
 
 function update_cluster_idp {
