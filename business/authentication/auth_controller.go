@@ -47,6 +47,9 @@ type AuthController interface {
 	TerminateSession(r *http.Request, w http.ResponseWriter) error
 }
 
+// TODO: What about the auth model needs to change?
+// Need token per cluster. auth info per cluster? extend auth info?
+
 // UserSessionData userSessionData
 // This is used for returning the token
 // swagger:model UserSessionData

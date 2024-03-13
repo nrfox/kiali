@@ -124,6 +124,7 @@ func newLayer(
 // NewLayer creates the business layer using the passed k8sClients and prom clients.
 // Note that the client passed here should *not* be the Kiali ServiceAccount client.
 // It should be the user client based on the logged in user's token.
+// TODO: Auth info. What should that be?
 func NewLayer(conf *config.Config, cache cache.KialiCache, cf kubernetes.ClientFactory, prom prometheus.ClientInterface, traceClient tracing.ClientInterface, cpm ControlPlaneMonitor, authInfo *api.AuthInfo) (*Layer, error) {
 	userClients, err := cf.GetClients(authInfo)
 	if err != nil {

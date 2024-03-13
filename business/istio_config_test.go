@@ -610,7 +610,7 @@ func TestListWithAllNamespacesButNoAccessReturnsEmpty(t *testing.T) {
 	// the token namespace cache will be used but will not have the "test" namespace
 	// in it so the list should return empty.
 	k8s.Token = "test"
-	cache.SetNamespaces("test", []models.Namespace{{Name: "nottest"}})
+	cache.SetNamespaces("test", "TODO", []models.Namespace{{Name: "nottest"}})
 	k8sclients := make(map[string]kubernetes.ClientInterface)
 	k8sclients[conf.KubernetesConfig.ClusterName] = k8s
 	configService := NewWithBackends(k8sclients, k8sclients, nil, nil).IstioConfig

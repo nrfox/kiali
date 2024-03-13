@@ -160,6 +160,7 @@ func getAuthInfo(r *http.Request) (*api.AuthInfo, error) {
 
 // getBusiness returns the business layer specific to the users's request
 func getBusiness(r *http.Request) (*business.Layer, error) {
+	// TODO: auth info per cluster? extend auth info?
 	authInfo, err := getAuthInfo(r)
 	if err != nil {
 		return nil, err

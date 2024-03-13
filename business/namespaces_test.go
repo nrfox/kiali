@@ -300,6 +300,7 @@ func TestGetNamespacesCached(t *testing.T) {
 	cache := cache.NewTestingCacheWithFactory(t, clientFactory, *conf)
 	cache.SetNamespaces(
 		k8s.GetToken(),
+		"TODO",
 		// gamma is only cached.
 		[]models.Namespace{{Name: "bookinfo"}, {Name: "alpha"}, {Name: "beta"}, {Name: "gamma", Cluster: "west"}},
 	)
@@ -345,6 +346,7 @@ func TestGetNamespacesForbiddenCached(t *testing.T) {
 	cache := cache.NewTestingCacheWithFactory(t, clientFactory, *conf)
 	cache.SetNamespaces(
 		k8s.GetToken(),
+		"TODO",
 		// Bookinfo is cached for the west cluster that the user has access to
 		// but NOT for the east cluster that the user doesn't have access to.
 		[]models.Namespace{{Name: "bookinfo", Cluster: "west"}},
