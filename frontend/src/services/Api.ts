@@ -148,6 +148,7 @@ export const extendSession = (): Promise<ApiResponse<LoginSession>> => {
 export const login = async (
   request: LoginRequest = { username: ANONYMOUS_USER, password: 'anonymous', token: '' }
 ): Promise<ApiResponse<LoginSession>> => {
+  // TODO: Need to pass the cluster here.
   const params = new URLSearchParams();
   params.append('token', request.token);
 
@@ -173,8 +174,9 @@ export const getAuthInfo = async (): Promise<ApiResponse<AuthInfo>> => {
   return newRequest<AuthInfo>(HTTP_VERBS.GET, urls.authInfo, {}, {});
 };
 
-export const checkOpenshiftAuth = async (data: unknown): Promise<ApiResponse<LoginSession>> => {
-  return newRequest<LoginSession>(HTTP_VERBS.POST, urls.authenticate, {}, data);
+export const checkOpenshiftAuth = async (data: unknown, params?: any): Promise<ApiResponse<LoginSession>> => {
+  // TODO: Authenciate?
+  return newRequest<LoginSession>(HTTP_VERBS.POST, urls.authenticate, params, data);
 };
 
 export const getStatus = (): Promise<ApiResponse<StatusState>> => {

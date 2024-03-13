@@ -40,7 +40,7 @@ interface ReduxStateProps {
 
 interface ReduxDispatchProps {
   addMessage: (content: string, detail: string, groupId?: string, msgType?: MessageType, showNotif?: boolean) => void;
-  checkCredentials: () => void;
+  checkCredentials: (clusterName?: string) => void;
   setActiveNamespaces: (namespaces: Namespace[]) => void;
   setDuration: (duration: DurationInSeconds) => void;
   setLandingRoute: (route: string | undefined) => void;
@@ -92,6 +92,15 @@ class AuthenticationControllerComponent extends React.Component<
 
   componentDidMount(): void {
     if (this.state.stage === LoginStage.LOGGED_IN_AT_LOAD) {
+      // logging in remote cluster:
+      if (authenticationConfig.strategy === AuthStrategy.openshift) {
+        // Remove redirfromoverview from the URL
+        // this.props.setLandingRoute
+        const pattern = /[#&](access_token|id_token)=/;
+        if (pattern.test(window.location.hash)) {
+          this.props.checkCredentials('west');
+        }
+      }
       this.doPostLoginActions();
     } else {
       let dispatchLoginCycleOnLoad = false;
@@ -359,7 +368,7 @@ const mapStateToProps = (state: KialiAppState): ReduxStateProps => ({
 
 const mapDispatchToProps = (dispatch: KialiDispatch): ReduxDispatchProps => ({
   addMessage: bindActionCreators(MessageCenterActions.addMessage, dispatch),
-  checkCredentials: () => dispatch(LoginThunkActions.checkCredentials()),
+  checkCredentials: (clusterName?: string) => dispatch(LoginThunkActions.checkCredentials(clusterName)),
   setActiveNamespaces: bindActionCreators(NamespaceActions.setActiveNamespaces, dispatch),
   setDuration: bindActionCreators(UserSettingsActions.setDuration, dispatch),
   setLandingRoute: bindActionCreators(LoginActions.setLandingRoute, dispatch),

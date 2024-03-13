@@ -48,16 +48,21 @@ export const LoginThunkActions = {
       performLogin(dispatch, getState(), { username, password });
     };
   },
-  checkCredentials: () => {
+  checkCredentials: (clusterName?: string) => {
     return (dispatch: KialiDispatch, getState: () => KialiAppState) => {
       const state: KialiAppState = getState();
+      // TODO:
 
       dispatch(LoginActions.loginRequest());
 
-      if (shouldRelogin(state.authentication)) {
-        performLogin(dispatch, state);
+      if (clusterName) {
+        performLogin(dispatch, state, { clusterName: clusterName });
       } else {
-        loginSuccess(dispatch, state.authentication!.session!);
+        if (shouldRelogin(state.authentication)) {
+          performLogin(dispatch, state);
+        } else {
+          loginSuccess(dispatch, state.authentication!.session!);
+        }
       }
     };
   },

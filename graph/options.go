@@ -264,7 +264,7 @@ func NewOptions(r *net_http.Request) Options {
 		Error("token missing in request context")
 	}
 
-	accessibleNamespaces := getAccessibleNamespaces(authInfo)
+	accessibleNamespaces := getAccessibleNamespaces(map[string]*api.AuthInfo{config.Get().KubernetesConfig.ClusterName: authInfo})
 
 	// If path variable is set then it is the only relevant namespace (it's a node graph)
 	// Else if namespaces query param is set it specifies the relevant namespaces
@@ -410,7 +410,7 @@ func (o *TelemetryOptions) GetGraphKind() string {
 // The Set is implemented using the map convention. Each map entry is set to the
 // creation timestamp of the namespace, to be used to ensure valid time ranges for
 // queries against the namespace.
-func getAccessibleNamespaces(authInfo *api.AuthInfo) AccessibleNamespaces {
+func getAccessibleNamespaces(authInfo map[string]*api.AuthInfo) AccessibleNamespaces {
 	// Get the namespaces
 	business, err := business.Get(authInfo)
 	CheckError(err)

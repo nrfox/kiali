@@ -74,6 +74,8 @@ type UserSessionData struct {
 	//
 	// required: true
 	AuthInfo *api.AuthInfo `json:"-"`
+
+	AuthInfoWithClusters map[string]*api.AuthInfo `json:"-"`
 }
 
 // AuthenticationFailureError is a helper Error to assist callers of the TokenAuthController.Authenticate

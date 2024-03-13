@@ -22,6 +22,8 @@ type openshiftSessionPayload struct {
 	// Token is the access_token that was provided by the OpenShift OAuth server.
 	// It can be used against the cluster API.
 	Token string `json:"token,omitempty"`
+
+	TokenPerCluster map[string]string `json:"tokenPerCluster,omitempty"`
 }
 
 // openshiftAuthController contains the backing logic to implement
@@ -40,7 +42,7 @@ type openshiftAuthController struct {
 	// businessInstantiator is a function that returns an already initialized
 	// business layer. Normally, it should be set to the business.Get function.
 	// For tests, it can be set to something else that returns a compatible API.
-	businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)
+	businessInstantiator func(authInfo map[string]*api.AuthInfo) (*business.Layer, error)
 
 	// SessionStore persists the session between HTTP requests.
 	SessionStore SessionPersistor
@@ -49,7 +51,7 @@ type openshiftAuthController struct {
 // NewOpenshiftAuthController initializes a new controller for handling OpenShift authentication, with the
 // given persistor and the given businessInstantiator. The businessInstantiator can be nil and
 // the initialized contoller will use the business.Get function.
-func NewOpenshiftAuthController(persistor SessionPersistor, businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)) *openshiftAuthController {
+func NewOpenshiftAuthController(persistor SessionPersistor, businessInstantiator func(authInfo map[string]*api.AuthInfo) (*business.Layer, error)) *openshiftAuthController {
 	if businessInstantiator == nil {
 		businessInstantiator = business.Get
 	}
@@ -64,12 +66,26 @@ func NewOpenshiftAuthController(persistor SessionPersistor, businessInstantiator
 // should be the token that was obtained from the OpenShift OAuth server and expires_in is the expiration date-time
 // of the token. The token is validated by obtaining the information user tied to it. Although RBAC is always assumed
 // when using OpenShift, privileges are not checked here.
+// TODO: Authenticate has to know which cluster we are authing to.
+// TODO: Need a "login" to remote cluster link on the frontend.
 func (o openshiftAuthController) Authenticate(r *http.Request, w http.ResponseWriter) (*UserSessionData, error) {
-	err := r.ParseForm()
-
-	if err != nil {
+	// TODO: Add cluster name?
+	// TODO: Handle multiple
+	log.Debugf("Request URL: %#v", r.URL)
+	if err := r.ParseForm(); err != nil {
 		return nil, fmt.Errorf("error parsing form info: %w", err)
 	}
+	// fragment := r.URL.Fragment
+	// if fragment == "" {
+	// 	return nil, errors.New("fragment is empty or invalid")
+	// }
+
+	// fragmentParts := strings.Split(fragment, "&")
+	// if len(fragmentParts) < 2 {
+	// 	return nil, errors.New("fragment is empty or invalid")
+	// }
+	// token := fragmentParts[0]
+	// expiresIn := fragmentParts[1]
 
 	token := r.Form.Get("access_token")
 	expiresIn := r.Form.Get("expires_in")
@@ -83,30 +99,41 @@ func (o openshiftAuthController) Authenticate(r *http.Request, w http.ResponseWr
 	}
 
 	expiresOn := time.Now().Add(time.Second * time.Duration(expiresInNumber))
-	bs, err := o.businessInstantiator(&api.AuthInfo{Token: ""})
-	if err != nil {
-		return nil, fmt.Errorf("error retrieving the OAuth package (getting business layer): %w", err)
-	}
+	// bs, err := o.businessInstantiator(map[string]*api.AuthInfo{clusterName: {Token: ""}})
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error retrieving the OAuth package (getting business layer): %w", err)
+	// }
 
-	user, err := bs.OpenshiftOAuth.GetUserInfo(token)
-	if err != nil {
-		o.SessionStore.TerminateSession(r, w)
-		return nil, &AuthenticationFailureError{
-			Reason:     "Token is not valid or is expired.",
-			Detail:     err,
-			HttpStatus: http.StatusUnauthorized,
-		}
-	}
+	// TODO: Don't worry about this part yet.
+	// user, err := bs.OpenshiftOAuth.GetUserInfo(token)
+	// if err != nil {
+	// 	o.SessionStore.TerminateSession(r, w)
+	// 	return nil, &AuthenticationFailureError{
+	// 		Reason:     "Token is not valid or is expired.",
+	// 		Detail:     err,
+	// 		HttpStatus: http.StatusUnauthorized,
+	// 	}
+	// }
 
-	err = o.SessionStore.CreateSession(r, w, config.AuthStrategyOpenshift, expiresOn, openshiftSessionPayload{Token: token})
+	// TODO: get the new session?
+	// Separate cookie is easiest way with ReadSession interface.
+	// o.SessionStore.ReadSession()
+	clusterName := r.URL.Query().Get("clusterName")
+	if clusterName != "" {
+		r.Header.Add("X-Kiali-Cluster", clusterName)
+	}
+	clusterName = config.Get().KubernetesConfig.ClusterName
+	err = o.SessionStore.CreateSession(r, w, config.AuthStrategyOpenshift, expiresOn, openshiftSessionPayload{Token: token, TokenPerCluster: map[string]string{clusterName: token}})
 	if err != nil {
 		return nil, err
 	}
 
 	return &UserSessionData{
 		ExpiresOn: expiresOn,
-		Username:  user.Metadata.Name,
-		AuthInfo:  &api.AuthInfo{Token: token},
+		// Username:  user.Metadata.Name,
+		Username:             "TODO",
+		AuthInfo:             &api.AuthInfo{Token: token},
+		AuthInfoWithClusters: map[string]*api.AuthInfo{clusterName: {Token: token}},
 	}, nil
 }
 
@@ -148,25 +175,63 @@ func (o openshiftAuthController) ValidateSession(r *http.Request, w http.Respons
 		expires = sData.ExpiresOn
 	}
 
-	bs, err := o.businessInstantiator(&api.AuthInfo{Token: token})
+	// TODO: Do the revalidation of the token per cluster.
+	// bs, err := o.businessInstantiator(map[string]*api.AuthInfo{"TODO": {Token: token}})
+	// if err != nil {
+	// 	log.Warningf("Could not get the business layer!: %v", err)
+	// 	return nil, fmt.Errorf("could not get the business layer: %w", err)
+	// }
+
+	// user, err := bs.OpenshiftOAuth.GetUserInfo(token)
+	// if err == nil {
+	// 	// Internal header used to propagate the subject of the request for audit purposes
+	// 	r.Header.Add("Kiali-User", user.Metadata.Name)
+	// 	return &UserSessionData{
+	// 		ExpiresOn: expires,
+	// 		Username:  user.Metadata.Name,
+	// 		AuthInfo:  &api.AuthInfo{Token: token},
+	// 	}, nil
+	// }
+
+	// log.Warningf("Token error: %v", err)
+	// return nil, nil
+
+	// Try to read both session cookies:
+	westSession, err := func() (*openshiftSessionPayload, error) {
+		sPayload := openshiftSessionPayload{}
+		r.Header.Add("X-Kiali-Cluster", "west")
+		sData, err := o.SessionStore.ReadSession(r, w, &sPayload)
+		if err != nil {
+			log.Warningf("Could not read the openshift session: %v", err)
+			return nil, err
+		}
+		if sData == nil {
+			return nil, fmt.Errorf("no session data")
+		}
+
+		// The Openshift token must be present
+		if len(sPayload.Token) == 0 {
+			log.Warning("Session is invalid: the Openshift token is absent")
+			return nil, fmt.Errorf("no token")
+		}
+
+		return &sPayload, nil
+	}()
 	if err != nil {
-		log.Warningf("Could not get the business layer!: %v", err)
-		return nil, fmt.Errorf("could not get the business layer: %w", err)
+		log.Errorf("Unable to read west session: %v", err)
 	}
-
-	user, err := bs.OpenshiftOAuth.GetUserInfo(token)
-	if err == nil {
-		// Internal header used to propagate the subject of the request for audit purposes
-		r.Header.Add("Kiali-User", user.Metadata.Name)
-		return &UserSessionData{
-			ExpiresOn: expires,
-			Username:  user.Metadata.Name,
-			AuthInfo:  &api.AuthInfo{Token: token},
-		}, nil
+	authInfoWithClusters := map[string]*api.AuthInfo{
+		config.Get().KubernetesConfig.ClusterName: {Token: token},
 	}
-
-	log.Warningf("Token error: %v", err)
-	return nil, nil
+	if westSession != nil {
+		authInfoWithClusters["west"] = &api.AuthInfo{Token: westSession.Token}
+	}
+	return &UserSessionData{
+		ExpiresOn:            expires,
+		Username:             "TODO",
+		AuthInfo:             &api.AuthInfo{Token: token},
+		AuthInfoWithClusters: authInfoWithClusters,
+	}, nil
 }
 
 // TerminateSession session created by the Authenticate function.
@@ -198,7 +263,7 @@ func (o openshiftAuthController) TerminateSession(r *http.Request, w http.Respon
 		}
 	}
 
-	bs, err := o.businessInstantiator(&api.AuthInfo{Token: sPayload.Token})
+	bs, err := o.businessInstantiator(map[string]*api.AuthInfo{"TODO": {Token: sPayload.Token}})
 	if err != nil {
 		return TerminateSessionError{
 			Message:    fmt.Sprintf("Could not get the business layer: %v", err),

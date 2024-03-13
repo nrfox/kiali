@@ -205,6 +205,41 @@ export class OverviewPageComponent extends React.Component<OverviewProps, State>
   componentDidMount(): void {
     this.fetchGrafanaInfo();
     this.load();
+    if (window.location.hash !== '') {
+      API.checkOpenshiftAuth(window.location.hash.substring(1), { clusterName: 'west' })
+        .then(response => {
+          if (response.status === 200) {
+            console.log('Openshift auth success');
+          }
+        })
+        .catch(error => {
+          console.error(`Openshift auth failed: ${error}`);
+        })
+        .finally(() => {
+          // remove the data that was passed by the OAuth login. In certain error situations this can cause the
+          // page to enter a refresh loop since it tries to reload the page which then tries to reuse the bad token again.
+          window.history.replaceState('', document.title, window.location.pathname + window.location.search);
+        });
+
+      // let hash = window.location.hash;
+      // if (hash.startsWith("#")) {
+      //   hash = hash.substring(1);
+      // }
+      // const parts = hash.split("&");
+      // if (parts.length < 2) {
+      //   console.error("Invalid hash: " + hash);
+      // } else {
+      //   const apiToken = parts[0].split("=")[1];
+      //   const expires_in = parts[1].split("=")[1];
+      //   API.checkOpenshiftAuth(apiToken, expires_in).then(response => {
+      //     if (response.status === 200) {
+      //       console.log("Openshift auth success");
+      //     } else {
+      //       console.error("Openshift auth failed");
+      //     }
+      //   }
+      // }
+    }
   }
 
   componentWillUnmount(): void {

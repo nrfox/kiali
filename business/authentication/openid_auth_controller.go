@@ -114,7 +114,7 @@ type OpenIdAuthController struct {
 	// businessInstantiator is a function that returns an already initialized
 	// business layer. Normally, it should be set to the business.Get function.
 	// For tests, it can be set to something else that returns a compatible API.
-	businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)
+	businessInstantiator func(authInfo map[string]*api.AuthInfo) (*business.Layer, error)
 
 	// SessionStore persists the session between HTTP requests.
 	SessionStore SessionPersistor
@@ -123,7 +123,7 @@ type OpenIdAuthController struct {
 // NewOpenIdAuthController initializes a new controller for handling openid authentication, with the
 // given persistor and the given businessInstantiator. The businessInstantiator can be nil and
 // the initialized contoller will use the business.Get function.
-func NewOpenIdAuthController(persistor SessionPersistor, businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)) *OpenIdAuthController {
+func NewOpenIdAuthController(persistor SessionPersistor, businessInstantiator func(authInfo map[string]*api.AuthInfo) (*business.Layer, error)) *OpenIdAuthController {
 	if businessInstantiator == nil {
 		businessInstantiator = business.Get
 	}
@@ -230,7 +230,7 @@ func (c OpenIdAuthController) ValidateSession(r *http.Request, w http.ResponseWr
 	var token string
 	if !conf.Auth.OpenId.DisableRBAC {
 		// If RBAC is ENABLED, check that the user has privileges on the cluster.
-		bs, err := business.Get(&api.AuthInfo{Token: sPayload.Token})
+		bs, err := business.Get(map[string]*api.AuthInfo{"TODO": {Token: sPayload.Token}})
 		if err != nil {
 			log.Warningf("Could not get the business layer!!: %v", err)
 			return nil, fmt.Errorf("could not get the business layer: %w", err)
@@ -479,7 +479,7 @@ type openidFlowHelper struct {
 	// businessInstantiator is a function that returns an already initialized
 	// business layer. Normally, it should be set to the business.Get function.
 	// For tests, it can be set to something else that returns a compatible API.
-	businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)
+	businessInstantiator func(authInfo map[string]*api.AuthInfo) (*business.Layer, error)
 }
 
 // callbackCleanup deletes the nonce cookie that was generated during the redirection from Kiali to
@@ -886,8 +886,8 @@ func checkDomain(tokenClaims map[string]interface{}, allowedDomains []string) er
 	if v, ok := tokenClaims["hd"]; ok {
 		hostedDomain = v.(string)
 	} else {
-		//domains like gmail.com don't have the hosted domain (hd) on claims
-		//fields, so we try to get the domain on email claim
+		// domains like gmail.com don't have the hosted domain (hd) on claims
+		// fields, so we try to get the domain on email claim
 		var email string
 		if v, ok := tokenClaims["email"]; ok {
 			email = v.(string)
@@ -915,7 +915,6 @@ func checkDomain(tokenClaims map[string]interface{}, allowedDomains []string) er
 func createHttpClient(toUrl string) (*http.Client, error) {
 	cfg := config.Get().Auth.OpenId
 	parsedUrl, err := url.Parse(toUrl)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1024,7 +1023,7 @@ func getConfiguredOpenIdScopes() []string {
 // See also getOpenIdJwks, validateOpenIdTokenInHouse.
 func getJwkFromKeySet(keyId string) (*jose.JSONWebKey, error) {
 	// Helper function to find a key with a certain key id in a key-set.
-	var findJwkFunc = func(kid string, jwks *jose.JSONWebKeySet) *jose.JSONWebKey {
+	findJwkFunc := func(kid string, jwks *jose.JSONWebKeySet) *jose.JSONWebKey {
 		for _, key := range jwks.Keys {
 			if key.KeyID == kid {
 				return &key
@@ -1232,7 +1231,6 @@ func parseTimeClaim(claimValue interface{}) (int64, error) {
 	case json.Number:
 		// This can fail, so we short-circuit if we get an invalid value.
 		parsedTime, err = exp.Int64()
-
 		if err != nil {
 			return 0, err
 		}
@@ -1375,9 +1373,9 @@ func validateOpenIdTokenInHouse(openIdParams *openidFlowHelper) error {
 
 // verifyOpenIdUserAccess checks that the provided token has enough privileges on the cluster to
 // allow a login to Kiali.
-func verifyOpenIdUserAccess(token string, businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)) (int, string, error) {
+func verifyOpenIdUserAccess(token string, businessInstantiator func(authInfo map[string]*api.AuthInfo) (*business.Layer, error)) (int, string, error) {
 	// Create business layer using the id_token
-	bsLayer, err := businessInstantiator(&api.AuthInfo{Token: token})
+	bsLayer, err := businessInstantiator(map[string]*api.AuthInfo{"TODO": {Token: token}})
 	if err != nil {
 		return http.StatusInternalServerError, "Error instantiating the business layer", err
 	}

@@ -122,16 +122,20 @@ func (p CookieSessionPersistor) CreateSession(r *http.Request, w http.ResponseWr
 	sessionDataChunks := chunkString(base64SessionData, SessionCookieMaxSize)
 	for i, chunk := range sessionDataChunks {
 		var cookieName string
-		if i == 0 {
-			// Set a cookie with the regular cookie name with the first chunk of session data.
-			// Notice that an "-aes" suffix is being used in the cookie names. This is for backwards compatibility and
-			// is/was meant to be able to differentiate between a session using cookies holding encrypted data, and the older
-			// less secure sessions using cookies holding JWTs.
-			cookieName = AESSessionCookieName
+		if clusterName := r.Header.Get("X-Kiali-Cluster"); clusterName != "" {
+			cookieName = fmt.Sprintf("%s-%s", AESSessionCookieName, clusterName)
 		} else {
-			// If there are more chunks of session data (usually because of larger tokens from the IdP),
-			// store the remainder data to numbered cookies.
-			cookieName = fmt.Sprintf("%s-aes-%d", config.TokenCookieName, i)
+			if i == 0 {
+				// Set a cookie with the regular cookie name with the first chunk of session data.
+				// Notice that an "-aes" suffix is being used in the cookie names. This is for backwards compatibility and
+				// is/was meant to be able to differentiate between a session using cookies holding encrypted data, and the older
+				// less secure sessions using cookies holding JWTs.
+				cookieName = AESSessionCookieName
+			} else {
+				// If there are more chunks of session data (usually because of larger tokens from the IdP),
+				// store the remainder data to numbered cookies.
+				cookieName = fmt.Sprintf("%s-aes-%d", config.TokenCookieName, i)
+			}
 		}
 
 		authCookie := http.Cookie{
@@ -174,7 +178,13 @@ func (p CookieSessionPersistor) ReadSession(r *http.Request, w http.ResponseWrit
 	// This CookieSessionPersistor only deals with sessions using cookies holding encrypted data.
 	// Thus, presence for a cookie with the "-aes" suffix is checked and it's assumed no active session
 	// if such cookie is not found in the request.
-	authCookie, err := r.Cookie(AESSessionCookieName)
+	var cookieName string
+	if clusterName := r.Header.Get("X-Kiali-Cluster"); clusterName != "" {
+		cookieName = fmt.Sprintf("%s-%s", AESSessionCookieName, clusterName)
+	} else {
+		cookieName = AESSessionCookieName
+	}
+	authCookie, err := r.Cookie(cookieName)
 	if err != nil {
 		if err == http.ErrNoCookie {
 			log.Tracef("The AES cookie is missing.")

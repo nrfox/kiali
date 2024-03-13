@@ -145,10 +145,10 @@ func createMetricsServiceForNamespaces(w http.ResponseWriter, r *http.Request, p
 }
 
 // getAuthInfo retrieves the token from the request's context
-func getAuthInfo(r *http.Request) (*api.AuthInfo, error) {
+func getAuthInfo(r *http.Request) (map[string]*api.AuthInfo, error) {
 	authInfoContext := authentication.GetAuthInfoContext(r.Context())
 	if authInfoContext != nil {
-		if authInfo, ok := authInfoContext.(*api.AuthInfo); ok {
+		if authInfo, ok := authInfoContext.(map[string]*api.AuthInfo); ok {
 			return authInfo, nil
 		} else {
 			return nil, errors.New("authInfo is not of type *api.AuthInfo")

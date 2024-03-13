@@ -121,7 +121,7 @@ func NewOptions(r *http.Request) Options {
 		Error("token missing in request context")
 	}
 
-	accessibleNamespaces := getAccessibleNamespaces(authInfo)
+	accessibleNamespaces := getAccessibleNamespaces(map[string]*api.AuthInfo{"TODO": authInfo})
 
 	options := Options{
 		AccessibleNamespaces: accessibleNamespaces,
@@ -143,7 +143,7 @@ func NewOptions(r *http.Request) Options {
 // The Set is implemented using the map convention. Each map entry is set to the
 // creation timestamp of the namespace, to be used to ensure valid time ranges for
 // queries against the namespace.
-func getAccessibleNamespaces(authInfo *api.AuthInfo) AccessibleNamespaces {
+func getAccessibleNamespaces(authInfo map[string]*api.AuthInfo) AccessibleNamespaces {
 	// Get the namespaces
 	business, err := business.Get(authInfo)
 	CheckError(err)

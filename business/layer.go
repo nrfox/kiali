@@ -53,9 +53,9 @@ func Start(cf kubernetes.ClientFactory, controlPlaneMonitor ControlPlaneMonitor,
 }
 
 // Get the business.Layer
-func Get(authInfo *api.AuthInfo) (*Layer, error) {
+func Get(authPerCluster map[string]*api.AuthInfo) (*Layer, error) {
 	// Creates new k8s clients based on the current users token
-	userClients, err := clientFactory.GetClients(authInfo)
+	userClients, err := clientFactory.GetClients(authPerCluster)
 	if err != nil {
 		return nil, err
 	}
@@ -125,8 +125,8 @@ func newLayer(
 // Note that the client passed here should *not* be the Kiali ServiceAccount client.
 // It should be the user client based on the logged in user's token.
 // TODO: Auth info. What should that be?
-func NewLayer(conf *config.Config, cache cache.KialiCache, cf kubernetes.ClientFactory, prom prometheus.ClientInterface, traceClient tracing.ClientInterface, cpm ControlPlaneMonitor, authInfo *api.AuthInfo) (*Layer, error) {
-	userClients, err := cf.GetClients(authInfo)
+func NewLayer(conf *config.Config, cache cache.KialiCache, cf kubernetes.ClientFactory, prom prometheus.ClientInterface, traceClient tracing.ClientInterface, cpm ControlPlaneMonitor, authPerCluster map[string]*api.AuthInfo) (*Layer, error) {
+	userClients, err := cf.GetClients(authPerCluster)
 	if err != nil {
 		return nil, err
 	}

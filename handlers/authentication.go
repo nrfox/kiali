@@ -20,12 +20,13 @@ type AuthenticationHandler struct {
 }
 
 type AuthInfo struct {
-	Strategy              string      `json:"strategy"`
-	AuthorizationEndpoint string      `json:"authorizationEndpoint,omitempty"`
-	LogoutEndpoint        string      `json:"logoutEndpoint,omitempty"`
-	LogoutRedirect        string      `json:"logoutRedirect,omitempty"`
-	SessionInfo           sessionInfo `json:"sessionInfo"`
-	SecretMissing         bool        `json:"secretMissing,omitempty"`
+	Strategy                string      `json:"strategy"`
+	AuthorizationEndpoint   string      `json:"authorizationEndpoint,omitempty"`
+	AdditionalAuthEndpoints []string    `json:"additionalAuthEndpoints,omitempty"`
+	LogoutEndpoint          string      `json:"logoutEndpoint,omitempty"`
+	LogoutRedirect          string      `json:"logoutRedirect,omitempty"`
+	SessionInfo             sessionInfo `json:"sessionInfo"`
+	SecretMissing           bool        `json:"secretMissing,omitempty"`
 }
 
 type sessionInfo struct {
@@ -48,6 +49,7 @@ func (aHandler AuthenticationHandler) Handle(next http.Handler) http.Handler {
 		conf := config.Get()
 
 		var authInfo *api.AuthInfo
+		var authInfos map[string]*api.AuthInfo
 
 		switch conf.Auth.Strategy {
 		case config.AuthStrategyToken, config.AuthStrategyOpenId, config.AuthStrategyOpenshift, config.AuthStrategyHeader:
@@ -56,6 +58,7 @@ func (aHandler AuthenticationHandler) Handle(next http.Handler) http.Handler {
 				statusCode = http.StatusInternalServerError
 			} else if session != nil {
 				authInfo = session.AuthInfo
+				authInfos = session.AuthInfoWithClusters
 				statusCode = http.StatusOK
 			} else {
 				statusCode = http.StatusUnauthorized
@@ -75,7 +78,7 @@ func (aHandler AuthenticationHandler) Handle(next http.Handler) http.Handler {
 				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 				log.Errorf("No authInfo: %v", http.StatusBadRequest)
 			}
-			ctx := authentication.SetAuthInfoContext(r.Context(), authInfo)
+			ctx := authentication.SetAuthInfoContext(r.Context(), authInfos)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		case http.StatusUnauthorized:
 			err := authentication.GetAuthController().TerminateSession(r, w)
@@ -133,13 +136,14 @@ func AuthenticationInfo(w http.ResponseWriter, r *http.Request) {
 
 	switch conf.Auth.Strategy {
 	case config.AuthStrategyOpenshift:
+		response.AdditionalAuthEndpoints = conf.Auth.OpenShift.AdditionalAuthEndpoints
 		token, _, err := kubernetes.GetKialiTokenForHomeCluster()
 		if err != nil {
 			RespondWithDetailedError(w, http.StatusInternalServerError, "Error obtaining Kiali SA token", err.Error())
 			return
 		}
 
-		layer, err := business.Get(&api.AuthInfo{Token: token})
+		layer, err := business.Get(map[string]*api.AuthInfo{conf.KubernetesConfig.ClusterName: {Token: token}})
 		if err != nil {
 			RespondWithDetailedError(w, http.StatusInternalServerError, "Error authenticating (getting business layer)", err.Error())
 			return

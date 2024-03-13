@@ -29,7 +29,7 @@ const defaultExpirationTime = time.Minute * 15
 // ClientFactory interface for the clientFactory object
 type ClientFactory interface {
 	GetClient(authInfo *api.AuthInfo) (ClientInterface, error) // TODO: Make private
-	GetClients(authInfo *api.AuthInfo) (map[string]ClientInterface, error)
+	GetClients(authInfo map[string]*api.AuthInfo) (map[string]ClientInterface, error)
 	GetSAClient(cluster string) ClientInterface
 	GetSAClients() map[string]ClientInterface
 	GetSAHomeClusterClient() ClientInterface
@@ -300,11 +300,11 @@ func (cf *clientFactory) GetClient(authInfo *api.AuthInfo) (ClientInterface, err
 }
 
 // getClient returns a client for the specified token. Creating one if necessary.
-func (cf *clientFactory) GetClients(authInfo *api.AuthInfo) (map[string]ClientInterface, error) {
+func (cf *clientFactory) GetClients(authInfo map[string]*api.AuthInfo) (map[string]ClientInterface, error) {
 	clients := make(map[string]ClientInterface)
 	// Try to create a user client for each cluster there's a kiali service account configured.
-	for cluster := range cf.saClientEntries {
-		ci, err := cf.getRecycleClient(authInfo, defaultExpirationTime, cluster)
+	for cluster, a := range authInfo {
+		ci, err := cf.getRecycleClient(a, defaultExpirationTime, cluster)
 		if err != nil {
 			log.Errorf("Error returning user client for cluster: %s. Err: %s", cluster, err)
 		}

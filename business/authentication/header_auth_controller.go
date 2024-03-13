@@ -24,7 +24,7 @@ type headerAuthController struct {
 	// businessInstantiator is a function that returns an already initialized
 	// business layer. Normally, it should be set to the business.Get function.
 	// For tests, it can be set to something else that returns a compatible API.
-	businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)
+	businessInstantiator func(authPerCluster map[string]*api.AuthInfo) (*business.Layer, error)
 
 	// SessionStore persists the session between HTTP requests.
 	SessionStore SessionPersistor
@@ -44,7 +44,7 @@ type headerSessionPayload struct {
 // NewHeaderAuthController initializes a new controller for allowing already authenticated requests, with the
 // given persistor and the given businessInstantiator. The businessInstantiator can be nil and
 // the initialized controller will use the business.Get function.
-func NewHeaderAuthController(persistor SessionPersistor, businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)) *headerAuthController {
+func NewHeaderAuthController(persistor SessionPersistor, businessInstantiator func(authPerCluster map[string]*api.AuthInfo) (*business.Layer, error)) *headerAuthController {
 	if businessInstantiator == nil {
 		businessInstantiator = business.Get
 	}
@@ -77,7 +77,7 @@ func (c headerAuthController) Authenticate(r *http.Request, w http.ResponseWrite
 		return nil, err
 	}
 
-	bs, err := c.businessInstantiator(&api.AuthInfo{Token: kialiToken})
+	bs, err := c.businessInstantiator(map[string]*api.AuthInfo{"TODO:": {Token: kialiToken}})
 	if err != nil {
 		return nil, &AuthenticationFailureError{
 			Detail:     err,
@@ -180,15 +180,15 @@ func (c headerAuthController) getTokenStringFromHeader(r *http.Request) *api.Aut
 
 	impersonationHeader := r.Header.Get("Impersonate-User")
 	if len(impersonationHeader) > 0 {
-		//there's an impersonation header, lets make sure to add it
+		// there's an impersonation header, lets make sure to add it
 		authInfo.Impersonate = impersonationHeader
 
-		//Check for impersonated groups
+		// Check for impersonated groups
 		if groupsImpersonationHeader := r.Header["Impersonate-Group"]; len(groupsImpersonationHeader) > 0 {
 			authInfo.ImpersonateGroups = groupsImpersonationHeader
 		}
 
-		//check for extra fields
+		// check for extra fields
 		for headerName, headerValues := range r.Header {
 			if strings.HasPrefix(headerName, "Impersonate-Extra-") {
 				extraName := headerName[len("Impersonate-Extra-"):]

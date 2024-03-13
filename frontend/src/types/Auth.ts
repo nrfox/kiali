@@ -1,5 +1,6 @@
 export interface AuthConfig {
   authorizationEndpoint?: string;
+  additionalAuthEndpoints?: string[];
   logoutEndpoint?: string;
   logoutRedirect?: string;
   strategy: AuthStrategy;

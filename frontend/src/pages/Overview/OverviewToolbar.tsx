@@ -20,6 +20,8 @@ import { TimeDurationComponent } from '../../components/Time/TimeDurationCompone
 import { KialiDispatch } from '../../types/Redux';
 import { RefreshNotifier } from '../../components/Refresh/RefreshNotifier';
 import { PFColors } from 'components/Pf/PfColors';
+import { AuthConfig } from 'types/Auth';
+import { getAuthInfo } from 'services/Api';
 
 type ReduxProps = {
   duration: DurationInSeconds;
@@ -106,6 +108,7 @@ export type OverviewType = keyof typeof overviewTypes;
 export type DirectionType = keyof typeof directionTypes;
 
 type State = {
+  authInfo?: AuthConfig;
   isSortAscending: boolean;
   overviewType: OverviewType;
   directionType: DirectionType;
@@ -143,6 +146,16 @@ class OverviewToolbarComponent extends React.Component<Props, State> {
         sortField: urlSortField,
         isSortAscending: urlIsSortAscending
       });
+    }
+
+    if (!this.state.authInfo) {
+      getAuthInfo()
+        .then(response => {
+          this.setState({ authInfo: response.data });
+        })
+        .catch(error => {
+          console.log(error);
+        });
     }
   }
 
@@ -303,6 +316,9 @@ class OverviewToolbarComponent extends React.Component<Props, State> {
           <div className={rightToolbarStyle}>
             {timeToolbar}
             {actionsToolbar}
+          </div>
+          <div>
+            <a href={this.state.authInfo?.additionalAuthEndpoints![0]}>Login to West Cluster</a>
           </div>
         </div>
       </div>

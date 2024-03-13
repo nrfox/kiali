@@ -26,7 +26,7 @@ type tokenAuthController struct {
 	// businessInstantiator is a function that returns an already initialized
 	// business layer. Normally, it should be set to the business.Get function.
 	// For tests, it can be set to something else that returns a compatible API.
-	businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)
+	businessInstantiator func(authInfo map[string]*api.AuthInfo) (*business.Layer, error)
 
 	// SessionStore persists the session between HTTP requests.
 	SessionStore SessionPersistor
@@ -41,7 +41,7 @@ type tokenSessionPayload struct {
 // NewTokenAuthController initializes a new controller for handling token authentication, with the
 // given persistor and the given businessInstantiator. The businessInstantiator can be nil and
 // the initialized contoller will use the business.Get function.
-func NewTokenAuthController(persistor SessionPersistor, businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)) *tokenAuthController {
+func NewTokenAuthController(persistor SessionPersistor, businessInstantiator func(authInfo map[string]*api.AuthInfo) (*business.Layer, error)) *tokenAuthController {
 	if businessInstantiator == nil {
 		businessInstantiator = business.Get
 	}
@@ -74,7 +74,7 @@ func (c tokenAuthController) Authenticate(r *http.Request, w http.ResponseWriter
 	}
 
 	// Create a bs layer with the received token to check its validity.
-	bs, err := c.businessInstantiator(&api.AuthInfo{Token: token})
+	bs, err := c.businessInstantiator(map[string]*api.AuthInfo{"TODO": {Token: token}})
 	if err != nil {
 		return nil, fmt.Errorf("error instantiating the business layer: %w", err)
 	}
@@ -125,7 +125,7 @@ func (c tokenAuthController) ValidateSession(r *http.Request, w http.ResponseWri
 	}
 
 	// Check token validity.
-	bs, err := c.businessInstantiator(&api.AuthInfo{Token: sPayload.Token})
+	bs, err := c.businessInstantiator(map[string]*api.AuthInfo{"TODO": {Token: sPayload.Token}})
 	if err != nil {
 		return nil, fmt.Errorf("could not get the business layer: %w", err)
 	}
