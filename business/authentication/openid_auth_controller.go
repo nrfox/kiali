@@ -24,6 +24,7 @@ import (
 	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
+	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/util"
 	"github.com/kiali/kiali/util/httputil"
@@ -40,6 +41,8 @@ const (
 	// certificate.
 	OpenIdServerCAFile = "/kiali-cabundle/openid-server-ca.crt"
 )
+
+// TODO: Can we get rid of these globals too?
 
 // cachedOpenIdKeySet stores the metadata obtained from the /.well-known/openid-configuration
 // endpoint of the OpenId server. Once the metadata is obtained for the first time, subsequent
@@ -111,26 +114,22 @@ func (e badOidcRequest) Error() string {
 // with OpenId integration. Thus, it is possible to turn off RBAC
 // for simpler setups.
 type OpenIdAuthController struct {
-	// businessInstantiator is a function that returns an already initialized
-	// business layer. Normally, it should be set to the business.Get function.
-	// For tests, it can be set to something else that returns a compatible API.
-	businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)
-
 	// SessionStore persists the session between HTTP requests.
-	SessionStore SessionPersistor
+	SessionStore  SessionPersistor
+	kialiCache    cache.KialiCache
+	clientFactory kubernetes.ClientFactory
+	conf          config.Config
 }
 
 // NewOpenIdAuthController initializes a new controller for handling openid authentication, with the
 // given persistor and the given businessInstantiator. The businessInstantiator can be nil and
 // the initialized contoller will use the business.Get function.
-func NewOpenIdAuthController(persistor SessionPersistor, businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)) *OpenIdAuthController {
-	if businessInstantiator == nil {
-		businessInstantiator = business.Get
-	}
-
+func NewOpenIdAuthController(persistor SessionPersistor, kialiCache cache.KialiCache, clientFactory kubernetes.ClientFactory, conf config.Config) *OpenIdAuthController {
 	return &OpenIdAuthController{
-		businessInstantiator: businessInstantiator,
-		SessionStore:         persistor,
+		SessionStore:  persistor,
+		kialiCache:    kialiCache,
+		clientFactory: clientFactory,
+		conf:          conf,
 	}
 }
 
@@ -277,11 +276,10 @@ func (c OpenIdAuthController) TerminateSession(r *http.Request, w http.ResponseW
 // An AuthenticationFailureError is returned if the authentication failed. Any
 // other kind of error means that something unexpected happened.
 func (c OpenIdAuthController) authenticateWithAuthorizationCodeFlow(r *http.Request, w http.ResponseWriter, fallbackHandler http.Handler) {
-	conf := config.Get()
-	webRoot := conf.Server.WebRoot
+	webRoot := c.conf.Server.WebRoot
 	webRootWithSlash := webRoot + "/"
 
-	flow := openidFlowHelper{businessInstantiator: c.businessInstantiator}
+	flow := openidFlowHelper{kialiCache: c.kialiCache, conf: c.conf, clientFactory: c.clientFactory}
 	flow.
 		extractOpenIdCallbackParams(r).
 		checkOpenIdAuthorizationCodeFlowParams().
@@ -291,7 +289,7 @@ func (c OpenIdAuthController) authenticateWithAuthorizationCodeFlow(r *http.Requ
 		// if we do it, we break the "implicit" flow, because the requried cookies will no longer exist.
 		callbackCleanup(r, w).
 		validateOpenIdState().
-		requestOpenIdToken(httputil.GuessKialiURL(r)).
+		requestOpenIdToken(httputil.GuessKialiURL(c.conf, r)).
 		parseOpenIdToken().
 		validateOpenIdNonceCode().
 		checkAllowedDomains().
@@ -367,7 +365,7 @@ func (c OpenIdAuthController) redirectToAuthServerHandler(w http.ResponseWriter,
 		return
 	}
 
-	guessedKialiURL := httputil.GuessKialiURL(r)
+	guessedKialiURL := httputil.GuessKialiURL(c.conf, r)
 	secureFlag := conf.IsServerHTTPS() || strings.HasPrefix(guessedKialiURL, "https:")
 	nowTime := util.Clock.Now()
 	expirationTime := nowTime.Add(time.Duration(conf.Auth.OpenId.AuthenticationTimeout) * time.Second)
@@ -476,10 +474,9 @@ type openidFlowHelper struct {
 	// as a consequence of a failure of a new authentication attempt (i.e if the Error field is not nil).
 	ShouldTerminateSession bool
 
-	// businessInstantiator is a function that returns an already initialized
-	// business layer. Normally, it should be set to the business.Get function.
-	// For tests, it can be set to something else that returns a compatible API.
-	businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)
+	kialiCache    cache.KialiCache
+	clientFactory kubernetes.ClientFactory
+	conf          config.Config
 }
 
 // callbackCleanup deletes the nonce cookie that was generated during the redirection from Kiali to
@@ -491,7 +488,7 @@ func (p *openidFlowHelper) callbackCleanup(r *http.Request, w http.ResponseWrite
 	}
 
 	conf := config.Get()
-	secureFlag := conf.IsServerHTTPS() || strings.HasPrefix(httputil.GuessKialiURL(r), "https:")
+	secureFlag := conf.IsServerHTTPS() || strings.HasPrefix(httputil.GuessKialiURL(p.conf, r), "https:")
 
 	// Delete the nonce cookie since we no longer need it.
 	deleteNonceCookie := http.Cookie{
@@ -632,7 +629,7 @@ func (p *openidFlowHelper) checkUserPrivileges() *openidFlowHelper {
 			apiToken = p.AccessToken
 			p.UseAccessToken = true
 		}
-		httpStatus, errMsg, detailedError := verifyOpenIdUserAccess(apiToken, p.businessInstantiator)
+		httpStatus, errMsg, detailedError := verifyOpenIdUserAccess(apiToken, p.clientFactory, p.kialiCache, p.conf)
 		if httpStatus != http.StatusOK {
 			p.Error = &AuthenticationFailureError{
 				HttpStatus: httpStatus,
@@ -886,8 +883,8 @@ func checkDomain(tokenClaims map[string]interface{}, allowedDomains []string) er
 	if v, ok := tokenClaims["hd"]; ok {
 		hostedDomain = v.(string)
 	} else {
-		//domains like gmail.com don't have the hosted domain (hd) on claims
-		//fields, so we try to get the domain on email claim
+		// domains like gmail.com don't have the hosted domain (hd) on claims
+		// fields, so we try to get the domain on email claim
 		var email string
 		if v, ok := tokenClaims["email"]; ok {
 			email = v.(string)
@@ -915,7 +912,6 @@ func checkDomain(tokenClaims map[string]interface{}, allowedDomains []string) er
 func createHttpClient(toUrl string) (*http.Client, error) {
 	cfg := config.Get().Auth.OpenId
 	parsedUrl, err := url.Parse(toUrl)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1024,7 +1020,7 @@ func getConfiguredOpenIdScopes() []string {
 // See also getOpenIdJwks, validateOpenIdTokenInHouse.
 func getJwkFromKeySet(keyId string) (*jose.JSONWebKey, error) {
 	// Helper function to find a key with a certain key id in a key-set.
-	var findJwkFunc = func(kid string, jwks *jose.JSONWebKeySet) *jose.JSONWebKey {
+	findJwkFunc := func(kid string, jwks *jose.JSONWebKeySet) *jose.JSONWebKey {
 		for _, key := range jwks.Keys {
 			if key.KeyID == kid {
 				return &key
@@ -1232,7 +1228,6 @@ func parseTimeClaim(claimValue interface{}) (int64, error) {
 	case json.Number:
 		// This can fail, so we short-circuit if we get an invalid value.
 		parsedTime, err = exp.Int64()
-
 		if err != nil {
 			return 0, err
 		}
@@ -1375,16 +1370,20 @@ func validateOpenIdTokenInHouse(openIdParams *openidFlowHelper) error {
 
 // verifyOpenIdUserAccess checks that the provided token has enough privileges on the cluster to
 // allow a login to Kiali.
-func verifyOpenIdUserAccess(token string, businessInstantiator func(authInfo *api.AuthInfo) (*business.Layer, error)) (int, string, error) {
-	// Create business layer using the id_token
-	bsLayer, err := businessInstantiator(&api.AuthInfo{Token: token})
+func verifyOpenIdUserAccess(token string, clientFactory kubernetes.ClientFactory, kialiCache cache.KialiCache, conf config.Config) (int, string, error) {
+	// TODO: This the best way to set the auth info?
+	authInfo := &api.AuthInfo{Token: token}
+	userClients, err := clientFactory.GetClients(authInfo)
 	if err != nil {
-		return http.StatusInternalServerError, "Error instantiating the business layer", err
+		return http.StatusUnauthorized, "Token is not valid or is expired", err
 	}
+
+	namespaceService := business.NewNamespaceService(userClients, clientFactory.GetSAClients(), kialiCache, conf)
 
 	// Using the namespaces API to check if token is valid. In Kubernetes, the version API seems to allow
 	// anonymous access, so it's not feasible to use the version API for token verification.
-	nsList, err := bsLayer.Namespace.GetNamespaces(context.TODO())
+	// TODO: Does cluster matter?
+	nsList, err := namespaceService.GetNamespaces(context.TODO())
 	if err != nil {
 		return http.StatusUnauthorized, "Token is not valid or is expired", err
 	}

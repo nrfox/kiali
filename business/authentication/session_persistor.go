@@ -117,7 +117,7 @@ func (p CookieSessionPersistor) CreateSession(r *http.Request, w http.ResponseWr
 	// If the resulting session data is large, it may not fit in one cookie. So, the resulting
 	// session data is broken in chunks and multiple cookies are used, as is needed.
 	conf := config.Get()
-	secureFlag := conf.IsServerHTTPS() || strings.HasPrefix(httputil.GuessKialiURL(r), "https:")
+	secureFlag := conf.IsServerHTTPS() || strings.HasPrefix(httputil.GuessKialiURL(*conf, r), "https:")
 
 	sessionDataChunks := chunkString(base64SessionData, SessionCookieMaxSize)
 	for i, chunk := range sessionDataChunks {
@@ -301,7 +301,7 @@ func (p CookieSessionPersistor) ReadSession(r *http.Request, w http.ResponseWrit
 // clearing any stale cookies/session.
 func (p CookieSessionPersistor) TerminateSession(r *http.Request, w http.ResponseWriter) {
 	conf := config.Get()
-	secureFlag := conf.IsServerHTTPS() || strings.HasPrefix(httputil.GuessKialiURL(r), "https:")
+	secureFlag := conf.IsServerHTTPS() || strings.HasPrefix(httputil.GuessKialiURL(*conf, r), "https:")
 
 	var cookiesToDrop []string
 

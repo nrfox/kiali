@@ -36,7 +36,6 @@ import (
 	"syscall"
 
 	"github.com/kiali/kiali/business"
-	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/kubernetes/cache"
@@ -102,8 +101,6 @@ func main() {
 	status.Put(status.CoreVersion, version)
 	status.Put(status.CoreCommitHash, commitHash)
 	status.Put(status.ContainerVersion, determineContainerVersion(version))
-
-	authentication.InitializeAuthenticationController(cfg.Auth.Strategy)
 
 	// prepare our internal metrics so Prometheus can scrape them
 	internalmetrics.RegisterInternalMetrics()
