@@ -42,8 +42,6 @@ const (
 	OpenIdServerCAFile = "/kiali-cabundle/openid-server-ca.crt"
 )
 
-// TODO: Can we get rid of these globals too?
-
 // cachedOpenIdKeySet stores the metadata obtained from the /.well-known/openid-configuration
 // endpoint of the OpenId server. Once the metadata is obtained for the first time, subsequent
 // retrievals are served from this cached value rather than doing another request to the
@@ -118,13 +116,13 @@ type OpenIdAuthController struct {
 	SessionStore  SessionPersistor
 	kialiCache    cache.KialiCache
 	clientFactory kubernetes.ClientFactory
-	conf          config.Config
+	conf          *config.Config
 }
 
 // NewOpenIdAuthController initializes a new controller for handling openid authentication, with the
 // given persistor and the given businessInstantiator. The businessInstantiator can be nil and
 // the initialized contoller will use the business.Get function.
-func NewOpenIdAuthController(persistor SessionPersistor, kialiCache cache.KialiCache, clientFactory kubernetes.ClientFactory, conf config.Config) *OpenIdAuthController {
+func NewOpenIdAuthController(persistor SessionPersistor, kialiCache cache.KialiCache, clientFactory kubernetes.ClientFactory, conf *config.Config) *OpenIdAuthController {
 	return &OpenIdAuthController{
 		SessionStore:  persistor,
 		kialiCache:    kialiCache,
@@ -199,13 +197,11 @@ func (c OpenIdAuthController) ValidateSession(r *http.Request, w http.ResponseWr
 		return nil, nil
 	}
 
-	conf := config.Get()
-
 	// If the id_token is being used to make calls to the cluster API, it's known that
 	// this token is a JWT and some of its structure; so, it's possible to do some sanity
 	// checks on the token. However, if the access_token is being used, this token is opaque
 	// and these sanity checks must be skipped.
-	if conf.Auth.OpenId.ApiToken != "access_token" {
+	if c.conf.Auth.OpenId.ApiToken != "access_token" {
 		// Parse the sid claim (id_token) to check that the sub claim matches to the configured "username" claim of the id_token
 		parsedOidcToken, err := jwt.ParseSigned(sPayload.Token)
 		if err != nil {
@@ -220,14 +216,14 @@ func (c OpenIdAuthController) ValidateSession(r *http.Request, w http.ResponseWr
 			return nil, fmt.Errorf("cannot parse the payload of the id_token: %w", err)
 		}
 
-		if userClaim, ok := claims[config.Get().Auth.OpenId.UsernameClaim]; ok && sPayload.Subject != userClaim {
+		if userClaim, ok := claims[c.conf.Auth.OpenId.UsernameClaim]; ok && sPayload.Subject != userClaim {
 			log.Warning("Kiali token rejected because of subject claim mismatch")
 			return nil, nil
 		}
 	}
 
 	var token string
-	if !conf.Auth.OpenId.DisableRBAC {
+	if !c.conf.Auth.OpenId.DisableRBAC {
 		// If RBAC is ENABLED, check that the user has privileges on the cluster.
 		bs, err := business.Get(&api.AuthInfo{Token: sPayload.Token})
 		if err != nil {
@@ -246,10 +242,7 @@ func (c OpenIdAuthController) ValidateSession(r *http.Request, w http.ResponseWr
 		// If RBAC is off, it's assumed that the kubernetes cluster will reject the OpenId token.
 		// Instead, we use the Kiali token and this has the side effect that all users will share the
 		// same privileges.
-		token, _, err = kubernetes.GetKialiTokenForHomeCluster()
-		if err != nil {
-			return nil, fmt.Errorf("error reading the Kiali ServiceAccount token: %w", err)
-		}
+		token = c.clientFactory.GetSAHomeClusterClient().GetToken()
 	}
 
 	// Internal header used to propagate the subject of the request for audit purposes
@@ -321,10 +314,8 @@ func (c OpenIdAuthController) authenticateWithAuthorizationCodeFlow(r *http.Requ
 // capabilities. A Cookie is set to store the source of the calculated codes and be able to verify the
 // authentication intent when the OpenId server calls back.
 func (c OpenIdAuthController) redirectToAuthServerHandler(w http.ResponseWriter, r *http.Request) {
-	conf := config.Get()
-
 	// This endpoint should be available only if OpenId strategy is configured
-	if conf.Auth.Strategy != config.AuthStrategyOpenId {
+	if c.conf.Auth.Strategy != config.AuthStrategyOpenId {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("OpenId strategy is not enabled"))
@@ -332,7 +323,7 @@ func (c OpenIdAuthController) redirectToAuthServerHandler(w http.ResponseWriter,
 	}
 
 	// Kiali only supports the authorization code flow.
-	if !isOpenIdCodeFlowPossible() {
+	if !isOpenIdCodeFlowPossible(c.conf) {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusNotImplemented)
 		_, _ = w.Write([]byte("Cannot start authentication because it is not possible to use OpenId's authorization code flow. Check Kiali logs for more details."))
@@ -340,12 +331,12 @@ func (c OpenIdAuthController) redirectToAuthServerHandler(w http.ResponseWriter,
 	}
 
 	// Build scopes string
-	scopes := strings.Join(getConfiguredOpenIdScopes(), " ")
+	scopes := strings.Join(getConfiguredOpenIdScopes(c.conf), " ")
 
 	// Determine authorization endpoint
-	authorizationEndpoint := conf.Auth.OpenId.AuthorizationEndpoint
+	authorizationEndpoint := c.conf.Auth.OpenId.AuthorizationEndpoint
 	if len(authorizationEndpoint) == 0 {
-		openIdMetadata, err := getOpenIdMetadata()
+		openIdMetadata, err := getOpenIdMetadata(c.conf)
 		if err != nil {
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusInternalServerError)
@@ -366,15 +357,15 @@ func (c OpenIdAuthController) redirectToAuthServerHandler(w http.ResponseWriter,
 	}
 
 	guessedKialiURL := httputil.GuessKialiURL(c.conf, r)
-	secureFlag := conf.IsServerHTTPS() || strings.HasPrefix(guessedKialiURL, "https:")
+	secureFlag := c.conf.IsServerHTTPS() || strings.HasPrefix(guessedKialiURL, "https:")
 	nowTime := util.Clock.Now()
-	expirationTime := nowTime.Add(time.Duration(conf.Auth.OpenId.AuthenticationTimeout) * time.Second)
+	expirationTime := nowTime.Add(time.Duration(c.conf.Auth.OpenId.AuthenticationTimeout) * time.Second)
 	nonceCookie := http.Cookie{
 		Expires:  expirationTime,
 		HttpOnly: true,
 		Secure:   secureFlag,
 		Name:     OpenIdNonceCookieName,
-		Path:     conf.Server.WebRoot,
+		Path:     c.conf.Server.WebRoot,
 		SameSite: http.SameSiteLaxMode,
 		Value:    nonceCode,
 	}
@@ -397,13 +388,13 @@ func (c OpenIdAuthController) redirectToAuthServerHandler(w http.ResponseWriter,
 	// Although this "binds" the id_token returned by the IdP with the CSRF mitigation, this should be OK
 	// because we are including a "secret" key (i.e. should an attacker steal the nonce code, he still needs to know
 	// the Kiali's signing key).
-	csrfHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", nonceCode, nowTime.UTC().Format("060102150405"), config.GetSigningKey())))
+	csrfHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", nonceCode, nowTime.UTC().Format("060102150405"), getSigningKey(c.conf))))
 
 	// Send redirection to browser
 	responseType := "code" // Request for the "authorization code" flow
 	redirectUri := fmt.Sprintf("%s?client_id=%s&response_type=%s&redirect_uri=%s&scope=%s&nonce=%s&state=%s",
 		authorizationEndpoint,
-		url.QueryEscape(conf.Auth.OpenId.ClientId),
+		url.QueryEscape(c.conf.Auth.OpenId.ClientId),
 		responseType,
 		url.QueryEscape(guessedKialiURL),
 		url.QueryEscape(scopes),
@@ -411,9 +402,9 @@ func (c OpenIdAuthController) redirectToAuthServerHandler(w http.ResponseWriter,
 		url.QueryEscape(fmt.Sprintf("%x-%s", csrfHash, nowTime.UTC().Format("060102150405"))),
 	)
 
-	if len(conf.Auth.OpenId.AdditionalRequestParams) > 0 {
-		urlParams := make([]string, 0, len(conf.Auth.OpenId.AdditionalRequestParams))
-		for k, v := range conf.Auth.OpenId.AdditionalRequestParams {
+	if len(c.conf.Auth.OpenId.AdditionalRequestParams) > 0 {
+		urlParams := make([]string, 0, len(c.conf.Auth.OpenId.AdditionalRequestParams))
+		for k, v := range c.conf.Auth.OpenId.AdditionalRequestParams {
 			urlParams = append(urlParams, fmt.Sprintf("%s=%s", url.QueryEscape(k), url.QueryEscape(v)))
 		}
 		redirectUri = fmt.Sprintf("%s&%s", redirectUri, strings.Join(urlParams, "&"))
@@ -476,7 +467,7 @@ type openidFlowHelper struct {
 
 	kialiCache    cache.KialiCache
 	clientFactory kubernetes.ClientFactory
-	conf          config.Config
+	conf          *config.Config
 }
 
 // callbackCleanup deletes the nonce cookie that was generated during the redirection from Kiali to
@@ -487,8 +478,7 @@ func (p *openidFlowHelper) callbackCleanup(r *http.Request, w http.ResponseWrite
 		return p
 	}
 
-	conf := config.Get()
-	secureFlag := conf.IsServerHTTPS() || strings.HasPrefix(httputil.GuessKialiURL(p.conf, r), "https:")
+	secureFlag := p.conf.IsServerHTTPS() || strings.HasPrefix(httputil.GuessKialiURL(p.conf, r), "https:")
 
 	// Delete the nonce cookie since we no longer need it.
 	deleteNonceCookie := http.Cookie{
@@ -496,7 +486,7 @@ func (p *openidFlowHelper) callbackCleanup(r *http.Request, w http.ResponseWrite
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
 		Secure:   secureFlag,
-		Path:     conf.Server.WebRoot,
+		Path:     p.conf.Server.WebRoot,
 		SameSite: http.SameSiteStrictMode,
 		Value:    "",
 	}
@@ -580,10 +570,8 @@ func (p *openidFlowHelper) checkAllowedDomains() *openidFlowHelper {
 		return p
 	}
 
-	conf := config.Get()
-
-	if len(conf.Auth.OpenId.AllowedDomains) > 0 {
-		if err := checkDomain(p.IdTokenPayload, conf.Auth.OpenId.AllowedDomains); err != nil {
+	if len(p.conf.Auth.OpenId.AllowedDomains) > 0 {
+		if err := checkDomain(p.IdTokenPayload, p.conf.Auth.OpenId.AllowedDomains); err != nil {
 			p.Error = &AuthenticationFailureError{Reason: err.Error()}
 		}
 	}
@@ -605,9 +593,8 @@ func (p *openidFlowHelper) checkUserPrivileges() *openidFlowHelper {
 		return p
 	}
 
-	conf := config.Get()
 	p.UseAccessToken = false
-	if conf.Auth.OpenId.DisableRBAC {
+	if p.conf.Auth.OpenId.DisableRBAC {
 		// When RBAC is on, we delegate some validations to the Kubernetes cluster. However, if RBAC is off
 		// the token must be fully validated, as we no longer pass the OpenId token to the cluster API server.
 		// Since the configuration indicates RBAC is off, we do the validations:
@@ -625,7 +612,7 @@ func (p *openidFlowHelper) checkUserPrivileges() *openidFlowHelper {
 		// config indicates that RBAC is on. For cases where RBAC is off, we simply assume that the
 		// Kiali ServiceAccount token should have enough privileges and skip this privilege check.
 		apiToken := p.IdToken
-		if conf.Auth.OpenId.ApiToken == "access_token" {
+		if p.conf.Auth.OpenId.ApiToken == "access_token" {
 			apiToken = p.AccessToken
 			p.UseAccessToken = true
 		}
@@ -715,7 +702,7 @@ func (p *openidFlowHelper) parseOpenIdToken() *openidFlowHelper {
 
 	// Extract the name of the user from the id_token. The "subject" is passed to the front-end to be displayed.
 	p.Subject = "OpenId User" // Set a default value
-	if userClaim, ok := claims[config.Get().Auth.OpenId.UsernameClaim]; ok && len(userClaim.(string)) > 0 {
+	if userClaim, ok := claims[p.conf.Auth.OpenId.UsernameClaim]; ok && len(userClaim.(string)) > 0 {
 		p.Subject = userClaim.(string)
 	}
 
@@ -758,7 +745,7 @@ func (p *openidFlowHelper) validateOpenIdState() *openidFlowHelper {
 	separator := strings.LastIndexByte(state, '-')
 	if separator != -1 {
 		csrfToken, timestamp := state[:separator], state[separator+1:]
-		csrfHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", p.Nonce, timestamp, config.GetSigningKey())))
+		csrfHash := sha256.Sum224([]byte(fmt.Sprintf("%s+%s+%s", p.Nonce, timestamp, getSigningKey(p.conf))))
 
 		if fmt.Sprintf("%x", csrfHash) != csrfToken {
 			p.Error = &AuthenticationFailureError{
@@ -784,15 +771,15 @@ func (p *openidFlowHelper) requestOpenIdToken(redirect_uri string) *openidFlowHe
 		return p
 	}
 
-	oidcMeta, err := getOpenIdMetadata()
+	oidcMeta, err := getOpenIdMetadata(p.conf)
 	if err != nil {
 		p.Error = err
 		return p
 	}
 
-	cfg := config.Get().Auth.OpenId
+	cfg := p.conf.Auth.OpenId
 
-	httpClient, err := createHttpClient(oidcMeta.TokenURL)
+	httpClient, err := createHttpClient(p.conf, oidcMeta.TokenURL)
 	if err != nil {
 		p.Error = fmt.Errorf("failure when creating http client to request open id token: %w", err)
 		return p
@@ -909,8 +896,8 @@ func checkDomain(tokenClaims map[string]interface{}, allowedDomains []string) er
 
 // createHttpClient is a helper for creating and configuring an http client that is ready
 // to do requests to the url in toUrl, which should be and endpoint of the OpenId server.
-func createHttpClient(toUrl string) (*http.Client, error) {
-	cfg := config.Get().Auth.OpenId
+func createHttpClient(conf *config.Config, toUrl string) (*http.Client, error) {
+	cfg := conf.Auth.OpenId
 	parsedUrl, err := url.Parse(toUrl)
 	if err != nil {
 		return nil, err
@@ -958,10 +945,10 @@ func createHttpClient(toUrl string) (*http.Client, error) {
 
 // isOpenIdCodeFlowPossible determines if the "authorization code" flow can be used
 // to do user authentication.
-func isOpenIdCodeFlowPossible() bool {
+func isOpenIdCodeFlowPossible(conf *config.Config) bool {
 	// Kiali's signing key length must be 16, 24 or 32 bytes in order to be able to use
 	// encoded cookies.
-	switch len(config.GetSigningKey()) {
+	switch len(getSigningKey(conf)) {
 	case 16, 24, 32:
 	default:
 		log.Warningf("Cannot use OpenId authorization code flow because signing key is not 16, 24 nor 32 bytes long")
@@ -969,7 +956,7 @@ func isOpenIdCodeFlowPossible() bool {
 	}
 
 	// IdP provider's metadata must list "code" in it's supported response types
-	metadata, err := getOpenIdMetadata()
+	metadata, err := getOpenIdMetadata(conf)
 	if err != nil {
 		// On error, just inform that code flow is not possible
 		log.Warningf("Error when fetching OpenID provider's metadata: %s", err.Error())
@@ -989,8 +976,8 @@ func isOpenIdCodeFlowPossible() bool {
 
 // getConfiguredOpenIdScopes gets the list of scopes set in Kiali configuration making sure
 // that the mandatory "openid" scope is present in the returned list.
-func getConfiguredOpenIdScopes() []string {
-	cfg := config.Get().Auth.OpenId
+func getConfiguredOpenIdScopes(conf *config.Config) []string {
+	cfg := conf.Auth.OpenId
 	scopes := cfg.Scopes
 
 	isOpenIdScopePresent := false
@@ -1018,7 +1005,7 @@ func getConfiguredOpenIdScopes() []string {
 // refreshed as needed, when the requested keyId is not available in the cached key set.
 //
 // See also getOpenIdJwks, validateOpenIdTokenInHouse.
-func getJwkFromKeySet(keyId string) (*jose.JSONWebKey, error) {
+func getJwkFromKeySet(conf *config.Config, keyId string) (*jose.JSONWebKey, error) {
 	// Helper function to find a key with a certain key id in a key-set.
 	findJwkFunc := func(kid string, jwks *jose.JSONWebKeySet) *jose.JSONWebKey {
 		for _, key := range jwks.Keys {
@@ -1039,7 +1026,7 @@ func getJwkFromKeySet(keyId string) (*jose.JSONWebKey, error) {
 
 	// If key-set is not cached, or if the requested key was not found in the
 	// cached key-set, then fetch/refresh the key-set from the OpenId provider
-	keySet, err := getOpenIdJwks()
+	keySet, err := getOpenIdJwks(conf)
 	if err != nil {
 		return nil, err
 	}
@@ -1053,15 +1040,15 @@ func getJwkFromKeySet(keyId string) (*jose.JSONWebKey, error) {
 
 // getOpenIdJwks fetches the currently published key set from the OpenId server.
 // It's better to use the getJwkFromKeySet function rather than this one.
-func getOpenIdJwks() (*jose.JSONWebKeySet, error) {
+func getOpenIdJwks(conf *config.Config) (*jose.JSONWebKeySet, error) {
 	fetchedKeySet, fetchError, _ := openIdFlightGroup.Do("jwks", func() (interface{}, error) {
-		oidcMetadata, err := getOpenIdMetadata()
+		oidcMetadata, err := getOpenIdMetadata(conf)
 		if err != nil {
 			return nil, err
 		}
 
 		// Create HTTP client
-		httpClient, err := createHttpClient(oidcMetadata.JWKSURL)
+		httpClient, err := createHttpClient(conf, oidcMetadata.JWKSURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create http client to fetch OpenId JWKS document: %w", err)
 		}
@@ -1106,18 +1093,18 @@ func getOpenIdJwks() (*jose.JSONWebKeySet, error) {
 // validations are performed and the parsed metadata is returned. Since the metadata should be
 // rare to change, the retrieved metadata is cached on first call and subsequent calls return
 // the cached metadata.
-func getOpenIdMetadata() (*openIdMetadata, error) {
+func getOpenIdMetadata(conf *config.Config) (*openIdMetadata, error) {
 	if cachedOpenIdMetadata != nil {
 		return cachedOpenIdMetadata, nil
 	}
 
 	fetchedMetadata, fetchError, _ := openIdFlightGroup.Do("metadata", func() (interface{}, error) {
-		cfg := config.Get().Auth.OpenId
+		cfg := conf.Auth.OpenId
 
 		// Remove trailing slash from issuer URI, if needed
 		trimmedIssuerUri := strings.TrimRight(cfg.IssuerUri, "/")
 
-		httpClient, err := createHttpClient(trimmedIssuerUri)
+		httpClient, err := createHttpClient(conf, trimmedIssuerUri)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create http client to fetch OpenId Metadata: %w", err)
 		}
@@ -1158,7 +1145,7 @@ func getOpenIdMetadata() (*openIdMetadata, error) {
 
 		// Log warning if OpenId provider informs that some of the configured scopes are not supported
 		// It's possible to try authentication. If metadata is right, the error will be evident to the user when trying to login.
-		scopes := getConfiguredOpenIdScopes()
+		scopes := getConfiguredOpenIdScopes(conf)
 		for _, scope := range scopes {
 			isScopeSupported := false
 			for _, supportedScope := range metadata.ScopesSupported {
@@ -1275,8 +1262,8 @@ func verifyAudienceClaim(openIdParams *openidFlowHelper, oidCfg config.OpenIdCon
 // If the claims look OK, the signature is checked against the key sets published by
 // the OpenId server.
 func validateOpenIdTokenInHouse(openIdParams *openidFlowHelper) error {
-	oidCfg := config.Get().Auth.OpenId
-	oidMetadata, err := getOpenIdMetadata()
+	oidCfg := openIdParams.conf.Auth.OpenId
+	oidMetadata, err := getOpenIdMetadata(openIdParams.conf)
 	if err != nil {
 		return err
 	}
@@ -1350,7 +1337,7 @@ func validateOpenIdTokenInHouse(openIdParams *openidFlowHelper) error {
 				return errors.New("an unsigned OpenId token is not acceptable")
 			}
 
-			matchingKey, findKeyErr := getJwkFromKeySet(kidHeader)
+			matchingKey, findKeyErr := getJwkFromKeySet(openIdParams.conf, kidHeader)
 			if findKeyErr != nil {
 				return fmt.Errorf("something went wrong when trying to find the key that signed the OpenId token: %w", findKeyErr)
 			}
@@ -1370,19 +1357,17 @@ func validateOpenIdTokenInHouse(openIdParams *openidFlowHelper) error {
 
 // verifyOpenIdUserAccess checks that the provided token has enough privileges on the cluster to
 // allow a login to Kiali.
-func verifyOpenIdUserAccess(token string, clientFactory kubernetes.ClientFactory, kialiCache cache.KialiCache, conf config.Config) (int, string, error) {
-	// TODO: This the best way to set the auth info?
+func verifyOpenIdUserAccess(token string, clientFactory kubernetes.ClientFactory, kialiCache cache.KialiCache, conf *config.Config) (int, string, error) {
 	authInfo := &api.AuthInfo{Token: token}
 	userClients, err := clientFactory.GetClients(authInfo)
 	if err != nil {
-		return http.StatusUnauthorized, "Token is not valid or is expired", err
+		return http.StatusInternalServerError, "Unable to create a Kubernetes client from the auth token", err
 	}
 
 	namespaceService := business.NewNamespaceService(userClients, clientFactory.GetSAClients(), kialiCache, conf)
 
 	// Using the namespaces API to check if token is valid. In Kubernetes, the version API seems to allow
 	// anonymous access, so it's not feasible to use the version API for token verification.
-	// TODO: Does cluster matter?
 	nsList, err := namespaceService.GetNamespaces(context.TODO())
 	if err != nil {
 		return http.StatusUnauthorized, "Token is not valid or is expired", err

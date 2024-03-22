@@ -89,7 +89,7 @@ func (aHandler AuthenticationHandler) HandleUnauthenticated(next http.Handler) h
 	})
 }
 
-func Authenticate(conf config.Config, authController authentication.AuthController) http.HandlerFunc {
+func Authenticate(conf *config.Config, authController authentication.AuthController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch conf.Auth.Strategy {
 		case config.AuthStrategyToken, config.AuthStrategyOpenId, config.AuthStrategyOpenshift, config.AuthStrategyHeader:
@@ -117,7 +117,7 @@ func Authenticate(conf config.Config, authController authentication.AuthControll
 	}
 }
 
-func AuthenticationInfo(conf config.Config, authController authentication.AuthController) http.HandlerFunc {
+func AuthenticationInfo(conf *config.Config, authController authentication.AuthController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var response AuthInfo
 
@@ -166,7 +166,7 @@ func AuthenticationInfo(conf config.Config, authController authentication.AuthCo
 	}
 }
 
-func Logout(conf config.Config, authController authentication.AuthController) http.HandlerFunc {
+func Logout(conf *config.Config, authController authentication.AuthController) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if conf.Auth.Strategy == config.AuthStrategyAnonymous {
 			RespondWithCode(w, http.StatusNoContent)

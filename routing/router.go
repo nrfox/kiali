@@ -80,11 +80,11 @@ func NewRouter(conf *config.Config, kialiCache cache.KialiCache, clientFactory k
 
 	var authController authentication.AuthController
 	if strategy == config.AuthStrategyToken {
-		authController = authentication.NewTokenAuthController(persistor, clientFactory, kialiCache, *conf)
+		authController = authentication.NewTokenAuthController(persistor, clientFactory, kialiCache, conf)
 	} else if strategy == config.AuthStrategyOpenId {
-		authController = authentication.NewOpenIdAuthController(persistor, kialiCache, clientFactory, *conf)
+		authController = authentication.NewOpenIdAuthController(persistor, kialiCache, clientFactory, conf)
 	} else if strategy == config.AuthStrategyOpenshift {
-		openshiftOAuthService := business.NewOpenshiftOAuthService(*conf, clientFactory.GetSAHomeClusterClient())
+		openshiftOAuthService := business.NewOpenshiftOAuthService(conf, clientFactory.GetSAHomeClusterClient())
 		authController = authentication.NewOpenshiftAuthController(persistor, &openshiftOAuthService)
 	} else if strategy == config.AuthStrategyHeader {
 		authController = authentication.NewHeaderAuthController(persistor, clientFactory.GetSAHomeClusterClient())
@@ -163,7 +163,6 @@ func NewRouter(conf *config.Config, kialiCache cache.KialiCache, clientFactory k
 			Handler(handlerFunction)
 	}
 
-	// TODO: Simplify this?
 	if authController != nil {
 		if ac, ok := authController.(*authentication.OpenIdAuthController); ok {
 			ac.PostRoutes(appRouter)
@@ -176,7 +175,6 @@ func NewRouter(conf *config.Config, kialiCache cache.KialiCache, clientFactory k
 		serveIndexFile(w)
 	})
 
-	// TODO: And this?
 	if authController != nil {
 		if ac, ok := authController.(*authentication.OpenIdAuthController); ok {
 			authCallback := ac.GetAuthCallbackHandler(http.HandlerFunc(fileServerHandler))

@@ -75,7 +75,6 @@ func (o openshiftAuthController) Authenticate(r *http.Request, w http.ResponseWr
 
 	expiresOn := time.Now().Add(time.Second * time.Duration(expiresInNumber))
 
-	// TODO: Do we need to use user client here?
 	user, err := o.openshiftOAuth.GetUserInfo(token)
 	if err != nil {
 		o.SessionStore.TerminateSession(r, w)

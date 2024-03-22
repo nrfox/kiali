@@ -59,7 +59,7 @@ func TestTokenAuthControllerRejectsUserWithoutPrivilegesInAnyNamespace(t *testin
 	rr := httptest.NewRecorder()
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
 	cache := cache.NewTestingCacheWithFactory(t, mockClientFactory, *conf)
-	controller := NewTokenAuthController(CookieSessionPersistor{}, mockClientFactory, cache, *conf)
+	controller := NewTokenAuthController(NewCookieSessionPersistor(conf), mockClientFactory, cache, conf)
 	sData, err := controller.Authenticate(request, rr)
 
 	assert.Nil(t, sData)
@@ -84,7 +84,7 @@ func TestTokenAuthControllerRejectsInvalidToken(t *testing.T) {
 	k8s := kubetest.NewFakeK8sClient(&v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "Foo"}})
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(forbiddenClient{k8s})
 	cache := cache.NewTestingCacheWithFactory(t, mockClientFactory, *conf)
-	controller := NewTokenAuthController(CookieSessionPersistor{}, mockClientFactory, cache, *conf)
+	controller := NewTokenAuthController(NewCookieSessionPersistor(conf), mockClientFactory, cache, conf)
 
 	requestBody := strings.NewReader("token=Foo")
 	request := httptest.NewRequest(http.MethodPost, "/api/authenticate", requestBody)
@@ -111,7 +111,7 @@ func TestTokenAuthControllerRejectsEmptyToken(t *testing.T) {
 	k8s := kubetest.NewFakeK8sClient()
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
 	cache := cache.NewTestingCacheWithFactory(t, mockClientFactory, *conf)
-	controller := NewTokenAuthController(CookieSessionPersistor{}, mockClientFactory, cache, *conf)
+	controller := NewTokenAuthController(NewCookieSessionPersistor(conf), mockClientFactory, cache, conf)
 
 	rr := httptest.NewRecorder()
 	sData, err := controller.Authenticate(request, rr)
@@ -155,7 +155,7 @@ func TestTokenAuthControllerValidatesSessionWithoutActiveSession(t *testing.T) {
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
 	cache := cache.NewTestingCacheWithFactory(t, mockClientFactory, *conf)
 
-	controller := NewTokenAuthController(CookieSessionPersistor{}, mockClientFactory, cache, *conf)
+	controller := NewTokenAuthController(NewCookieSessionPersistor(conf), mockClientFactory, cache, conf)
 	sData, err := controller.ValidateSession(request, rr)
 
 	assert.Nil(t, err)
@@ -217,7 +217,7 @@ func createValidSession(t *testing.T) (*httptest.ResponseRecorder, *UserSessionD
 	mockClientFactory := kubetest.NewK8SClientFactoryMock(k8s)
 	cache := cache.NewTestingCacheWithFactory(t, mockClientFactory, *conf)
 
-	controller := NewTokenAuthController(CookieSessionPersistor{}, mockClientFactory, cache, *conf)
+	controller := NewTokenAuthController(NewCookieSessionPersistor(conf), mockClientFactory, cache, conf)
 
 	sData, err := controller.Authenticate(request, rr)
 	if err != nil {

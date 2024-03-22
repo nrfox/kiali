@@ -96,7 +96,7 @@ func NewRoutes(
 			"Authenticate",
 			"GET",
 			"/api/authenticate",
-			handlers.Authenticate(*conf, authController),
+			handlers.Authenticate(conf, authController),
 			false,
 		},
 		// swagger:route POST /authenticate auth openshiftCheckToken
@@ -115,7 +115,7 @@ func NewRoutes(
 			"OpenshiftCheckToken",
 			"POST",
 			"/api/authenticate",
-			handlers.Authenticate(*conf, authController),
+			handlers.Authenticate(conf, authController),
 			false,
 		},
 		// swagger:route GET /logout auth logout
@@ -130,7 +130,7 @@ func NewRoutes(
 			"Logout",
 			"GET",
 			"/api/logout",
-			handlers.Logout(*conf, authController),
+			handlers.Logout(conf, authController),
 			false,
 		},
 		// swagger:route GET /auth/info auth authenticationInfo
@@ -153,7 +153,7 @@ func NewRoutes(
 			"AuthenticationInfo",
 			"GET",
 			"/api/auth/info",
-			handlers.AuthenticationInfo(*conf, authController),
+			handlers.AuthenticationInfo(conf, authController),
 			false,
 		},
 		// swagger:route GET /status status getStatus

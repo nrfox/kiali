@@ -102,7 +102,7 @@ func newLayer(
 	temporaryLayer.IstioConfig = IstioConfigService{config: *conf, userClients: userClients, kialiCache: cache, businessLayer: temporaryLayer, controlPlaneMonitor: poller}
 	temporaryLayer.IstioStatus = NewIstioStatusService(userClients, temporaryLayer, poller)
 	temporaryLayer.IstioCerts = IstioCertsService{k8s: userClients[homeClusterName], businessLayer: temporaryLayer}
-	temporaryLayer.Namespace = NewNamespaceService(userClients, kialiSAClients, cache, *conf)
+	temporaryLayer.Namespace = NewNamespaceService(userClients, kialiSAClients, cache, conf)
 	temporaryLayer.Mesh = NewMeshService(kialiSAClients, cache, temporaryLayer.Namespace, *conf)
 	temporaryLayer.OpenshiftOAuth = OpenshiftOAuthService{kialiSAClient: kialiSAClients[homeClusterName]}
 	temporaryLayer.ProxyStatus = ProxyStatusService{kialiSAClients: kialiSAClients, kialiCache: cache, businessLayer: temporaryLayer}

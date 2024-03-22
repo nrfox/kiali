@@ -25,7 +25,7 @@ import (
 // be any kind of token that can be passed using HTTP Bearer authentication
 // in requests to the Kubernetes API.
 type tokenAuthController struct {
-	conf          config.Config
+	conf          *config.Config
 	kialiCache    cache.KialiCache
 	clientFactory kubernetes.ClientFactory
 	// SessionStore persists the session between HTTP requests.
@@ -41,7 +41,7 @@ type tokenSessionPayload struct {
 // NewTokenAuthController initializes a new controller for handling token authentication, with the
 // given persistor and the given businessInstantiator. The businessInstantiator can be nil and
 // the initialized contoller will use the business.Get function.
-func NewTokenAuthController(persistor SessionPersistor, clientFactory kubernetes.ClientFactory, kialiCache cache.KialiCache, conf config.Config) *tokenAuthController {
+func NewTokenAuthController(persistor SessionPersistor, clientFactory kubernetes.ClientFactory, kialiCache cache.KialiCache, conf *config.Config) *tokenAuthController {
 	return &tokenAuthController{
 		clientFactory: clientFactory,
 		SessionStore:  persistor,
@@ -89,7 +89,6 @@ func (c tokenAuthController) Authenticate(r *http.Request, w http.ResponseWriter
 	}
 
 	// If namespace list is empty, return authentication failure.
-	// TODO: Should we clear the cached namespaces here?
 	if len(nsList) == 0 {
 		c.SessionStore.TerminateSession(r, w)
 		return nil, &AuthenticationFailureError{Reason: "not enough privileges to login"}
@@ -129,7 +128,7 @@ func (c tokenAuthController) ValidateSession(r *http.Request, w http.ResponseWri
 	// Check token validity.
 	clients, err := c.clientFactory.GetClients(&api.AuthInfo{Token: sPayload.Token})
 	if err != nil {
-		return nil, fmt.Errorf("could not get the clients: %w", err)
+		return nil, fmt.Errorf("could create user clients from token: %w", err)
 	}
 
 	namespaceService := business.NewNamespaceService(clients, c.clientFactory.GetSAClients(), c.kialiCache, c.conf)

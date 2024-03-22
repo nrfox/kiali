@@ -20,7 +20,7 @@ import (
 	"github.com/kiali/kiali/util/httputil"
 )
 
-func NewOpenshiftOAuthService(conf config.Config, kialiSAClient kubernetes.ClientInterface) OpenshiftOAuthService {
+func NewOpenshiftOAuthService(conf *config.Config, kialiSAClient kubernetes.ClientInterface) OpenshiftOAuthService {
 	return OpenshiftOAuthService{
 		conf:          conf,
 		kialiSAClient: kialiSAClient,
@@ -29,7 +29,7 @@ func NewOpenshiftOAuthService(conf config.Config, kialiSAClient kubernetes.Clien
 
 type OpenshiftOAuthService struct {
 	// TODO: Support multi-cluster
-	conf          config.Config
+	conf          *config.Config
 	kialiSAClient kubernetes.ClientInterface
 }
 
@@ -192,8 +192,7 @@ func (in *OpenshiftOAuthService) Logout(token string) error {
 
 func request(method string, serverPrefix string, url string, auth *string, useSystemCA bool, customCA string, timeoutInSeconds int) ([]byte, error) {
 	if defaultAuthRequestTimeout == (0 * time.Second) {
-		config := config.Get().Auth.OpenShift
-		defaultAuthRequestTimeout = time.Duration(config.AuthTimeout) * time.Second
+		defaultAuthRequestTimeout = time.Duration(timeoutInSeconds) * time.Second
 		log.Tracef("OpenShift auth timeout is set to [%v]", defaultAuthRequestTimeout)
 	}
 	return requestWithTimeout(method, serverPrefix, url, auth, time.Duration(defaultAuthRequestTimeout), useSystemCA, customCA)

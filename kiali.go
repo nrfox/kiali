@@ -118,7 +118,7 @@ func main() {
 	}
 	defer cache.Stop()
 
-	namespaceService := business.NewNamespaceService(clientFactory.GetSAClients(), clientFactory.GetSAClients(), cache, *cfg)
+	namespaceService := business.NewNamespaceService(clientFactory.GetSAClients(), clientFactory.GetSAClients(), cache, cfg)
 	meshService := business.NewMeshService(clientFactory.GetSAClients(), cache, namespaceService, *cfg)
 	cpm := business.NewControlPlaneMonitor(cache, clientFactory, *cfg, &meshService)
 

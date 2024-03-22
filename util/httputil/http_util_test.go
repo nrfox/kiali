@@ -12,13 +12,13 @@ import (
 	"github.com/kiali/kiali/util/httputil"
 )
 
-func setupAndCreateRequest() (config.Config, *http.Request) {
+func setupAndCreateRequest() (*config.Config, *http.Request) {
 	conf := config.NewConfig()
 	conf.Server.WebRoot = "/custom/kiali"
 	conf.Server.Port = 700
 
 	request, _ := http.NewRequest("GET", "https://kiali:2800/custom/kiali/path/", nil)
-	return *conf, request
+	return conf, request
 }
 
 func TestGuessKialiURLParsesFromRequest(t *testing.T) {
@@ -66,7 +66,7 @@ func TestGuessKialiURLWebFQDNPort(t *testing.T) {
 	conf.Server.Port = 700
 
 	request, _ := http.NewRequest("GET", "https://kiali:2800/custom/kiali/path/", nil)
-	guessedUrl := httputil.GuessKialiURL(*conf, request)
+	guessedUrl := httputil.GuessKialiURL(conf, request)
 
 	assert.Equal(t, "https://kiali:1234/custom/kiali", guessedUrl)
 }
