@@ -26,7 +26,7 @@ import (
 )
 
 // NewRouter creates the router with all API routes and the static files handler
-func NewRouter(conf *config.Config, kialiCache cache.KialiCache, clientFactory kubernetes.ClientFactory, prom kialiprometheus.ClientInterface, traceClientLoader func() tracing.ClientInterface, cpm business.ControlPlaneMonitor) *mux.Router {
+func NewRouter(conf *config.Config, kialiCache cache.KialiCache, clientFactory kubernetes.ClientFactory, prom kialiprometheus.ClientInterface, traceClientLoader func() tracing.ClientInterface, cpm business.ControlPlaneMonitor) (*mux.Router, error) {
 	webRoot := conf.Server.WebRoot
 	webRootWithSlash := webRoot + "/"
 
@@ -75,7 +75,7 @@ func NewRouter(conf *config.Config, kialiCache cache.KialiCache, clientFactory k
 
 	appRouter = appRouter.StrictSlash(true)
 
-	persistor := authentication.CookieSessionPersistor{}
+	persistor := authentication.NewCookieSessionPersistor(conf)
 	strategy := conf.Auth.Strategy
 
 	var authController authentication.AuthController
@@ -84,8 +84,17 @@ func NewRouter(conf *config.Config, kialiCache cache.KialiCache, clientFactory k
 	} else if strategy == config.AuthStrategyOpenId {
 		authController = authentication.NewOpenIdAuthController(persistor, kialiCache, clientFactory, conf)
 	} else if strategy == config.AuthStrategyOpenshift {
-		openshiftOAuthService := business.NewOpenshiftOAuthService(conf, clientFactory.GetSAHomeClusterClient())
-		authController = authentication.NewOpenshiftAuthController(persistor, &openshiftOAuthService)
+		openshiftOAuthService, err := business.NewOpenshiftOAuthService(conf, clientFactory.GetSAHomeClusterClient())
+		if err != nil {
+			log.Errorf("Error creating OpenshiftOAuthService: %v", err)
+			return nil, err
+		}
+		openshiftAuth, err := authentication.NewOpenshiftAuthController(persistor, openshiftOAuthService, conf)
+		if err != nil {
+			log.Errorf("Error creating OpenshiftAuthController: %v", err)
+			return nil, err
+		}
+		authController = openshiftAuth
 	} else if strategy == config.AuthStrategyHeader {
 		authController = authentication.NewHeaderAuthController(persistor, clientFactory.GetSAHomeClusterClient())
 	}
@@ -166,6 +175,8 @@ func NewRouter(conf *config.Config, kialiCache cache.KialiCache, clientFactory k
 	if authController != nil {
 		if ac, ok := authController.(*authentication.OpenIdAuthController); ok {
 			ac.PostRoutes(appRouter)
+		} else if ac, ok := authController.(*authentication.OpenshiftAuthController); ok {
+			ac.PostRoutes(appRouter)
 		}
 	}
 
@@ -179,12 +190,16 @@ func NewRouter(conf *config.Config, kialiCache cache.KialiCache, clientFactory k
 		if ac, ok := authController.(*authentication.OpenIdAuthController); ok {
 			authCallback := ac.GetAuthCallbackHandler(http.HandlerFunc(fileServerHandler))
 			rootRouter.Methods("GET").Path(webRootWithSlash).Handler(authCallback)
+			// Need a URL to catch for openshift too.
+		} else if ac, ok := authController.(*authentication.OpenshiftAuthController); ok {
+			authCallback := ac.GetAuthCallbackHandler(http.HandlerFunc(fileServerHandler))
+			rootRouter.Methods("GET").Path(webRootWithSlash).Handler(authCallback)
 		}
 	}
 
 	rootRouter.PathPrefix(webRootWithSlash).HandlerFunc(fileServerHandler)
 
-	return rootRouter
+	return rootRouter, nil
 }
 
 // statusResponseWriter contains a ResponseWriter and a StatusCode to read in the metrics middleware

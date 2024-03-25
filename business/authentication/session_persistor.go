@@ -35,8 +35,8 @@ const (
 	AESSessionChunksCookieName = config.TokenCookieName + "-chunks"
 )
 
-func NewCookieSessionPersistor(conf *config.Config) *CookieSessionPersistor {
-	return &CookieSessionPersistor{conf: conf}
+func NewCookieSessionPersistor(conf *config.Config) *cookieSessionPersistor {
+	return &cookieSessionPersistor{conf: conf}
 }
 
 // CookieSessionPersistor is a session storage based on browser cookies. Session
@@ -46,7 +46,7 @@ func NewCookieSessionPersistor(conf *config.Config) *CookieSessionPersistor {
 // is using multiple cookies. There is still a (browser dependant) limit on the
 // number of cookies that a website can set but we haven't heard of a user
 // facing problems because of reaching this limit.
-type CookieSessionPersistor struct {
+type cookieSessionPersistor struct {
 	conf *config.Config
 }
 
@@ -60,7 +60,7 @@ type sessionData struct {
 // For improved security, the data of the session is encrypted using the AES-GCM algorithm and
 // the encrypted data is what is sent in cookies. The strategy, expiresOn and payload arguments
 // are all required.
-func (p CookieSessionPersistor) CreateSession(r *http.Request, w http.ResponseWriter, strategy string, expiresOn time.Time, payload interface{}) error {
+func (p cookieSessionPersistor) CreateSession(r *http.Request, w http.ResponseWriter, strategy string, expiresOn time.Time, payload interface{}) error {
 	// Validate that there is a payload and a strategy. The strategy is required just in case Kiali is reconfigured with a
 	// different strategy and drop any stale session. The payload is required because it does not make sense to start a session
 	// if there is no data to persist.
@@ -175,7 +175,7 @@ func (p CookieSessionPersistor) CreateSession(r *http.Request, w http.ResponseWr
 // the session, validation of expiration time is performed and no data is returned assuming the session is stale.
 // Also, it is verified that the currently configured authentication strategy is the same as when the session was
 // created.
-func (p CookieSessionPersistor) ReadSession(r *http.Request, w http.ResponseWriter, payload interface{}) (*sessionData, error) {
+func (p cookieSessionPersistor) ReadSession(r *http.Request, w http.ResponseWriter, payload interface{}) (*sessionData, error) {
 	// This CookieSessionPersistor only deals with sessions using cookies holding encrypted data.
 	// Thus, presence for a cookie with the "-aes" suffix is checked and it's assumed no active session
 	// if such cookie is not found in the request.
@@ -304,7 +304,7 @@ func (p CookieSessionPersistor) ReadSession(r *http.Request, w http.ResponseWrit
 // TerminateSession destroys any persisted data of a session created by the CreateSession function.
 // The session is terminated unconditionally (that is, there is no validation of the session), allowing
 // clearing any stale cookies/session.
-func (p CookieSessionPersistor) TerminateSession(r *http.Request, w http.ResponseWriter) {
+func (p cookieSessionPersistor) TerminateSession(r *http.Request, w http.ResponseWriter) {
 	secureFlag := p.conf.IsServerHTTPS() || strings.HasPrefix(httputil.GuessKialiURL(p.conf, r), "https:")
 
 	var cookiesToDrop []string

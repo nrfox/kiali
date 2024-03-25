@@ -7,7 +7,6 @@ import (
 
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/business/authentication"
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
@@ -40,6 +39,7 @@ func NewAuthenticationHandler(conf config.Config, authController authentication.
 }
 
 func (aHandler AuthenticationHandler) Handle(next http.Handler) http.Handler {
+	// TODO: Seems like we should redirect here to the authorization server?
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		statusCode := http.StatusOK
 
@@ -125,27 +125,10 @@ func AuthenticationInfo(conf *config.Config, authController authentication.AuthC
 
 		switch conf.Auth.Strategy {
 		case config.AuthStrategyOpenshift:
-			token, _, err := kubernetes.GetKialiTokenForHomeCluster()
-			if err != nil {
-				RespondWithDetailedError(w, http.StatusInternalServerError, "Error obtaining Kiali SA token", err.Error())
-				return
-			}
-
-			layer, err := business.Get(&api.AuthInfo{Token: token})
-			if err != nil {
-				RespondWithDetailedError(w, http.StatusInternalServerError, "Error authenticating (getting business layer)", err.Error())
-				return
-			}
-
-			metadata, err := layer.OpenshiftOAuth.Metadata(r)
-			if err != nil {
-				RespondWithDetailedError(w, http.StatusInternalServerError, "Error trying to get OAuth metadata", err.Error())
-				return
-			}
-
-			response.AuthorizationEndpoint = metadata.AuthorizationEndpoint
-			response.LogoutEndpoint = metadata.LogoutEndpoint
-			response.LogoutRedirect = metadata.LogoutRedirect
+			// Path("/api/auth/openshift_redirect").
+			response.AuthorizationEndpoint = fmt.Sprintf("%s/api/auth/openshift_redirect", httputil.GuessKialiURL(conf, r))
+			// response.LogoutEndpoint = metadata.LogoutEndpoint
+			// response.LogoutRedirect = metadata.LogoutRedirect
 		case config.AuthStrategyOpenId:
 			// Do the redirection through an intermediary own endpoint
 			response.AuthorizationEndpoint = fmt.Sprintf("%s/api/auth/openid_redirect",

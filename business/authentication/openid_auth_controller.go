@@ -225,13 +225,15 @@ func (c OpenIdAuthController) ValidateSession(r *http.Request, w http.ResponseWr
 	var token string
 	if !c.conf.Auth.OpenId.DisableRBAC {
 		// If RBAC is ENABLED, check that the user has privileges on the cluster.
-		bs, err := business.Get(&api.AuthInfo{Token: sPayload.Token})
+		authInfo := &api.AuthInfo{Token: sPayload.Token}
+		userClients, err := c.clientFactory.GetClients(authInfo)
 		if err != nil {
 			log.Warningf("Could not get the business layer!!: %v", err)
-			return nil, fmt.Errorf("could not get the business layer: %w", err)
+			return nil, fmt.Errorf("unable to create a Kubernetes client from the auth token: %w", err)
 		}
 
-		_, err = bs.Namespace.GetNamespaces(r.Context())
+		namespaceService := business.NewNamespaceService(userClients, c.clientFactory.GetSAClients(), c.kialiCache, c.conf)
+		_, err = namespaceService.GetNamespaces(r.Context())
 		if err != nil {
 			log.Warningf("Token error!: %v", err)
 			return nil, nil

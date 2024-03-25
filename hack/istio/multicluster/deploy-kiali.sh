@@ -130,6 +130,7 @@ deploy_kiali() {
     --set health_config.rate[0].tolerance[0].failure=100
     --set deployment.ingress.enabled="false"
     --set deployment.service_type="LoadBalancer"
+    --set server.web_port="80"
     --repo https://kiali.org/helm-charts
     kiali-server
     ${KIALI_SERVER_HELM_CHARTS}'

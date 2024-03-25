@@ -397,12 +397,12 @@ type AuthConfig struct {
 
 // OpenShiftConfig contains specific configuration for authentication when on OpenShift
 type OpenShiftConfig struct {
-	AuthTimeout    int    `yaml:"auth_timeout,omitempty"`
-	ClientIdPrefix string `yaml:"client_id_prefix,omitempty"`
-	ClientId       string `yaml:"client_id,omitempty"`
-	ServerPrefix   string `yaml:"server_prefix,omitempty"`
-	UseSystemCA    bool   `yaml:"use_system_ca,omitempty"`
-	CustomCA       string `yaml:"custom_ca,omitempty"`
+	RedirectURI  string `yaml:"redirect_uri,omitempty"`
+	AuthTimeout  int    `yaml:"auth_timeout,omitempty"`
+	ClientId     string `yaml:"client_id,omitempty"`
+	ServerPrefix string `yaml:"server_prefix,omitempty"`
+	UseSystemCA  bool   `yaml:"use_system_ca,omitempty"`
+	CustomCA     string `yaml:"custom_ca,omitempty"`
 }
 
 // OpenIdConfig contains specific configuration for authentication using an OpenID provider
@@ -658,9 +658,8 @@ func NewConfig() (c *Config) {
 				UsernameClaim:           "sub",
 			},
 			OpenShift: OpenShiftConfig{
-				AuthTimeout:    10,
-				ClientIdPrefix: "kiali",
-				ServerPrefix:   "https://kubernetes.default.svc/",
+				AuthTimeout:  10,
+				ServerPrefix: "https://kubernetes.default.svc/",
 			},
 		},
 		CustomDashboards: dashboards.GetBuiltInMonitoringDashboards(),
