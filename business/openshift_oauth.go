@@ -114,7 +114,6 @@ func (in *OpenshiftOAuthService) buildRequest(ctx context.Context, method string
 	return request, nil
 }
 
-// TODO: Move this?
 func (in *OpenshiftOAuthService) GetOAuthAuthorizationServer(ctx context.Context) (*OAuthAuthorizationServer, error) {
 	var server *OAuthAuthorizationServer
 
