@@ -3,11 +3,9 @@ package authentication
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 	"net/http"
-	"os"
+	"net/url"
 	"strings"
 	"time"
 
@@ -59,9 +57,19 @@ func NewOpenshiftAuthController(persistor SessionPersistor, openshiftOAuth *busi
 		return nil, err
 	}
 
+	oAuthClient, err := openshiftOAuth.GetOAuthClient(context.TODO())
+	if err != nil {
+		log.Errorf("Could not get OAuth client: %v", err)
+		return nil, err
+	}
+
+	if len(oAuthClient.RedirectURIs) == 0 {
+		return nil, fmt.Errorf("oAuth client has no redirect URIs")
+	}
+
 	oAuthConfig := &oauth2.Config{
-		ClientID:    conf.Auth.OpenShift.ClientId,
-		RedirectURL: conf.Auth.OpenShift.RedirectURI,
+		ClientID:    oAuthClient.Name,
+		RedirectURL: oAuthClient.RedirectURIs[0],
 		Scopes:      []string{"user:full"},
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  oAuthServer.AuthorizationEndpoint,
@@ -69,37 +77,18 @@ func NewOpenshiftAuthController(persistor SessionPersistor, openshiftOAuth *busi
 		},
 	}
 
-	tlsConfig := &tls.Config{}
-	if customCA := conf.Auth.OpenShift.CustomCA; customCA != "" {
-		log.Debugf("using custom CA for Openshift OAuth [%v]", customCA)
-		certPool := x509.NewCertPool()
-		decodedCustomCA, err := base64.URLEncoding.DecodeString(customCA)
-		if err != nil {
-			return nil, fmt.Errorf("error decoding custom CA certificates: %s", err)
-		}
-		if !certPool.AppendCertsFromPEM(decodedCustomCA) {
-			return nil, fmt.Errorf("failed to add custom CA certificates: %s", err)
-		}
-		tlsConfig = &tls.Config{RootCAs: certPool}
-	} else if !conf.Auth.OpenShift.UseSystemCA {
-		log.Debugf("Using serviceaccount CA for Openshift OAuth")
-		certPool := x509.NewCertPool()
-		cert, err := os.ReadFile("/run/secrets/kubernetes.io/serviceaccount/ca.crt")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get root CA certificates: %s", err)
-		}
-		certPool.AppendCertsFromPEM(cert)
-		tlsConfig = &tls.Config{RootCAs: certPool}
-	} else {
-		log.Debugf("Using system CA for Openshift OAuth")
+	certPool, err := business.OpenshiftAuthCACertPool(conf)
+	if err != nil {
+		return nil, err
 	}
 
+	tlsConfig := &tls.Config{RootCAs: certPool}
 	return &OpenshiftAuthController{
 		conf:                 conf,
 		oAuthConfig:          oAuthConfig,
 		oAuthServerTLSConfig: tlsConfig,
 		openshiftOAuth:       openshiftOAuth,
-		secureCookie:         conf.IsServerHTTPS() || strings.HasPrefix(conf.Auth.OpenShift.RedirectURI, "https:"),
+		secureCookie:         conf.IsServerHTTPS() || strings.HasPrefix(oAuthConfig.RedirectURL, "https:"),
 		SessionStore:         persistor,
 	}, nil
 }
@@ -153,41 +142,24 @@ func (c OpenshiftAuthController) PostRoutes(router *mux.Router) {
 
 func (c OpenshiftAuthController) GetAuthCallbackHandler(fallbackHandler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// URL. Exchange will do the handshake to retrieve the
-		// initial access token. The HTTP Client returned by
-		// conf.Client will refresh the token as necessary.
-		// var code string
-		// if _, err := fmt.Scan(&code); err != nil {
-		// 	log.Fatal(err)
-		// }
-		// TODO: How to pass verifier when we get redirected?
-		// if p.NonceHash == nil {
-		// 	p.Error = &badOidcRequest{Detail: "no nonce code present - login window may have timed out"}
-		// }
-		// if p.State == "" {
-		// 	p.Error = &badOidcRequest{Detail: "state parameter is empty or invalid"}
-		// }
-
-		// if p.Code == "" {
-		// 	p.Error = &badOidcRequest{Detail: "no authorization code is present"}
-		// }
 		nonceCookie, err := r.Cookie(OpenIdNonceCookieName)
 		if err != nil {
-			log.Errorf("Could not get the nonce cookie: %v", err)
-			// http.Error(w, "Could not get the nonce cookie", http.StatusInternalServerError)
-			// return
+			log.Debugf("Not handling OAuth code flow authentication: could not get the nonce cookie: %v", err)
 			fallbackHandler.ServeHTTP(w, r)
 			return
 		}
 
 		code := r.FormValue("code")
 		if code == "" {
-			log.Errorf("Could not get the code: %v", err)
+			log.Debugf("Not handling OAuth code flow authentication: could not get the code: %v", err)
 			fallbackHandler.ServeHTTP(w, r)
 			return
 		}
 
 		// If we get here then the request IS a callback from the OpenId provider.
+
+		webRoot := c.conf.Server.WebRoot
+		webRootWithSlash := webRoot + "/"
 
 		// Use the custom HTTP client when requesting a token.
 		httpClient := &http.Client{Transport: &http.Transport{TLSClientConfig: c.oAuthServerTLSConfig}}
@@ -195,27 +167,16 @@ func (c OpenshiftAuthController) GetAuthCallbackHandler(fallbackHandler http.Han
 
 		tok, err := c.oAuthConfig.Exchange(ctx, code, oauth2.VerifierOption(nonceCookie.Value))
 		if err != nil {
-			log.Errorf("Unable to exchange the code for a token: %v", err)
-			http.Error(w, "Unable to exchange the code for a token", http.StatusInternalServerError)
+			log.Errorf("Authentication rejected: Unable to exchange the code for a token: %v", err)
+			http.Redirect(w, r, fmt.Sprintf("%s?openid_error=%s", webRootWithSlash, url.QueryEscape(err.Error())), http.StatusFound)
 			return
 		}
 
 		if err := c.SessionStore.CreateSession(r, w, config.AuthStrategyOpenshift, tok.Expiry, tok); err != nil {
-			log.Errorf("Could not create the session: %v", err)
-			http.Error(w, "Could not create the session", http.StatusInternalServerError)
+			log.Errorf("Authentication rejected: Could not create the session: %v", err)
+			http.Redirect(w, r, fmt.Sprintf("%s?openid_error=%s", webRootWithSlash, url.QueryEscape(err.Error())), http.StatusFound)
 			return
 		}
-		// if err, ok := flow.Error.(*badOidcRequest); ok {
-		// 	log.Debugf("Not handling OpenId code flow authentication: %s", err.Detail)
-		// 	fallbackHandler.ServeHTTP(w, r)
-		// } else {
-		// 	if flow.ShouldTerminateSession {
-		// 		c.SessionStore.TerminateSession(r, w)
-		// 	}
-		// 	log.Warningf("Authentication rejected: %s", flow.Error.Error())
-		// 	http.Redirect(w, r, fmt.Sprintf("%s?openid_error=%s", webRootWithSlash, url.QueryEscape(flow.Error.Error())), http.StatusFound)
-		// }
-		// return
 
 		// Delete the nonce cookie since we no longer need it.
 		deleteNonceCookie := http.Cookie{
@@ -229,8 +190,6 @@ func (c OpenshiftAuthController) GetAuthCallbackHandler(fallbackHandler http.Han
 		}
 		http.SetCookie(w, &deleteNonceCookie)
 
-		webRoot := c.conf.Server.WebRoot
-		webRootWithSlash := webRoot + "/"
 		// Use the authorization code that is pushed to the redirect
 		// Let's redirect (remove the openid params) to let the Kiali-UI to boot
 		http.Redirect(w, r, webRootWithSlash, http.StatusFound)
@@ -286,10 +245,10 @@ func (o OpenshiftAuthController) ValidateSession(r *http.Request, w http.Respons
 	user, err := o.openshiftOAuth.GetUserInfo(r.Context(), token)
 	if err == nil {
 		// Internal header used to propagate the subject of the request for audit purposes
-		r.Header.Add("Kiali-User", user.Metadata.Name)
+		r.Header.Add("Kiali-User", user.Name)
 		return &UserSessionData{
 			ExpiresOn: expires,
-			Username:  user.Metadata.Name,
+			Username:  user.Name,
 			AuthInfo:  &api.AuthInfo{Token: token},
 		}, nil
 	}
