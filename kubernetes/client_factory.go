@@ -41,6 +41,8 @@ type clientFactory struct {
 	// Not all of the data in this base config is used - some will be overridden per client like token and host info.
 	baseRestConfig *rest.Config
 
+	conf *kialiConfig.Config
+
 	// clientEntries contain user clients that are used to authenticate as logged in users.
 	// Keyed by hash code generated from auth data.
 	clientEntries map[string]map[string]ClientInterface // By token by cluster
@@ -79,7 +81,7 @@ func GetClientFactory() (ClientFactory, error) {
 func getClientFactory(conf kialiConfig.Config) (*clientFactory, error) {
 	// Get the normal configuration
 	var config *rest.Config
-	config, err := getConfigForLocalCluster()
+	config, err := getConfigForLocalCluster(&conf)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +94,7 @@ func getClientFactory(conf kialiConfig.Config) (*clientFactory, error) {
 		Burst:           conf.KubernetesConfig.Burst,
 	}
 
-	return newClientFactory(&baseConfig)
+	return newClientFactory(&conf, &baseConfig)
 }
 
 // NewClientFactory creates a new client factory that can be transitory.
@@ -118,13 +120,14 @@ func NewClientFactory(ctx context.Context, conf kialiConfig.Config) (ClientFacto
 
 // newClientFactory allows for specifying the config and expiry duration
 // Mock friendly for testing purposes
-func newClientFactory(restConfig *rest.Config) (*clientFactory, error) {
+func newClientFactory(conf *kialiConfig.Config, restConfig *rest.Config) (*clientFactory, error) {
 	f := &clientFactory{
 		baseRestConfig:  restConfig,
+		conf:            conf,
 		clientEntries:   make(map[string]map[string]ClientInterface),
 		recycleChan:     make(chan string),
 		saClientEntries: make(map[string]ClientInterface),
-		homeCluster:     kialiConfig.Get().KubernetesConfig.ClusterName,
+		homeCluster:     conf.KubernetesConfig.ClusterName,
 	}
 	// after creating a client factory
 	// background goroutines will be watching the clients` expiration
@@ -179,14 +182,14 @@ func (cf *clientFactory) newClient(authInfo *api.AuthInfo, expirationTime time.D
 	// So, if OpenID strategy is active, check if a proxy is configured.
 	// If there is, use it UNLESS the token is the one of the Kiali SA. If
 	// the token is the one of the Kiali SA, the proxy can be bypassed.
-	cfg := kialiConfig.Get()
+	cfg := *cf.conf
 	if cfg.Auth.Strategy == kialiConfig.AuthStrategyOpenId && cfg.Auth.OpenId.ApiProxy != "" && cfg.Auth.OpenId.ApiProxyCAData != "" {
 
 		var kialiToken string
 		var err error
 
 		if cluster == cf.homeCluster {
-			kialiToken, _, err = GetKialiTokenForHomeCluster()
+			kialiToken, _, err = GetKialiTokenForHomeCluster(cf.conf)
 		} else {
 			kialiToken, err = cf.GetSAClient(cluster).GetToken(), nil
 		}
@@ -429,7 +432,6 @@ func (cf *clientFactory) GetSAHomeClusterClient() ClientInterface {
 }
 
 func (cf *clientFactory) getConfig(clusterInfo *RemoteClusterInfo) (*rest.Config, error) {
-	kialiConfig := kialiConfig.Get()
 	clientConfig := *cf.baseRestConfig
 
 	// Remote Cluster
@@ -444,7 +446,7 @@ func (cf *clientFactory) getConfig(clusterInfo *RemoteClusterInfo) (*rest.Config
 	} else {
 		// Just read the token and then use the base config.
 		// We're an in cluster client. Read the kiali service account token.
-		kialiToken, kialiTokenFile, err := GetKialiTokenForHomeCluster()
+		kialiToken, kialiTokenFile, err := GetKialiTokenForHomeCluster(cf.conf)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get Kiali service account token: %s", err)
 		}
@@ -454,13 +456,13 @@ func (cf *clientFactory) getConfig(clusterInfo *RemoteClusterInfo) (*rest.Config
 		clientConfig.BearerTokenFile = kialiTokenFile
 	}
 
-	if !kialiConfig.KialiFeatureFlags.Clustering.EnableExecProvider {
+	if !cf.conf.KialiFeatureFlags.Clustering.EnableExecProvider {
 		clientConfig.ExecProvider = nil
 	}
 
 	// Override some settings with what's in kiali config
-	clientConfig.QPS = kialiConfig.KubernetesConfig.QPS
-	clientConfig.Burst = kialiConfig.KubernetesConfig.Burst
+	clientConfig.QPS = cf.conf.KubernetesConfig.QPS
+	clientConfig.Burst = cf.conf.KubernetesConfig.Burst
 
 	return &clientConfig, nil
 }

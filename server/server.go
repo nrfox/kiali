@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/tls"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"time"
 
@@ -47,10 +48,11 @@ func NewServer(controlPlaneMonitor business.ControlPlaneMonitor,
 	prom prometheus.ClientInterface,
 	traceClientLoader func() tracing.ClientInterface,
 	discovery *istio.Discovery,
+	staticAssetFS fs.FS,
 ) (*Server, error) {
 	grafana := grafana.NewService(conf, clientFactory.GetSAHomeClusterClient())
 	// create a router that will route all incoming API server requests to different handlers
-	router, err := routing.NewRouter(conf, cache, clientFactory, prom, traceClientLoader, controlPlaneMonitor, grafana, discovery)
+	router, err := routing.NewRouter(conf, cache, clientFactory, prom, traceClientLoader, controlPlaneMonitor, grafana, discovery, http.FS(staticAssetFS))
 	if err != nil {
 		return nil, err
 	}

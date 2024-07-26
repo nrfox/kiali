@@ -140,8 +140,8 @@ func newClientWithRemoteClusterInfo(config *rest.Config, remoteClusterInfo *Remo
 // Returns configuration if Kiali is in Cluster when InCluster is true
 // Returns configuration if Kiali is not in Cluster when InCluster is false
 // It returns an error on any problem
-func getConfigForLocalCluster() (*rest.Config, error) {
-	remoteSecretPath := kialiconfig.Get().Deployment.RemoteSecretPath
+func getConfigForLocalCluster(conf *kialiconfig.Config) (*rest.Config, error) {
+	remoteSecretPath := conf.Deployment.RemoteSecretPath
 	if remoteSecret, readErr := GetRemoteSecret(remoteSecretPath); readErr == nil {
 		log.Debugf("Using remote secret for local cluster config found at: [%s]. Kiali must be running outside the kube cluster.", remoteSecretPath)
 		return clientcmd.NewDefaultClientConfig(*remoteSecret, nil).ClientConfig()

@@ -1192,12 +1192,12 @@ func Validate(cfg Config) error {
 		return fmt.Errorf("server port is negative: %v", cfg.Server.Port)
 	}
 
-	if strings.Contains(cfg.Server.StaticContentRootDirectory, "..") {
-		return fmt.Errorf("server static content root directory must not contain '..': %v", cfg.Server.StaticContentRootDirectory)
-	}
-	if _, err := os.Stat(cfg.Server.StaticContentRootDirectory); os.IsNotExist(err) {
-		return fmt.Errorf("server static content root directory does not exist: %v", cfg.Server.StaticContentRootDirectory)
-	}
+	// if strings.Contains(cfg.Server.StaticContentRootDirectory, "..") {
+	// 	return fmt.Errorf("server static content root directory must not contain '..': %v", cfg.Server.StaticContentRootDirectory)
+	// }
+	// if _, err := os.Stat(cfg.Server.StaticContentRootDirectory); os.IsNotExist(err) {
+	// 	return fmt.Errorf("server static content root directory does not exist: %v", cfg.Server.StaticContentRootDirectory)
+	// }
 
 	webRoot := cfg.Server.WebRoot
 	if !validPathRegEx.MatchString(webRoot) {

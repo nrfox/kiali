@@ -37,14 +37,14 @@ func NewRouter(
 	cpm business.ControlPlaneMonitor,
 	grafana *grafana.Service,
 	discovery *istio.Discovery,
+	staticAssetFS http.FileSystem,
 ) (*mux.Router, error) {
 	webRoot := conf.Server.WebRoot
 	webRootWithSlash := webRoot + "/"
 
 	rootRouter := mux.NewRouter().StrictSlash(false)
 	appRouter := rootRouter
-
-	staticFileServer := http.FileServer(http.Dir(conf.Server.StaticContentRootDirectory))
+	staticFileServer := http.FileServer(staticAssetFS)
 
 	if webRoot != "/" {
 		// help the user out - if a request comes in for "/", redirect to our true webroot
@@ -69,20 +69,20 @@ func NewRouter(
 		webRootWithSlash = "/"
 	}
 
-	fileServerHandler := func(w http.ResponseWriter, r *http.Request) {
-		urlPath := r.RequestURI
-		if r.URL != nil {
-			urlPath = r.URL.Path
-		}
+	// fileServerHandler := func(w http.ResponseWriter, r *http.Request) {
+	// 	urlPath := r.RequestURI
+	// 	if r.URL != nil {
+	// 		urlPath = r.URL.Path
+	// 	}
 
-		if urlPath == webRootWithSlash || urlPath == webRoot || urlPath == webRootWithSlash+"index.html" {
-			serveIndexFile(w)
-		} else if urlPath == webRootWithSlash+"env.js" {
-			serveEnvJsFile(w)
-		} else {
-			staticFileServer.ServeHTTP(w, r)
-		}
-	}
+	// 	if urlPath == webRootWithSlash || urlPath == webRoot || urlPath == webRootWithSlash+"index.html" {
+	// 		serveIndexFile(w)
+	// 	} else if urlPath == webRootWithSlash+"env.js" {
+	// 		serveEnvJsFile(w)
+	// 	} else {
+	// 		staticFileServer.ServeHTTP(w, r)
+	// 	}
+	// }
 
 	appRouter = appRouter.StrictSlash(true)
 
@@ -240,18 +240,19 @@ func NewRouter(
 
 	// All client-side routes are prefixed with /console.
 	// They are forwarded to index.html and will be handled by react-router.
-	appRouter.PathPrefix("/console").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		serveIndexFile(w)
-	})
+	// appRouter.PathPrefix("/console").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// serveIndexFile(w)
+	// })
+	appRouter.PathPrefix("/console").Handler(staticFileServer)
 
-	if authController != nil {
-		if ac, ok := authController.(*authentication.OpenIdAuthController); ok {
-			authCallback := ac.GetAuthCallbackHandler(http.HandlerFunc(fileServerHandler))
-			rootRouter.Methods("GET").Path(webRootWithSlash).Handler(authCallback)
-		}
-	}
+	// if authController != nil {
+	// 	if ac, ok := authController.(*authentication.OpenIdAuthController); ok {
+	// 		authCallback := ac.GetAuthCallbackHandler(http.HandlerFunc(fileServerHandler))
+	// 		rootRouter.Methods("GET").Path(webRootWithSlash).Handler(authCallback)
+	// 	}
+	// }
 
-	rootRouter.PathPrefix(webRootWithSlash).HandlerFunc(fileServerHandler)
+	rootRouter.PathPrefix(webRootWithSlash).Handler(staticFileServer)
 
 	return rootRouter, nil
 }
