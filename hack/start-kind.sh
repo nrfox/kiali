@@ -77,16 +77,16 @@ done
 
 # TODO KinD doesn't play nice with podman today. Force docker.
 if [ "${DORP}" != "docker" ]; then
-  DORP="docker"
+  # DORP="docker"
   infomsg "This script will not work with 'podman' - forcing the use of 'docker'"
-  #export KIND_EXPERIMENTAL_PROVIDER=podman
+  export KIND_EXPERIMENTAL_PROVIDER=podman
 fi
 
 # abort on any error
 set -e
 
 # Find the kind executable
-KIND_EXE=`which kind`
+KIND_EXE=$(which kind)
 if [  -x "${KIND_EXE}" ]; then
   echo "Kind executable: ${KIND_EXE}"
 else
@@ -210,7 +210,7 @@ start_kind() {
   # Due to: https://github.com/kubernetes-sigs/kind/issues/1449#issuecomment-1612648982 we need two nodes.
   infomsg "Kind cluster to be created with name [${NAME}]"
   KIND_NODE_IMAGE=${IMAGE:+image: ${IMAGE}}
-  cat <<EOF | ${KIND_EXE} create cluster --name "${NAME}" --config -
+  cat <<EOF | systemd-run --scope --user -p "Delegate=yes" ${KIND_EXE} create cluster --name "${NAME}" --config -
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
@@ -248,7 +248,18 @@ config_metallb() {
       fi
     done
   else
-    subnet=$(podman network inspect kind --format '{{ (index (index (index .plugins 0).ipam.ranges 1) 1).subnet }}' 2>/dev/null)
+    local subnets_count="$(podman network inspect kind | jq '.[0].subnets | length')"
+    for ((i=0; i<subnets_count; i++)); do
+      subnet=$(podman network inspect kind | jq -r ".[0].subnets[$i].subnet")
+      if [[ -n $subnet && $subnet != *:* && $subnet == *\.* ]]; then
+        infomsg "Using subnet [$subnet]"
+        break
+      else
+        infomsg "Ignoring subnet [$subnet]"
+        subnet=""
+      fi
+    done
+    # subnet=$(podman network inspect kind --format '{{ (index (index (index .plugins 0).ipam.ranges 1) 1).subnet }}' 2>/dev/null)
   fi
 
   if [ -z "$subnet" ]; then
