@@ -15,7 +15,6 @@ type K8sHTTPRouteChecker struct {
 	K8sHTTPRoutes      []*k8s_networking_v1.HTTPRoute
 	K8sReferenceGrants []*k8s_networking_v1beta1.ReferenceGrant
 	Namespaces         models.Namespaces
-	RegistryServices   []*kubernetes.RegistryService
 }
 
 // Check runs checks for the all namespaces actions as well as for the single namespace validations
@@ -54,7 +53,6 @@ func (in K8sHTTPRouteChecker) runChecks(rt *k8s_networking_v1.HTTPRoute, gateway
 			Namespaces:         in.Namespaces,
 			K8sHTTPRoute:       rt,
 			K8sReferenceGrants: in.K8sReferenceGrants,
-			RegistryServices:   in.RegistryServices,
 		},
 	}
 

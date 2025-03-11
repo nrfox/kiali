@@ -16,7 +16,6 @@ type ServiceEntryReferences struct {
 	Sidecars              []*networking_v1.Sidecar
 	AuthorizationPolicies []*security_v1.AuthorizationPolicy
 	DestinationRules      []*networking_v1.DestinationRule
-	RegistryServices      []*kubernetes.RegistryService
 }
 
 func (n ServiceEntryReferences) References() models.IstioReferencesMap {
@@ -31,7 +30,6 @@ func (n ServiceEntryReferences) References() models.IstioReferencesMap {
 	}
 
 	return result
-
 }
 
 func (n ServiceEntryReferences) getConfigReferences(se *networking_v1.ServiceEntry) []models.IstioReference {
@@ -112,13 +110,14 @@ func (n ServiceEntryReferences) getServiceReferences(se *networking_v1.ServiceEn
 	result := make([]models.ServiceReference, 0)
 	keys := make(map[string]bool)
 	allServices := make([]models.ServiceReference, 0)
-	for _, seHost := range se.Spec.Hosts {
-		for _, rStatus := range n.RegistryServices {
-			if kubernetes.FilterByRegistryService(se.Namespace, seHost, rStatus) {
-				allServices = append(allServices, models.ServiceReference{Name: rStatus.Hostname, Namespace: rStatus.IstioService.Attributes.Namespace})
-			}
-		}
-	}
+	// for _, seHost := range se.Spec.Hosts {
+	// TODO: Kube services instead.
+	// for _, rStatus := range n.RegistryServices {
+	// 	if kubernetes.FilterByRegistryService(se.Namespace, seHost, rStatus) {
+	// 		allServices = append(allServices, models.ServiceReference{Name: rStatus.Hostname, Namespace: rStatus.IstioService.Attributes.Namespace})
+	// 	}
+	// }
+	// }
 	// filter unique references
 	for _, s := range allServices {
 		key := util.BuildNameNSKey(s.Name, s.Namespace)

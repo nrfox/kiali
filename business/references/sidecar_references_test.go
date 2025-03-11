@@ -25,7 +25,7 @@ func prepareTestForSidecar(sc *networking_v1.Sidecar, vs *networking_v1.VirtualS
 				data.CreateWorkloadListItem("istiod", map[string]string{"app": "istio-ingressgateway"}),
 			),
 		},
-		RegistryServices: data.CreateFakeRegistryServicesLabels("foo-service", "istio-system"),
+		// RegistryServices: data.CreateFakeRegistryServicesLabels("foo-service", "istio-system"),
 	}
 	return *drReferences.References()[models.IstioReferenceKey{ObjectGVK: kubernetes.Sidecars, Namespace: sc.Namespace, Name: sc.Name}]
 }

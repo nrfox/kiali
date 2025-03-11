@@ -51,7 +51,7 @@ var _ = Describe("Validations controller", Ordered, func() {
 			)
 
 			discovery := istio.NewDiscovery(saClients, kialiCache, conf)
-			layer, err := business.NewLayerWithSAClients(conf, kialiCache, nil, nil, nil, nil, discovery, saClients)
+			layer, err := business.NewLayerWithSAClients(conf, kialiCache, nil, nil, nil, discovery, saClients)
 			Expect(err).ToNot(HaveOccurred())
 
 			err = controller.NewValidationsController(ctx, []string{conf.KubernetesConfig.ClusterName}, kialiCache, &layer.Validations, k8sManager, util.AsPtr(time.Millisecond*100))

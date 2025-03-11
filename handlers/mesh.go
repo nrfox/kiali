@@ -51,12 +51,11 @@ func MeshGraph(
 	prom prometheus.ClientInterface,
 	traceClientLoader func() tracing.ClientInterface,
 	discovery *istio.Discovery,
-	cpm business.ControlPlaneMonitor,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer handlePanic(w)
 
-		business, err := getLayer(r, conf, cache, clientFactory, cpm, prom, traceClientLoader, grafana, discovery)
+		business, err := getLayer(r, conf, cache, clientFactory, prom, traceClientLoader, grafana, discovery)
 		mesh.CheckError(err)
 
 		o := mesh.NewOptions(r, &business.Namespace)

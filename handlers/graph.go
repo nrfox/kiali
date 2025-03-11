@@ -34,7 +34,6 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"github.com/kiali/kiali/business"
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/grafana"
 	"github.com/kiali/kiali/graph"
@@ -54,7 +53,6 @@ func GraphNamespaces(
 	kialiCache cache.KialiCache,
 	clientFactory kubernetes.ClientFactory,
 	prom prometheus.ClientInterface,
-	cpm business.ControlPlaneMonitor,
 	traceClientLoader func() tracing.ClientInterface,
 	grafana *grafana.Service,
 	discovery *istio.Discovery,
@@ -62,7 +60,7 @@ func GraphNamespaces(
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer handlePanic(w)
 
-		business, err := getLayer(r, conf, kialiCache, clientFactory, cpm, prom, traceClientLoader, grafana, discovery)
+		business, err := getLayer(r, conf, kialiCache, clientFactory, prom, traceClientLoader, grafana, discovery)
 		graph.CheckError(err)
 
 		o := graph.NewOptions(r, &business.Namespace)
@@ -78,7 +76,6 @@ func GraphNode(
 	kialiCache cache.KialiCache,
 	clientFactory kubernetes.ClientFactory,
 	prom prometheus.ClientInterface,
-	cpm business.ControlPlaneMonitor,
 	traceClientLoader func() tracing.ClientInterface,
 	grafana *grafana.Service,
 	discovery *istio.Discovery,
@@ -86,7 +83,7 @@ func GraphNode(
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer handlePanic(w)
 
-		business, err := getLayer(r, conf, kialiCache, clientFactory, cpm, prom, traceClientLoader, grafana, discovery)
+		business, err := getLayer(r, conf, kialiCache, clientFactory, prom, traceClientLoader, grafana, discovery)
 		graph.CheckError(err)
 
 		o := graph.NewOptions(r, &business.Namespace)

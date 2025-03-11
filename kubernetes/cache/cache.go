@@ -75,7 +75,6 @@ type KialiCache interface {
 	// RefreshTokenNamespaces clears the in memory cache of namespaces.
 	RefreshTokenNamespaces(cluster string)
 
-	RegistryStatusCache
 	ProxyStatusCache
 	ZtunnelDumpCache
 
@@ -124,8 +123,6 @@ type kialiCacheImpl struct {
 	refreshDuration time.Duration
 	// ProxyStatusStore stores the proxy status and should be key'd off cluster + namespace + pod.
 	proxyStatusStore store.Store[string, *kubernetes.ProxyStatus]
-	// RegistryStatusStore stores the registry status and should be key'd off of the cluster name.
-	registryStatusStore store.Store[string, *kubernetes.RegistryStatus]
 	// ProxyStatusStore stores ztunnel config dump per cluster + namespace + pod.
 	ztunnelConfigStore store.Store[string, *kubernetes.ZtunnelConfigDump]
 
@@ -152,7 +149,6 @@ func NewKialiCache(kialiSAClients map[string]kubernetes.ClientInterface, cfg con
 		namespaceStore:          store.NewExpirationStore(ctx, store.New[namespacesKey, map[string]models.Namespace](), &namespaceKeyTTL, nil),
 		refreshDuration:         time.Duration(cfg.KubernetesConfig.CacheDuration) * time.Second,
 		proxyStatusStore:        store.New[string, *kubernetes.ProxyStatus](),
-		registryStatusStore:     store.New[string, *kubernetes.RegistryStatus](),
 		ztunnelConfigStore:      store.New[string, *kubernetes.ZtunnelConfigDump](),
 	}
 

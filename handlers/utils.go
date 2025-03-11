@@ -197,7 +197,6 @@ func getLayer(
 	conf *config.Config,
 	kialiCache cache.KialiCache,
 	clientFactory kubernetes.ClientFactory,
-	cpm business.ControlPlaneMonitor,
 	prom prometheus.ClientInterface,
 	traceClientLoader func() tracing.ClientInterface,
 	grafana *grafana.Service,
@@ -208,7 +207,7 @@ func getLayer(
 		return nil, err
 	}
 
-	layer, err := business.NewLayer(conf, kialiCache, clientFactory, prom, traceClientLoader(), cpm, grafana, discovery, authInfo)
+	layer, err := business.NewLayer(conf, kialiCache, clientFactory, prom, traceClientLoader(), grafana, discovery, authInfo)
 	if err != nil {
 		return nil, err
 	}

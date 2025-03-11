@@ -5,11 +5,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apps_v1 "k8s.io/api/apps/v1"
 	core_v1 "k8s.io/api/core/v1"
@@ -21,26 +19,6 @@ import (
 	"github.com/kiali/kiali/kubernetes/cache"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 )
-
-func TestRegistryServices(t *testing.T) {
-	assert := assert.New(t)
-	require := require.New(t)
-
-	registryz := "../tests/data/registry/registry-registryz.json"
-	bRegistryz, err := os.ReadFile(registryz)
-	require.NoError(err)
-
-	rRegistry := map[string][]byte{
-		"istiod1": bRegistryz,
-	}
-
-	registry, err2 := parseRegistryServices(rRegistry)
-	require.NoError(err2)
-	require.NotNil(registry)
-
-	assert.Equal(79, len(registry))
-	assert.Equal("*.msn.com", registry[0].Attributes.Name)
-}
 
 type fakeForwarder struct {
 	kubernetes.ClientInterface
@@ -67,8 +45,6 @@ func istiodTestServer(t *testing.T) *httptest.Server {
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var file string
 		switch r.URL.Path {
-		case "/debug/registryz":
-			file = "../tests/data/registry/registry-registryz.json"
 		case "/debug/syncz":
 			file = "../tests/data/registry/registry-syncz.json"
 		case "/debug":
@@ -143,64 +119,7 @@ func fakeIstiodDeployment(cluster string, manageExternal bool) *apps_v1.Deployme
 	return deployment
 }
 
-func TestRefreshIstioCache(t *testing.T) {
-	assert := assert.New(t)
-	require := require.New(t)
-
-	conf := config.NewConfig()
-	conf.KubernetesConfig.ClusterName = "Kubernetes"
-
-	istioConfigMap := &core_v1.ConfigMap{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "istio",
-			Namespace: "istio-system",
-			Labels: map[string]string{
-				config.IstioRevisionLabel: "default",
-			},
-		},
-		Data: map[string]string{"mesh": ""},
-	}
-
-	k8s := kubetest.NewFakeK8sClient(
-		runningIstiodPod(),
-		fakeIstiodDeployment(conf.KubernetesConfig.ClusterName, true),
-		kubetest.FakeNamespace("istio-system"),
-		istioConfigMap,
-		FakeCertificateConfigMap("istio-system"),
-	)
-	// RefreshIstioCache relies on this being set.
-	k8s.KubeClusterInfo.Name = conf.KubernetesConfig.ClusterName
-
-	testServer := istiodTestServer(t)
-	fakeForwarder := &fakeForwarder{
-		ClientInterface: k8s,
-		testURL:         testServer.URL,
-	}
-
-	k8sclients := make(map[string]kubernetes.ClientInterface)
-	k8sclients[conf.KubernetesConfig.ClusterName] = fakeForwarder
-	cf := kubetest.NewFakeClientFactory(conf, k8sclients)
-	cache := cache.NewTestingCacheWithFactory(t, cf, *conf)
-	discovery := istio.NewDiscovery(k8sclients, cache, conf)
-	cpm := NewControlPlaneMonitor(cache, cf, *conf, discovery)
-
-	assert.Nil(cache.GetRegistryStatus(conf.KubernetesConfig.ClusterName))
-	err := cpm.RefreshIstioCache(context.TODO())
-	require.NoError(err)
-
-	registryServices := cache.GetRegistryStatus(conf.KubernetesConfig.ClusterName)
-	require.NotNil(registryServices)
-
-	assert.Len(registryServices.Services, 79)
-	// This is a pod that exists in the test data at: "../tests/data/registry/registry-syncz.json"
-	podProxyStatus := cache.GetPodProxyStatus("Kubernetes", "beta", "b-client-8b97458bb-tghx9")
-	require.NotNil(podProxyStatus)
-	assert.Equal("Kubernetes", podProxyStatus.ClusterID)
-}
-
 func TestCancelingContextEndsPolling(t *testing.T) {
-	assert := assert.New(t)
-
 	conf := config.NewConfig()
 	kubernetes.SetConfig(t, *conf)
 
@@ -213,8 +132,6 @@ func TestCancelingContextEndsPolling(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	cpm.PollIstiodForProxyStatus(ctx)
-
-	assert.Nil(cache.GetRegistryStatus(conf.KubernetesConfig.ClusterName))
 }
 
 func TestPollingPopulatesCache(t *testing.T) {
@@ -235,8 +152,9 @@ func TestPollingPopulatesCache(t *testing.T) {
 
 	testServer := istiodTestServer(t)
 
+	pod := runningIstiodPod()
 	k8s := kubetest.NewFakeK8sClient(
-		runningIstiodPod(),
+		pod,
 		fakeIstiodDeployment(conf.KubernetesConfig.ClusterName, true),
 		kubetest.FakeNamespace("istio-system"),
 		istioConfigMap,
@@ -261,21 +179,21 @@ func TestPollingPopulatesCache(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	require.Nil(cache.GetRegistryStatus(conf.KubernetesConfig.ClusterName))
+	require.Nil(cache.GetPodProxyStatus(conf.KubernetesConfig.ClusterName, pod.Namespace, pod.Name))
 	cpm.PollIstiodForProxyStatus(ctx)
 	// Cache should be populated after PollIstiod returns because the
 	// pump gets primed before polling starts.
-	require.NotNil(cache.GetRegistryStatus(conf.KubernetesConfig.ClusterName))
+	require.NotNil(cache.GetPodProxyStatus(conf.KubernetesConfig.ClusterName, pod.Namespace, pod.Name))
 
 	// Clear the registry to make sure it gets populated again through polling.
-	cache.SetRegistryStatus(nil)
+	cache.SetPodProxyStatus(nil)
 	for {
 		select {
 		case <-time.After(time.Millisecond * 300):
 			require.Fail("Timed out waiting for cache to be populated")
 			return
 		default:
-			if cache.GetRegistryStatus(conf.KubernetesConfig.ClusterName) != nil {
+			if cache.GetPodProxyStatus(conf.KubernetesConfig.ClusterName, pod.Namespace, pod.Name) != nil {
 				return
 			}
 		}

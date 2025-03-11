@@ -17,7 +17,6 @@ type AuthorizationPolicyReferences struct {
 	Namespaces            models.Namespaces
 	ServiceEntries        []*networking_v1.ServiceEntry
 	VirtualServices       []*networking_v1.VirtualService
-	RegistryServices      []*kubernetes.RegistryService
 	WorkloadsPerNamespace map[string]models.WorkloadList
 }
 
@@ -60,9 +59,10 @@ func (n AuthorizationPolicyReferences) References() models.IstioReferencesMap {
 
 func (n AuthorizationPolicyReferences) getServiceReferences(host kubernetes.Host, itemNamespace string) []models.ServiceReference {
 	result := make([]models.ServiceReference, 0)
-	if kubernetes.HasMatchingRegistryService(itemNamespace, host.String(), n.RegistryServices) {
-		result = append(result, models.ServiceReference{Name: host.Service, Namespace: host.Namespace})
-	}
+	// TODO: Kube service instead?
+	// if kubernetes.HasMatchingRegistryService(itemNamespace, host.String(), n.RegistryServices) {
+	// 	result = append(result, models.ServiceReference{Name: host.Service, Namespace: host.Namespace})
+	// }
 	return result
 }
 

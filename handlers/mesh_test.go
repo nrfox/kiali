@@ -121,11 +121,10 @@ func TestGetMeshGraph(t *testing.T) {
 	prom, err := prometheus.NewClient()
 	require.NoError(err)
 	prom.Inject(xapi)
-	cpm := &business.FakeControlPlaneMonitor{}
 	traceLoader := func() tracing.ClientInterface { return nil }
 
 	authInfo := map[string]*api.AuthInfo{conf.KubernetesConfig.ClusterName: {Token: "test"}}
-	handler := handlers.MeshGraph(conf, cf, cache, grafana, prom, traceLoader, discovery, cpm)
+	handler := handlers.MeshGraph(conf, cf, cache, grafana, prom, traceLoader, discovery)
 	server := httptest.NewServer(handlers.WithAuthInfo(authInfo, handler))
 	t.Cleanup(server.Close)
 

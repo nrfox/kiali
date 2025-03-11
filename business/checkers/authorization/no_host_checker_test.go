@@ -16,15 +16,15 @@ import (
 func TestPresentService(t *testing.T) {
 	assert := assert.New(t)
 
-	registryService1 := data.CreateFakeRegistryServices("details.bookinfo.svc.cluster.local", "bookinfo", "*")
-	registryService2 := data.CreateFakeRegistryServices("reviews.bookinfo.svc.cluster.local", "bookinfo", "*")
+	// registryService1 := data.CreateFakeRegistryServices("details.bookinfo.svc.cluster.local", "bookinfo", "*")
+	// registryService2 := data.CreateFakeRegistryServices("reviews.bookinfo.svc.cluster.local", "bookinfo", "*")
 
 	validations, valid := NoHostChecker{
 		AuthorizationPolicy: authPolicyWithHost([]string{"details", "reviews"}),
 		Namespaces:          models.Namespaces{models.Namespace{Name: "outside"}, models.Namespace{Name: "bookinfo"}},
 		ServiceEntries:      map[string][]string{},
-		RegistryServices:    append(registryService1, registryService2...),
-		PolicyAllowAny:      true,
+		// RegistryServices:    append(registryService1, registryService2...),
+		PolicyAllowAny: true,
 	}.Check()
 
 	// Well configured object
@@ -35,15 +35,15 @@ func TestPresentService(t *testing.T) {
 func TestNonExistingService(t *testing.T) {
 	assert := assert.New(t)
 
-	registryService1 := data.CreateFakeRegistryServices("details.bookinfo.svc.cluster.local", "bookinfo", "*")
-	registryService2 := data.CreateFakeRegistryServices("reviews.bookinfo.svc.cluster.local", "bookinfo", "*")
+	// registryService1 := data.CreateFakeRegistryServices("details.bookinfo.svc.cluster.local", "bookinfo", "*")
+	// registryService2 := data.CreateFakeRegistryServices("reviews.bookinfo.svc.cluster.local", "bookinfo", "*")
 
 	vals, valid := NoHostChecker{
 		AuthorizationPolicy: authPolicyWithHost([]string{"details", "wrong"}),
 		Namespaces:          models.Namespaces{models.Namespace{Name: "outside"}, models.Namespace{Name: "bookinfo"}},
 		ServiceEntries:      map[string][]string{},
-		RegistryServices:    append(registryService1, registryService2...),
-		PolicyAllowAny:      true,
+		// RegistryServices:    append(registryService1, registryService2...),
+		PolicyAllowAny: true,
 	}.Check()
 
 	// Wrong host is not present
@@ -58,14 +58,14 @@ func TestNonExistingService(t *testing.T) {
 func TestWildcardHost(t *testing.T) {
 	assert := assert.New(t)
 
-	registryService1 := data.CreateFakeRegistryServices("details.bookinfo.svc.cluster.local", "bookinfo", "*")
-	registryService2 := data.CreateFakeRegistryServices("reviews.bookinfo.svc.cluster.local", "bookinfo", "*")
+	// registryService1 := data.CreateFakeRegistryServices("details.bookinfo.svc.cluster.local", "bookinfo", "*")
+	// registryService2 := data.CreateFakeRegistryServices("reviews.bookinfo.svc.cluster.local", "bookinfo", "*")
 
 	vals, valid := NoHostChecker{
 		AuthorizationPolicy: authPolicyWithHost([]string{"*", "*.bookinfo", "*.bookinfo.svc.cluster.local"}),
 		Namespaces:          models.Namespaces{models.Namespace{Name: "outside"}, models.Namespace{Name: "bookinfo"}},
 		ServiceEntries:      map[string][]string{},
-		RegistryServices:    append(registryService1, registryService2...),
+		// RegistryServices:    append(registryService1, registryService2...),
 	}.Check()
 
 	// Well configured object
@@ -76,14 +76,14 @@ func TestWildcardHost(t *testing.T) {
 func TestWildcardHostOutsideNamespace(t *testing.T) {
 	assert := assert.New(t)
 
-	registryService1 := data.CreateFakeRegistryServices("details.bookinfo.svc.cluster.local", "bookinfo", "*")
-	registryService2 := data.CreateFakeRegistryServices("reviews.bookinfo.svc.cluster.local", "bookinfo", "*")
+	// registryService1 := data.CreateFakeRegistryServices("details.bookinfo.svc.cluster.local", "bookinfo", "*")
+	// registryService2 := data.CreateFakeRegistryServices("reviews.bookinfo.svc.cluster.local", "bookinfo", "*")
 
 	vals, valid := NoHostChecker{
 		AuthorizationPolicy: authPolicyWithHost([]string{"*.outside", "*.outside.svc.cluster.local"}),
 		Namespaces:          models.Namespaces{models.Namespace{Name: "outside"}, models.Namespace{Name: "bookinfo"}},
 		ServiceEntries:      map[string][]string{},
-		RegistryServices:    append(registryService1, registryService2...),
+		// RegistryServices:    append(registryService1, registryService2...),
 	}.Check()
 
 	assert.False(valid)
@@ -331,60 +331,4 @@ func authPolicyWithHost(hostList []string) *security_v1.AuthorizationPolicy {
 	nss := []string{"bookinfo"}
 	selector := map[string]string{"app": "details", "version": "v1"}
 	return data.CreateAuthorizationPolicy(nss, methods, hostList, selector)
-}
-
-func TestValidServiceRegistry(t *testing.T) {
-	assert := assert.New(t)
-
-	validations, valid := NoHostChecker{
-		AuthorizationPolicy: authPolicyWithHost([]string{"ratings.mesh2-bookinfo.svc.mesh1-imports.local"}),
-		Namespaces:          models.Namespaces{models.Namespace{Name: "outside"}, models.Namespace{Name: "bookinfo"}},
-	}.Check()
-
-	assert.False(valid)
-	assert.NotEmpty(validations)
-
-	registryService := data.CreateFakeRegistryServices("ratings.mesh2-bookinfo.svc.mesh1-imports.local", "bookinfo", "*")
-
-	validations, valid = NoHostChecker{
-		AuthorizationPolicy: authPolicyWithHost([]string{"ratings.mesh2-bookinfo.svc.mesh1-imports.local"}),
-		Namespaces:          models.Namespaces{models.Namespace{Name: "outside"}, models.Namespace{Name: "bookinfo"}},
-		RegistryServices:    registryService,
-	}.Check()
-
-	assert.True(valid)
-	assert.Empty(validations)
-
-	registryService = data.CreateFakeRegistryServices("ratings2.mesh2-bookinfo.svc.mesh1-imports.local", "bookinfo", "*")
-
-	validations, valid = NoHostChecker{
-		AuthorizationPolicy: authPolicyWithHost([]string{"ratings.mesh2-bookinfo.svc.mesh1-imports.local"}),
-		Namespaces:          models.Namespaces{models.Namespace{Name: "outside"}, models.Namespace{Name: "bookinfo"}},
-		RegistryServices:    registryService,
-	}.Check()
-
-	assert.False(valid)
-	assert.NotEmpty(validations)
-
-	registryService = data.CreateFakeRegistryServices("ratings.bookinfo.svc.cluster.local", "bookinfo", "*")
-
-	validations, valid = NoHostChecker{
-		AuthorizationPolicy: authPolicyWithHost([]string{"ratings.bookinfo.svc.cluster.local"}),
-		Namespaces:          models.Namespaces{models.Namespace{Name: "outside"}, models.Namespace{Name: "bookinfo"}},
-		RegistryServices:    registryService,
-	}.Check()
-
-	assert.True(valid)
-	assert.Empty(validations)
-
-	registryService = data.CreateFakeRegistryServices("ratings.bookinfo.svc.cluster.local", "bookinfo", "*")
-
-	validations, valid = NoHostChecker{
-		AuthorizationPolicy: authPolicyWithHost([]string{"ratings2.bookinfo.svc.cluster.local"}),
-		Namespaces:          models.Namespaces{models.Namespace{Name: "outside"}, models.Namespace{Name: "bookinfo"}},
-		RegistryServices:    registryService,
-	}.Check()
-
-	assert.False(valid)
-	assert.NotEmpty(validations)
 }

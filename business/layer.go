@@ -16,20 +16,19 @@ import (
 // A business layer is created per token/user. Any data that
 // needs to be saved across layers is saved in the Kiali Cache.
 type Layer struct {
-	App            AppService
-	Health         HealthService
-	IstioConfig    IstioConfigService
-	IstioStatus    IstioStatusService
-	Tracing        TracingService
-	Mesh           MeshService
-	Namespace      NamespaceService
-	ProxyLogging   ProxyLoggingService
-	ProxyStatus    ProxyStatusService
-	RegistryStatus RegistryStatusService
-	Svc            SvcService
-	TLS            TLSService
-	Validations    IstioValidationsService
-	Workload       WorkloadService
+	App          AppService
+	Health       HealthService
+	IstioConfig  IstioConfigService
+	IstioStatus  IstioStatusService
+	Tracing      TracingService
+	Mesh         MeshService
+	Namespace    NamespaceService
+	ProxyLogging ProxyLoggingService
+	ProxyStatus  ProxyStatusService
+	Svc          SvcService
+	TLS          TLSService
+	Validations  IstioValidationsService
+	Workload     WorkloadService
 }
 
 // Global clientfactory and prometheus clients.
@@ -38,7 +37,6 @@ var (
 	discovery           istio.MeshDiscovery
 	grafanaService      *grafana.Service
 	kialiCache          cache.KialiCache
-	poller              ControlPlaneMonitor
 	prometheusClient    prometheus.ClientInterface
 	tracingClientLoader func() tracing.ClientInterface
 )
@@ -47,7 +45,6 @@ var (
 // TODO: Refactor out global vars.
 func Start(
 	cf kubernetes.ClientFactory,
-	controlPlaneMonitor ControlPlaneMonitor,
 	cache cache.KialiCache,
 	disc istio.MeshDiscovery,
 	prom prometheus.ClientInterface,
@@ -58,7 +55,6 @@ func Start(
 	discovery = disc
 	grafanaService = grafana
 	kialiCache = cache
-	poller = controlPlaneMonitor
 	prometheusClient = prom
 	tracingClientLoader = traceClientLoader
 }
@@ -93,7 +89,7 @@ func SetWithBackends(cf kubernetes.ClientFactory, prom prometheus.ClientInterfac
 // Note that the client passed here should *not* be the Kiali ServiceAccount client.
 // It should be the user client based on the logged in user's token.
 func NewWithBackends(userClients map[string]kubernetes.ClientInterface, kialiSAClients map[string]kubernetes.ClientInterface, prom prometheus.ClientInterface, traceClient tracing.ClientInterface) *Layer {
-	return newLayer(userClients, kialiSAClients, prom, traceClient, kialiCache, config.Get(), grafanaService, discovery, poller)
+	return newLayer(userClients, kialiSAClients, prom, traceClient, kialiCache, config.Get(), grafanaService, discovery)
 }
 
 func newLayer(
@@ -105,7 +101,6 @@ func newLayer(
 	conf *config.Config,
 	grafana *grafana.Service,
 	discovery istio.MeshDiscovery,
-	cpm ControlPlaneMonitor,
 ) *Layer {
 	temporaryLayer := &Layer{}
 
@@ -114,13 +109,12 @@ func newLayer(
 	// TODO: Modify the k8s argument to other services to pass the whole k8s map if needed
 	temporaryLayer.App = NewAppService(temporaryLayer, conf, prom, grafana, userClients)
 	temporaryLayer.Health = HealthService{prom: prom, businessLayer: temporaryLayer, userClients: userClients}
-	temporaryLayer.IstioConfig = IstioConfigService{config: *conf, userClients: userClients, kialiCache: cache, businessLayer: temporaryLayer, controlPlaneMonitor: cpm}
+	temporaryLayer.IstioConfig = IstioConfigService{config: *conf, userClients: userClients, kialiCache: cache, businessLayer: temporaryLayer}
 	temporaryLayer.Namespace = NewNamespaceService(userClients, kialiSAClients, cache, conf, discovery)
 	temporaryLayer.Mesh = NewMeshService(kialiSAClients, discovery)
 	temporaryLayer.ProxyStatus = ProxyStatusService{kialiSAClients: kialiSAClients, kialiCache: cache, businessLayer: temporaryLayer}
 	// Out of order because it relies on ProxyStatus
 	temporaryLayer.ProxyLogging = ProxyLoggingService{userClients: userClients, proxyStatus: &temporaryLayer.ProxyStatus}
-	temporaryLayer.RegistryStatus = RegistryStatusService{kialiCache: cache}
 	temporaryLayer.TLS = TLSService{discovery: discovery, userClients: userClients, kialiCache: cache, businessLayer: temporaryLayer}
 	temporaryLayer.Svc = SvcService{config: *conf, kialiCache: cache, businessLayer: temporaryLayer, prom: prom, userClients: userClients}
 	temporaryLayer.Workload = *NewWorkloadService(userClients, kialiSAClients, prom, cache, temporaryLayer, conf, grafana)
@@ -140,7 +134,6 @@ func NewLayer(
 	cf kubernetes.ClientFactory,
 	prom prometheus.ClientInterface,
 	traceClient tracing.ClientInterface,
-	cpm ControlPlaneMonitor,
 	grafana *grafana.Service,
 	discovery *istio.Discovery,
 	authInfos map[string]*api.AuthInfo,
@@ -151,7 +144,7 @@ func NewLayer(
 	}
 
 	kialiSAClients := cf.GetSAClients()
-	return newLayer(userClients, kialiSAClients, prom, traceClient, cache, conf, grafana, discovery, cpm), nil
+	return newLayer(userClients, kialiSAClients, prom, traceClient, cache, conf, grafana, discovery), nil
 }
 
 // NewLayer creates the business layer using the passed k8sClients and prom clients.
@@ -164,10 +157,9 @@ func NewLayerWithSAClients(
 	cache cache.KialiCache,
 	prom prometheus.ClientInterface,
 	traceClient tracing.ClientInterface,
-	cpm ControlPlaneMonitor,
 	grafana *grafana.Service,
 	discovery *istio.Discovery,
 	saClients map[string]kubernetes.ClientInterface,
 ) (*Layer, error) {
-	return newLayer(saClients, saClients, prom, traceClient, cache, conf, grafana, discovery, cpm), nil
+	return newLayer(saClients, saClients, prom, traceClient, cache, conf, grafana, discovery), nil
 }

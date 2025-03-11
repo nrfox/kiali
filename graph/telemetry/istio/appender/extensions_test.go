@@ -181,7 +181,7 @@ func setupMockedExt(t *testing.T) (*prometheus.Client, *prometheustest.PromAPIMo
 	discovery := istio.NewDiscovery(mockClientFactory.Clients, cache, conf)
 	business.WithDiscovery(discovery)
 
-	businessLayer, err := business.NewLayer(conf, cache, mockClientFactory, promClient, nil, nil, nil, discovery, authInfo)
+	businessLayer, err := business.NewLayer(conf, cache, mockClientFactory, promClient, nil, nil, discovery, authInfo)
 	require.NoError(t, err)
 
 	return promClient, promApi, businessLayer

@@ -2,7 +2,6 @@ package business
 
 import (
 	"context"
-	"os"
 	"sort"
 	"testing"
 	"time"
@@ -11,12 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	networking_v1 "istio.io/client-go/pkg/apis/networking/v1"
 	core_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/istio"
@@ -60,69 +57,6 @@ func TestServiceListParsing(t *testing.T) {
 	assert.Contains(serviceNames, "httpbin")
 	assert.Equal("Namespace", serviceList.Services[0].Namespace)
 	assert.Equal("Namespace", serviceList.Services[1].Namespace)
-}
-
-func TestParseRegistryServices(t *testing.T) {
-	assert := assert.New(t)
-	require := require.New(t)
-
-	conf := config.NewConfig()
-	conf.KubernetesConfig.ClusterName = config.DefaultClusterID
-	config.Set(conf)
-
-	serviceEntries := []*networking_v1.ServiceEntry{}
-	configzFile := "../tests/data/registry/services-configz.json"
-	configz, err := os.ReadFile(configzFile)
-	require.NoError(err)
-	require.NoError(yaml.Unmarshal(configz, &serviceEntries))
-	require.Equal(2, len(serviceEntries))
-
-	objs := []runtime.Object{kubetest.FakeNamespace("electronic-shop")}
-	objs = append(objs, kubernetes.ToRuntimeObjects(serviceEntries)...)
-	k8s := kubetest.NewFakeK8sClient(objs...)
-	k8sclients := make(map[string]kubernetes.ClientInterface)
-	k8sclients[conf.KubernetesConfig.ClusterName] = k8s
-	svc := NewWithBackends(k8sclients, k8sclients, nil, nil).Svc
-
-	servicesz := "../tests/data/registry/services-registryz.json"
-	bServicesz, err := os.ReadFile(servicesz)
-	assert.NoError(err)
-	rServices := map[string][]byte{
-		"istiod1": bServicesz,
-	}
-	registryServices, err2 := parseRegistryServices(rServices)
-	assert.NoError(err2)
-
-	assert.Equal(3, len(registryServices))
-
-	istioConfigList := models.IstioConfigList{
-		ServiceEntries: serviceEntries,
-	}
-
-	parsedServices := svc.buildRegistryServices(registryServices, istioConfigList, config.DefaultClusterID)
-	require.Equal(3, len(parsedServices))
-	assert.Equal(1, len(parsedServices[0].IstioReferences))
-	assert.Equal(1, len(parsedServices[1].IstioReferences))
-	assert.Equal(0, len(parsedServices[2].IstioReferences))
-}
-
-func TestFilterLocalIstioRegistry(t *testing.T) {
-	assert := assert.New(t)
-
-	conf := config.NewConfig()
-	config.Set(conf)
-
-	servicesz := "../tests/data/registry/istio-east-registryz.json"
-	bServicesz, err := os.ReadFile(servicesz)
-	assert.NoError(err)
-	rServices := map[string][]byte{
-		"istiod1": bServicesz,
-	}
-	registryServices, err2 := parseRegistryServices(rServices)
-	assert.NoError(err2)
-
-	assert.Equal(true, filterIstioServiceByClusterId("istio-east", registryServices[0]))
-	assert.Equal(false, filterIstioServiceByClusterId("istio-east", registryServices[1]))
 }
 
 func TestGetServiceListFromMultipleClusters(t *testing.T) {
@@ -416,8 +350,10 @@ func TestGetServiceDetailsValidations(t *testing.T) {
 	clients := map[string]kubernetes.ClientInterface{
 		conf.KubernetesConfig.ClusterName: kubetest.NewFakeK8sClient(
 			kubetest.FakeNamespace("bookinfo"),
-			&core_v1.Service{ObjectMeta: meta_v1.ObjectMeta{Name: "ratings-home-cluster", Namespace: "bookinfo", Labels: map[string]string{"app": "ratings"}},
-				Spec: core_v1.ServiceSpec{Ports: []core_v1.ServicePort{{Name: "http", Port: 9080, Protocol: "TCP"}}, Selector: map[string]string{"app": "ratings"}}},
+			&core_v1.Service{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "ratings-home-cluster", Namespace: "bookinfo", Labels: map[string]string{"app": "ratings"}},
+				Spec:       core_v1.ServiceSpec{Ports: []core_v1.ServicePort{{Name: "http", Port: 9080, Protocol: "TCP"}}, Selector: map[string]string{"app": "ratings"}},
+			},
 			FakeDeploymentWithPort("ratings", 9080),
 		),
 	}
@@ -438,8 +374,10 @@ func TestGetServiceDetailsValidations(t *testing.T) {
 	s, err := svc.GetServiceDetails(context.TODO(), conf.KubernetesConfig.ClusterName, "bookinfo", "ratings-home-cluster", "60s", time.Now(), true)
 	require.NoError(err)
 
-	validationKey := models.IstioValidationKey{Cluster: conf.KubernetesConfig.ClusterName,
-		Namespace: "bookinfo", Name: "ratings-home-cluster", ObjectGVK: schema.GroupVersionKind{Group: "", Version: "", Kind: "service"}}
+	validationKey := models.IstioValidationKey{
+		Cluster:   conf.KubernetesConfig.ClusterName,
+		Namespace: "bookinfo", Name: "ratings-home-cluster", ObjectGVK: schema.GroupVersionKind{Group: "", Version: "", Kind: "service"},
+	}
 	assert.NotNil(s.Validations[validationKey])
 	assert.NotNil(s.Validations[validationKey].Checks)
 	assert.Equal(len(s.Validations[validationKey].Checks), 0)
@@ -457,8 +395,10 @@ func TestGetServiceDetailsValidationErrors(t *testing.T) {
 	clients := map[string]kubernetes.ClientInterface{
 		conf.KubernetesConfig.ClusterName: kubetest.NewFakeK8sClient(
 			kubetest.FakeNamespace("bookinfo"),
-			&core_v1.Service{ObjectMeta: meta_v1.ObjectMeta{Name: "ratings-home-cluster", Namespace: "bookinfo", Labels: map[string]string{"app": "ratings"}},
-				Spec: core_v1.ServiceSpec{Ports: []core_v1.ServicePort{{Name: "http", Port: 9081, Protocol: "TCP"}}, Selector: map[string]string{"app": "ratings"}}},
+			&core_v1.Service{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "ratings-home-cluster", Namespace: "bookinfo", Labels: map[string]string{"app": "ratings"}},
+				Spec:       core_v1.ServiceSpec{Ports: []core_v1.ServicePort{{Name: "http", Port: 9081, Protocol: "TCP"}}, Selector: map[string]string{"app": "ratings"}},
+			},
 			FakeDeploymentWithPort("ratings", 9080),
 		),
 	}
@@ -479,8 +419,10 @@ func TestGetServiceDetailsValidationErrors(t *testing.T) {
 	s, err := svc.GetServiceDetails(context.TODO(), conf.KubernetesConfig.ClusterName, "bookinfo", "ratings-home-cluster", "60s", time.Now(), true)
 	require.NoError(err)
 
-	validationKey := models.IstioValidationKey{Cluster: conf.KubernetesConfig.ClusterName,
-		Namespace: "bookinfo", Name: "ratings-home-cluster", ObjectGVK: schema.GroupVersionKind{Group: "", Version: "", Kind: "service"}}
+	validationKey := models.IstioValidationKey{
+		Cluster:   conf.KubernetesConfig.ClusterName,
+		Namespace: "bookinfo", Name: "ratings-home-cluster", ObjectGVK: schema.GroupVersionKind{Group: "", Version: "", Kind: "service"},
+	}
 	assert.NotNil(s.Validations[validationKey])
 	assert.Equal(1, len(s.Validations[validationKey].Checks))
 	assert.Equal("KIA0701", s.Validations[validationKey].Checks[0].Code)

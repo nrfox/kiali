@@ -16,7 +16,6 @@ type NoDestinationChecker struct {
 	DestinationRule       *networking_v1.DestinationRule
 	VirtualServices       []*networking_v1.VirtualService
 	ServiceEntries        []*networking_v1.ServiceEntry
-	RegistryServices      []*kubernetes.RegistryService
 	PolicyAllowAny        bool
 }
 
@@ -78,17 +77,19 @@ func (n NoDestinationChecker) hasMatchingWorkload(host kubernetes.Host, subsetLa
 	}
 
 	// Covering 'servicename.namespace' host format scenario
-	localSvc, localNs := kubernetes.ParseTwoPartHost(host)
+	// TODO: Should look at services?
+	_, localNs := kubernetes.ParseTwoPartHost(host)
 
 	var selectors map[string]string
 
 	// Find the correct service
-	for _, s := range n.RegistryServices {
-		if s.Attributes.Name == localSvc && s.Attributes.Namespace == localNs {
-			selectors = s.Attributes.LabelSelectors
-			break
-		}
-	}
+	// TODO: It only looks at registry services?
+	// for _, s := range n.RegistryServices {
+	// 	if s.Attributes.Name == localSvc && s.Attributes.Namespace == localNs {
+	// 		selectors = s.Attributes.LabelSelectors
+	// 		break
+	// 	}
+	// }
 
 	subsetLabelSet := labels.Set(subsetLabels)
 	subsetSelector := labels.SelectorFromSet(subsetLabelSet)
@@ -140,11 +141,6 @@ func (n NoDestinationChecker) hasMatchingService(host kubernetes.Host, itemNames
 		return true
 	}
 
-	// Use RegistryService to check destinations that may not be covered with previous check
-	// i.e. Multi-cluster or Federation validations
-	if kubernetes.HasMatchingRegistryService(itemNamespace, host.String(), n.RegistryServices) {
-		return true
-	}
 	return false
 }
 

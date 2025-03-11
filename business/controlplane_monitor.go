@@ -21,13 +21,13 @@ import (
 	"github.com/kiali/kiali/models"
 )
 
+// TODO: Move this out now to istio package or its own package.
+
 // ControlPlaneMonitor is an interface for the control plane monitor.
 // This is an interface solely for testing purposes since we need to mock
 // out portforwarding and polling.
 type ControlPlaneMonitor interface {
 	PollIstiodForProxyStatus(ctx context.Context)
-	// RefreshIstioCache should update the kiali cache's istio related stores.
-	RefreshIstioCache(ctx context.Context) error
 }
 
 func NewControlPlaneMonitor(cache cache.KialiCache, clientFactory kubernetes.ClientFactory, conf config.Config, discovery *istio.Discovery) *controlPlaneMonitor {
@@ -80,7 +80,6 @@ func (p *controlPlaneMonitor) RefreshIstioCache(ctx context.Context) error {
 	// all controlplanes for that cluster so we'll get the proxy status per controlplane e.g. from both istiod-rev-1
 	// and istiod-rev-2 but the services will only be gotten from one of the istiods.
 	var proxyStatus []*kubernetes.ProxyStatus
-	registryStatus := make(map[string]*kubernetes.RegistryStatus)
 	for cluster, controlPlanes := range revisionsPerCluster {
 		client := p.clientFactory.GetSAClient(cluster)
 		if client == nil {
@@ -109,34 +108,8 @@ func (p *controlPlaneMonitor) RefreshIstioCache(ctx context.Context) error {
 			}
 			proxyStatus = append(proxyStatus, pstatus...)
 		}
-
-		// Services can just be done once per cluster since these are shared across revisions
-		// Whereas the proxy status is per revision.
-		if len(controlPlanes) > 0 {
-			// Since it doesn't matter what revision we choose, just choose the first one.
-			controlPlane := controlPlanes[0]
-			if controlPlane.Status != kubernetes.ComponentHealthy {
-				log.Warningf("After choosing first revision - Skipping controlplane [%s] in cluster [%s] because it is not healthy.", controlPlane.Revision, cluster)
-				if controlPlane.Status == kubernetes.ComponentUnreachable {
-					log.Warningf("After choosing first revision - unable to proxy Istiod pods. " +
-						"Make sure your Kubernetes API server has access to the Istio control plane through 8080 port")
-				}
-				continue
-			}
-
-			status := &kubernetes.RegistryStatus{}
-			services, err := p.getServicesWithRetry(ctx, interval, client, controlPlane.Revision, controlPlane.IstiodNamespace)
-			if err != nil {
-				log.Warningf("Unable to get registry services from istiod for revision: [%s] and cluster: [%s]. Registry services may be stale: %s", controlPlane.Revision, client.ClusterInfo().Name, err)
-				continue
-			}
-
-			status.Services = services
-			registryStatus[cluster] = status
-		}
 	}
 
-	p.cache.SetRegistryStatus(registryStatus)
 	p.cache.SetPodProxyStatus(proxyStatus)
 
 	return nil
@@ -187,29 +160,6 @@ func (p *controlPlaneMonitor) getProxyStatusWithRetry(ctx context.Context, inter
 	}
 
 	return proxyStatus, nil
-}
-
-func (p *controlPlaneMonitor) getServicesWithRetry(ctx context.Context, interval time.Duration, client kubernetes.ClientInterface, revision string, namespace string) ([]*kubernetes.RegistryService, error) {
-	var (
-		registryServices []*kubernetes.RegistryService
-		err              error
-	)
-	retryErr := wait.PollUntilContextCancel(ctx, interval, true, func(ctx context.Context) (bool, error) {
-		log.Tracef("Getting services from istiod in cluster [%s] for revision [%s]", client.ClusterInfo().Name, revision)
-		var err error
-		registryServices, err = p.getRegistryServices(client, revision, namespace)
-		if err != nil {
-			return false, nil
-		}
-
-		return true, nil
-	})
-	if retryErr != nil {
-		log.Warningf("Error getting proxy status from istiod. Proxy status may be stale. Err: %v", err)
-		return nil, err
-	}
-
-	return registryServices, nil
 }
 
 func joinURL(base, path string) string {
@@ -341,54 +291,6 @@ func (p *controlPlaneMonitor) getProxyStatus(client kubernetes.ClientInterface, 
 		result = debugStatus
 	}
 	return parseProxyStatus(result)
-}
-
-func (p *controlPlaneMonitor) getRegistryServices(client kubernetes.ClientInterface, revision string, namespace string) ([]*kubernetes.RegistryService, error) {
-	const registryzPath = "/debug/registryz"
-	var result map[string][]byte
-
-	if externalConf := p.conf.ExternalServices.Istio.Registry; externalConf != nil && externalConf.IstiodURL != "" {
-		url := joinURL(externalConf.IstiodURL, registryzPath)
-		r, err := getRequest(url)
-		if err != nil {
-			log.Errorf("Failed to get Istiod info from remote endpoint %s error: %s", registryzPath, err)
-			return nil, err
-		}
-		result = map[string][]byte{"remote": r}
-	} else {
-		debugStatus, err := p.getIstiodDebugStatus(client, revision, namespace, registryzPath)
-		if err != nil {
-			log.Errorf("Failed to call Istiod endpoint %s error: %s", registryzPath, err)
-			return nil, err
-		}
-		result = debugStatus
-	}
-	return parseRegistryServices(result)
-}
-
-func parseRegistryServices(registries map[string][]byte) ([]*kubernetes.RegistryService, error) {
-	var fullRegistryServices []*kubernetes.RegistryService
-	isRegistryLoaded := false
-	for pilot, registry := range registries {
-		// skip reading registry configs multiple times in a case of multiple istiod pods
-		if isRegistryLoaded {
-			break
-		}
-		var rr []*kubernetes.RegistryService
-		err := json.Unmarshal(registry, &rr)
-		if err != nil {
-			log.Errorf("Error parsing RegistryServices results: %s", err)
-			return nil, err
-		}
-		for _, r := range rr {
-			r.Pilot = pilot
-		}
-		fullRegistryServices = append(fullRegistryServices, rr...)
-		if len(rr) > 0 {
-			isRegistryLoaded = true
-		}
-	}
-	return fullRegistryServices, nil
 }
 
 // Interface guards

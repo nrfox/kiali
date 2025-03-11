@@ -107,16 +107,15 @@ func NewServer(controlPlaneMonitor business.ControlPlaneMonitor,
 
 	// return our new Server
 	s := &Server{
-		conf:                conf,
-		clientFactory:       clientFactory,
-		controlPlaneMonitor: controlPlaneMonitor,
-		discovery:           discovery,
-		grafana:             grafana,
-		httpServer:          httpServer,
-		kialiCache:          cache,
-		prom:                prom,
-		router:              router,
-		traceClientLoader:   traceClientLoader,
+		conf:              conf,
+		clientFactory:     clientFactory,
+		discovery:         discovery,
+		grafana:           grafana,
+		httpServer:        httpServer,
+		kialiCache:        cache,
+		prom:              prom,
+		router:            router,
+		traceClientLoader: traceClientLoader,
 	}
 	if conf.Server.Observability.Tracing.Enabled && tracingProvider != nil {
 		s.tracer = tracingProvider
@@ -126,7 +125,7 @@ func NewServer(controlPlaneMonitor business.ControlPlaneMonitor,
 
 // Start HTTP server asynchronously. TLS may be active depending on the global configuration.
 func (s *Server) Start() {
-	business.Start(s.clientFactory, s.controlPlaneMonitor, s.kialiCache, s.discovery, s.prom, s.traceClientLoader, s.grafana)
+	business.Start(s.clientFactory, s.kialiCache, s.discovery, s.prom, s.traceClientLoader, s.grafana)
 
 	log.Infof("Server endpoint will start at [%v%v]", s.httpServer.Addr, s.conf.Server.WebRoot)
 	log.Infof("Server endpoint will serve static content from [%v]", s.conf.Server.StaticContentRootDirectory)

@@ -15,7 +15,6 @@ type NoHostChecker struct {
 	K8sHTTPRoute       *k8s_networking_v1.HTTPRoute
 	K8sReferenceGrants []*k8s_networking_v1beta1.ReferenceGrant
 	Namespaces         models.Namespaces
-	RegistryServices   []*kubernetes.RegistryService
 }
 
 func (n NoHostChecker) Check() ([]*models.IstioCheck, bool) {
@@ -47,7 +46,7 @@ func (n NoHostChecker) checkReference(refNamespace *k8s_networking_v1.Namespace,
 		namespace = string(*refNamespace)
 	}
 	fqdn := kubernetes.GetHost(string(refName), namespace, n.Namespaces.GetNames())
-	//service name should not be set in fqdn format
+	// service name should not be set in fqdn format
 	// if the http route is referencing to a service from the same namespace, then service should exist there
 	// if the http route is referencing to a service from other namespace, then a ReferenceGrant should exist to cross namespace reference, and the service should exist in remote namespace
 	if strings.Contains(string(refName), ".") ||
@@ -63,7 +62,9 @@ func (n NoHostChecker) checkReference(refNamespace *k8s_networking_v1.Namespace,
 func (n NoHostChecker) checkDestination(sHost string, itemNamespace string) bool {
 	// Use RegistryService to check destinations that may not be covered with previous check
 	// i.e. Multi-cluster or Federation validations
-	return kubernetes.HasMatchingRegistryService(itemNamespace, sHost, n.RegistryServices)
+	// TODO: Replace with kube services?
+	// return kubernetes.HasMatchingRegistryService(itemNamespace, sHost, n.RegistryServices)
+	return true
 }
 
 func (n NoHostChecker) checkReferenceGrant(fromNamespace string, toNamespace string) bool {

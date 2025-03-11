@@ -31,11 +31,10 @@ import (
 const allResources string = "*"
 
 type IstioConfigService struct {
-	userClients         map[string]kubernetes.ClientInterface
-	config              config.Config
-	kialiCache          cache.KialiCache
-	businessLayer       *Layer
-	controlPlaneMonitor ControlPlaneMonitor
+	userClients   map[string]kubernetes.ClientInterface
+	config        config.Config
+	kialiCache    cache.KialiCache
+	businessLayer *Layer
 }
 
 type IstioConfigCriteria struct {
@@ -690,13 +689,6 @@ func (in *IstioConfigService) DeleteIstioConfigDetail(ctx context.Context, clust
 		return err
 	}
 
-	if in.config.ExternalServices.Istio.IstioAPIEnabled {
-		// Refreshing the istio cache in case something has changed with the registry services. Not sure if this is really needed.
-		if err := in.controlPlaneMonitor.RefreshIstioCache(ctx); err != nil {
-			log.Errorf("Error while refreshing Istio cache: %s", err)
-		}
-	}
-
 	// We need to refresh the kube cache though at least until waiting for the object to be updated is implemented.
 	kubeCache.Refresh(namespace)
 
@@ -965,12 +957,6 @@ func (in *IstioConfigService) CreateIstioConfigDetail(ctx context.Context, clust
 		return istioConfigDetail, err
 	}
 
-	if in.config.ExternalServices.Istio.IstioAPIEnabled {
-		// Refreshing the istio cache in case something has changed with the registry services. Not sure if this is really needed.
-		if err := in.controlPlaneMonitor.RefreshIstioCache(ctx); err != nil {
-			log.Errorf("Error while refreshing Istio cache: %s", err)
-		}
-	}
 	// We need to refresh the kube cache though at least until waiting for the object to be updated is implemented.
 	kubeCache.Refresh(namespace)
 

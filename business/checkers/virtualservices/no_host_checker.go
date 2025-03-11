@@ -14,7 +14,6 @@ type NoHostChecker struct {
 	Namespaces        models.Namespaces
 	VirtualService    *networking_v1.VirtualService
 	ServiceEntryHosts map[string][]string
-	RegistryServices  []*kubernetes.RegistryService
 	PolicyAllowAny    bool
 }
 
@@ -109,5 +108,7 @@ func (n NoHostChecker) checkDestination(sHost string, itemNamespace string) bool
 
 	// Use RegistryService to check destinations that may not be covered with previous check
 	// i.e. Multi-cluster or Federation validations
-	return kubernetes.HasMatchingRegistryService(itemNamespace, sHost, n.RegistryServices)
+	// TODO: Kube services
+	// return kubernetes.HasMatchingRegistryService(itemNamespace, sHost, n.RegistryServices)
+	return true
 }

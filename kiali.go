@@ -178,7 +178,7 @@ func main() {
 	// Needs to be started after the server so that the cache is started because the controllers use the cache.
 	// Passing nil here because the tracing client is not used for validations and that is all this layer is used for.
 	// Passing the `tracingClient` above would be a race condition since it gets set in a goroutine.
-	layer, err := business.NewLayerWithSAClients(cfg, cache, prom, nil, cpm, grafana, discovery, clientFactory.GetSAClients())
+	layer, err := business.NewLayerWithSAClients(cfg, cache, prom, nil, grafana, discovery, clientFactory.GetSAClients())
 	if err != nil {
 		log.Fatalf("Error creating business layer: %s", err)
 	}

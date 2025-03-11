@@ -14,7 +14,6 @@ type SidecarChecker struct {
 	ServiceEntries        []*networking_v1.ServiceEntry
 	Namespaces            models.Namespaces
 	WorkloadsPerNamespace map[string]models.WorkloadList
-	RegistryServices      []*kubernetes.RegistryService
 	Cluster               string
 }
 
@@ -62,7 +61,7 @@ func (s SidecarChecker) runChecks(sidecar *networking_v1.Sidecar) models.IstioVa
 
 	enabledCheckers := []Checker{
 		common.WorkloadSelectorNoWorkloadFoundChecker(kubernetes.Sidecars, selectorLabels, s.WorkloadsPerNamespace),
-		sidecars.EgressHostChecker{Sidecar: sidecar, ServiceEntries: serviceHosts, RegistryServices: s.RegistryServices},
+		sidecars.EgressHostChecker{Sidecar: sidecar, ServiceEntries: serviceHosts},
 		sidecars.GlobalChecker{Sidecar: sidecar},
 		sidecars.OutboundTrafficPolicyModeChecker{Sidecar: sidecar},
 	}

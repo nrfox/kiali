@@ -1186,7 +1186,7 @@ func NewRoutes(
 			"GraphNamespaces",
 			"GET",
 			"/api/namespaces/graph",
-			handlers.GraphNamespaces(conf, kialiCache, clientFactory, prom, cpm, traceClientLoader, grafana, discovery),
+			handlers.GraphNamespaces(conf, kialiCache, clientFactory, prom, traceClientLoader, grafana, discovery),
 			true,
 		},
 		// swagger:route GET /namespaces/{namespace}/aggregates/{aggregate}/{aggregateValue}/graph graphs graphAggregate
@@ -1207,7 +1207,7 @@ func NewRoutes(
 			"GraphAggregate",
 			"GET",
 			"/api/namespaces/{namespace}/aggregates/{aggregate}/{aggregateValue}/graph",
-			handlers.GraphNode(conf, kialiCache, clientFactory, prom, cpm, traceClientLoader, grafana, discovery),
+			handlers.GraphNode(conf, kialiCache, clientFactory, prom, traceClientLoader, grafana, discovery),
 			true,
 		},
 		// swagger:route GET /namespaces/{namespace}/aggregates/{aggregate}/{aggregateValue}/{service}/graph graphs graphAggregateByService
@@ -1228,7 +1228,7 @@ func NewRoutes(
 			"GraphAggregateByService",
 			"GET",
 			"/api/namespaces/{namespace}/aggregates/{aggregate}/{aggregateValue}/{service}/graph",
-			handlers.GraphNode(conf, kialiCache, clientFactory, prom, cpm, traceClientLoader, grafana, discovery),
+			handlers.GraphNode(conf, kialiCache, clientFactory, prom, traceClientLoader, grafana, discovery),
 			true,
 		},
 		// swagger:route GET /namespaces/{namespace}/applications/{app}/versions/{version}/graph graphs graphAppVersion
@@ -1249,7 +1249,7 @@ func NewRoutes(
 			"GraphAppVersion",
 			"GET",
 			"/api/namespaces/{namespace}/applications/{app}/versions/{version}/graph",
-			handlers.GraphNode(conf, kialiCache, clientFactory, prom, cpm, traceClientLoader, grafana, discovery),
+			handlers.GraphNode(conf, kialiCache, clientFactory, prom, traceClientLoader, grafana, discovery),
 			true,
 		},
 		// swagger:route GET /namespaces/{namespace}/applications/{app}/graph graphs graphApp
@@ -1270,7 +1270,7 @@ func NewRoutes(
 			"GraphApp",
 			"GET",
 			"/api/namespaces/{namespace}/applications/{app}/graph",
-			handlers.GraphNode(conf, kialiCache, clientFactory, prom, cpm, traceClientLoader, grafana, discovery),
+			handlers.GraphNode(conf, kialiCache, clientFactory, prom, traceClientLoader, grafana, discovery),
 			true,
 		},
 		// swagger:route GET /namespaces/{namespace}/services/{service}/graph graphs graphService
@@ -1291,7 +1291,7 @@ func NewRoutes(
 			"GraphService",
 			"GET",
 			"/api/namespaces/{namespace}/services/{service}/graph",
-			handlers.GraphNode(conf, kialiCache, clientFactory, prom, cpm, traceClientLoader, grafana, discovery),
+			handlers.GraphNode(conf, kialiCache, clientFactory, prom, traceClientLoader, grafana, discovery),
 			true,
 		},
 		// swagger:route GET /namespaces/{namespace}/workloads/{workload}/graph graphs graphWorkload
@@ -1312,7 +1312,7 @@ func NewRoutes(
 			"GraphWorkload",
 			"GET",
 			"/api/namespaces/{namespace}/workloads/{workload}/graph",
-			handlers.GraphNode(conf, kialiCache, clientFactory, prom, cpm, traceClientLoader, grafana, discovery),
+			handlers.GraphNode(conf, kialiCache, clientFactory, prom, traceClientLoader, grafana, discovery),
 			true,
 		},
 		// swagger:route GET /mesh/graph meshGraph
@@ -1333,7 +1333,7 @@ func NewRoutes(
 			"MeshGraph",
 			"GET",
 			"/api/mesh/graph",
-			handlers.MeshGraph(conf, clientFactory, kialiCache, grafana, prom, traceClientLoader, discovery, cpm),
+			handlers.MeshGraph(conf, clientFactory, kialiCache, grafana, prom, traceClientLoader, discovery),
 			true,
 		},
 		// swagger:route GET /mesh/controlplanes controlplanes

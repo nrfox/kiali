@@ -18,11 +18,10 @@ import (
 
 // SetWithBackends allows for specifying the ClientFactory and Prometheus clients to be used.
 // Mock friendly. Used only with tests.
-func setWithBackends(cf kubernetes.ClientFactory, prom prometheus.ClientInterface, cache cache.KialiCache, cpm ControlPlaneMonitor, d istio.MeshDiscovery) {
+func setWithBackends(cf kubernetes.ClientFactory, prom prometheus.ClientInterface, cache cache.KialiCache, d istio.MeshDiscovery) {
 	clientFactory = cf
 	discovery = d
 	kialiCache = cache
-	poller = cpm
 	prometheusClient = prom
 }
 
@@ -44,10 +43,9 @@ func SetupBusinessLayer(t testing.TB, k8s kubernetes.ClientInterface, config con
 
 	cf := kubetest.NewK8SClientFactoryMock(k8s)
 	cache := cache.NewTestingCacheWithFactory(t, cf, config)
-	cpm := &FakeControlPlaneMonitor{}
 	d := istio.NewDiscovery(cf.Clients, cache, &config)
 
-	setWithBackends(cf, nil, cache, cpm, d)
+	setWithBackends(cf, nil, cache, d)
 	return cache
 }
 
@@ -59,11 +57,6 @@ func WithProm(prom prometheus.ClientInterface) {
 // WithKialiCache is a testing func that lets you replace the global cache var.
 func WithKialiCache(cache cache.KialiCache) {
 	kialiCache = cache
-}
-
-// WithControlPlaneMonitor is a testing func that lets you replace the global cpm var.
-func WithControlPlaneMonitor(cpm ControlPlaneMonitor) {
-	poller = cpm
 }
 
 // WithDiscovery is a testing func that lets you replace the global discovery var.

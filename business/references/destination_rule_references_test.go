@@ -29,8 +29,8 @@ func prepareTestForDestinationRule(dr *networking_v1.DestinationRule, vs *networ
 				data.CreateWorkloadListItem("reviewsv3", appVersionLabel("reviews", "v3")),
 				data.CreateWorkloadListItem("reviewsv4", appVersionLabel("reviews", "v4"))),
 		},
-		ServiceEntries:   []*networking_v1.ServiceEntry{fakeServiceEntry()},
-		RegistryServices: data.CreateFakeRegistryServicesLabels("reviews", "test-namespace"),
+		ServiceEntries: []*networking_v1.ServiceEntry{fakeServiceEntry()},
+		// RegistryServices: data.CreateFakeRegistryServicesLabels("reviews", "test-namespace"),
 	}
 	return *drReferences.References()[models.IstioReferenceKey{ObjectGVK: kubernetes.DestinationRules, Namespace: dr.Namespace, Name: dr.Name}]
 }

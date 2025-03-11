@@ -21,7 +21,6 @@ type MtlsStatus struct {
 	MatchingLabels      labels.Labels
 	AutoMtlsEnabled     bool
 	AllowPermissive     bool
-	RegistryServices    []*kubernetes.RegistryService
 }
 
 type TlsStatus struct {
@@ -82,11 +81,7 @@ func (m MtlsStatus) WorkloadMtlsStatus(namespace string) string {
 				// Filter DR that applies to the Services matching with the selector
 				// Fetch hosts from DRs and its mtls mode [details, ISTIO_STATUS]
 				// Filter Svc and extract its workloads selectors
-				filteredRSvcs := kubernetes.FilterRegistryServicesBySelector(selector, namespace, m.RegistryServices)
 				nameNamespaces := []NameNamespace{}
-				for _, rSvc := range filteredRSvcs {
-					nameNamespaces = append(nameNamespaces, NameNamespace{rSvc.IstioService.Attributes.Name, rSvc.IstioService.Attributes.Namespace})
-				}
 				for _, nameNamespace := range nameNamespaces {
 					filteredDrs := kubernetes.FilterDestinationRulesByService(m.DestinationRules, nameNamespace.Namespace, nameNamespace.Name)
 					for _, dr := range filteredDrs {
@@ -163,7 +158,7 @@ func (m MtlsStatus) hasDestinationRuleMeshTLSDefinition() string {
 }
 
 func (m MtlsStatus) OverallMtlsStatus(nsStatus, meshStatus TlsStatus) string {
-	var status = MTLSPartiallyEnabled
+	status := MTLSPartiallyEnabled
 	if nsStatus.hasDefinedTls() {
 		status = nsStatus.OverallStatus
 	} else if nsStatus.hasPartialTlsConfig() {
@@ -183,7 +178,7 @@ func (m MtlsStatus) OverallMtlsStatus(nsStatus, meshStatus TlsStatus) string {
 }
 
 func (m MtlsStatus) inheritedOverallStatus(nsStatus, meshStatus TlsStatus) string {
-	var partialDRStatus, partialPAStatus = nsStatus.DestinationRuleStatus, nsStatus.PeerAuthenticationStatus
+	partialDRStatus, partialPAStatus := nsStatus.DestinationRuleStatus, nsStatus.PeerAuthenticationStatus
 	if nsStatus.DestinationRuleStatus == "" {
 		partialDRStatus = meshStatus.DestinationRuleStatus
 	}

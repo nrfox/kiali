@@ -19,7 +19,6 @@ type MtlsEnabledChecker struct {
 	Cluster               string
 	MtlsDetails           kubernetes.MTLSDetails
 	ServiceEntries        []networking_v1.ServiceEntry
-	RegistryServices      []*kubernetes.RegistryService
 }
 
 // Checks if mTLS is enabled, mark all Authz Policies with error
@@ -105,7 +104,7 @@ func fromNeedsMtls(froms []*api_security_v1.Rule_From, ruleNum int) (bool, []str
 }
 
 func conditionNeedsMtls(conditions []*api_security_v1.Condition, ruleNum int) (bool, []string) {
-	var keysWithMtls = [3]string{"source.namespace", "source.principal", "connection.sni"}
+	keysWithMtls := [3]string{"source.namespace", "source.principal", "connection.sni"}
 	paths := make([]string, 0)
 
 	for i, c := range conditions {
@@ -132,7 +131,6 @@ func (c MtlsEnabledChecker) IsMtlsEnabledFor(labels labels.Set, namespace string
 		DestinationRules:    c.MtlsDetails.DestinationRules,
 		MatchingLabels:      labels,
 		PeerAuthentications: c.MtlsDetails.PeerAuthentications,
-		RegistryServices:    c.RegistryServices,
 	}.WorkloadMtlsStatus(namespace)
 
 	if workloadmTlsStatus == mtls.MTLSEnabled {

@@ -8,7 +8,6 @@ import (
 	k8s_networking_v1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/kiali/kiali/config"
-	"github.com/kiali/kiali/kubernetes"
 )
 
 type ServiceOverview struct {
@@ -191,20 +190,6 @@ func (s *Service) Parse(cluster string, service *core_v1.Service) {
 		s.ResourceVersion = service.ResourceVersion
 		s.Selectors = service.Spec.Selector
 		s.Type = string(service.Spec.Type)
-	}
-}
-
-func (s *Service) ParseRegistryService(cluster string, service *kubernetes.RegistryService) {
-	if service != nil {
-		s.Cluster = cluster
-		s.HealthAnnotations = map[string]string{}
-		s.Labels = service.Attributes.Labels
-		s.Name = service.Attributes.Name
-		s.Namespace = service.Attributes.Namespace
-		s.Ports.ParseServiceRegistryPorts(service)
-		s.Selectors = service.Attributes.LabelSelectors
-		// It will expect "External" or "Federation"
-		s.Type = service.Attributes.ServiceRegistry
 	}
 }
 

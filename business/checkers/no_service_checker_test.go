@@ -17,8 +17,8 @@ func TestNoCrashOnEmpty(t *testing.T) {
 	assert := assert.New(t)
 
 	typeValidations := NoServiceChecker{
-		IstioConfigList:  emptyIstioConfigList(),
-		RegistryServices: data.CreateEmptyRegistryServices(),
+		IstioConfigList: emptyIstioConfigList(),
+		// RegistryServices: data.CreateEmptyRegistryServices(),
 	}.Check()
 
 	assert.Empty(typeValidations)
@@ -44,8 +44,8 @@ func TestAllIstioObjectWithServices(t *testing.T) {
 		},
 		IstioConfigList:      fakeIstioConfigList(),
 		AuthorizationDetails: &kubernetes.RBACDetails{},
-		RegistryServices: append(data.CreateFakeRegistryServices("product.test.svc.cluster.local", "test", "test"),
-			data.CreateFakeMultiRegistryServices([]string{"reviews.test.svc.cluster.local", "details.test.svc.cluster.local", "customer.test.svc.cluster.local"}, "test", "*")...),
+		// RegistryServices: append(data.CreateFakeRegistryServices("product.test.svc.cluster.local", "test", "test"),
+		// 	data.CreateFakeMultiRegistryServices([]string{"reviews.test.svc.cluster.local", "details.test.svc.cluster.local", "customer.test.svc.cluster.local"}, "test", "*")...),
 	}.Check()
 
 	assert.NotEmpty(vals)
@@ -73,8 +73,8 @@ func TestDetectObjectWithoutService(t *testing.T) {
 				data.CreateWorkloadListItem("productv2", appVersionLabel("product", "v2"))),
 		},
 		AuthorizationDetails: &kubernetes.RBACDetails{},
-		RegistryServices: append(data.CreateFakeRegistryServices("product.test.svc.cluster.local", "test", "."),
-			data.CreateFakeMultiRegistryServices([]string{"reviews.test.svc.cluster.local", "details.test.svc.cluster.local"}, "test", "*")...),
+		// RegistryServices: append(data.CreateFakeRegistryServices("product.test.svc.cluster.local", "test", "."),
+		// 	data.CreateFakeMultiRegistryServices([]string{"reviews.test.svc.cluster.local", "details.test.svc.cluster.local"}, "test", "*")...),
 	}.Check()
 
 	assert.NotEmpty(vals)
@@ -95,8 +95,8 @@ func TestDetectObjectWithoutService(t *testing.T) {
 				data.CreateWorkloadListItem("customerv1", appVersionLabel("customer", "v1")),
 				data.CreateWorkloadListItem("customerv2", appVersionLabel("customer", "v2"))),
 		},
-		IstioConfigList:      fakeIstioConfigList(),
-		RegistryServices:     data.CreateFakeMultiRegistryServices([]string{"reviews.test.svc.cluster.local", "details.test.svc.cluster.local", "customer.test.svc.cluster.local"}, "test", "*"),
+		IstioConfigList: fakeIstioConfigList(),
+		// RegistryServices:     data.CreateFakeMultiRegistryServices([]string{"reviews.test.svc.cluster.local", "details.test.svc.cluster.local", "customer.test.svc.cluster.local"}, "test", "*"),
 		AuthorizationDetails: &kubernetes.RBACDetails{},
 	}.Check()
 
@@ -120,8 +120,8 @@ func TestDetectObjectWithoutService(t *testing.T) {
 				data.CreateWorkloadListItem("customerv1", appVersionLabel("customer", "v1")),
 				data.CreateWorkloadListItem("customerv2", appVersionLabel("customer", "v2"))),
 		},
-		IstioConfigList:      fakeIstioConfigList(),
-		RegistryServices:     data.CreateFakeMultiRegistryServices([]string{"reviews.test.svc.cluster.local", "product.test.svc.cluster.local", "customer.test.svc.cluster.local"}, "test", "*"),
+		IstioConfigList: fakeIstioConfigList(),
+		// RegistryServices:     data.CreateFakeMultiRegistryServices([]string{"reviews.test.svc.cluster.local", "product.test.svc.cluster.local", "customer.test.svc.cluster.local"}, "test", "*"),
 		AuthorizationDetails: &kubernetes.RBACDetails{},
 	}.Check()
 
@@ -138,8 +138,8 @@ func TestDetectObjectWithoutService(t *testing.T) {
 				data.CreateWorkloadListItem("customerv1", appVersionLabel("customer", "v1")),
 				data.CreateWorkloadListItem("customerv2", appVersionLabel("customer", "v2"))),
 		},
-		IstioConfigList:      fakeIstioConfigList(),
-		RegistryServices:     data.CreateFakeMultiRegistryServices([]string{"details.test.svc.cluster.local", "product.test.svc.cluster.local", "customer.test.svc.cluster.local"}, "test", "*"),
+		IstioConfigList: fakeIstioConfigList(),
+		// RegistryServices:     data.CreateFakeMultiRegistryServices([]string{"details.test.svc.cluster.local", "product.test.svc.cluster.local", "customer.test.svc.cluster.local"}, "test", "*"),
 		AuthorizationDetails: &kubernetes.RBACDetails{},
 	}.Check()
 
@@ -158,8 +158,8 @@ func TestObjectWithoutGateway(t *testing.T) {
 
 	istioDetails.VirtualServices[0].Spec.Gateways = gateways
 	vals := NoServiceChecker{
-		IstioConfigList:      istioDetails,
-		RegistryServices:     data.CreateFakeMultiRegistryServices([]string{"reviews.test.svc.cluster.local", "product.test.svc.cluster.local", "customer.test.svc.cluster.local"}, "test", "*"),
+		IstioConfigList: istioDetails,
+		// RegistryServices:     data.CreateFakeMultiRegistryServices([]string{"reviews.test.svc.cluster.local", "product.test.svc.cluster.local", "customer.test.svc.cluster.local"}, "test", "*"),
 		AuthorizationDetails: &kubernetes.RBACDetails{},
 	}.Check()
 
@@ -183,7 +183,8 @@ func fakeIstioConfigList() *models.IstioConfigList {
 			data.AddTcpRoutesToVirtualService(data.CreateTcpRoute("product", "v1", -1),
 				data.CreateEmptyVirtualService("product-vs", "test", []string{"product"}),
 			),
-		)}
+		),
+	}
 
 	result.DestinationRules = []*networking_v1.DestinationRule{
 		data.CreateEmptyDestinationRule("test", "customer-dr", "customer"),

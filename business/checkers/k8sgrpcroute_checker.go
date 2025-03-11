@@ -15,7 +15,6 @@ type K8sGRPCRouteChecker struct {
 	K8sGRPCRoutes      []*k8s_networking_v1.GRPCRoute
 	K8sReferenceGrants []*k8s_networking_v1beta1.ReferenceGrant
 	Namespaces         models.Namespaces
-	RegistryServices   []*kubernetes.RegistryService
 }
 
 // Check runs checks for the all namespaces actions as well as for the single namespace validations
@@ -54,7 +53,6 @@ func (in K8sGRPCRouteChecker) runChecks(rt *k8s_networking_v1.GRPCRoute, gateway
 			Namespaces:         in.Namespaces,
 			K8sGRPCRoute:       rt,
 			K8sReferenceGrants: in.K8sReferenceGrants,
-			RegistryServices:   in.RegistryServices,
 		},
 	}
 

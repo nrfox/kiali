@@ -17,7 +17,6 @@ type DestinationRuleReferences struct {
 	VirtualServices       []*networking_v1.VirtualService
 	WorkloadsPerNamespace map[string]models.WorkloadList
 	ServiceEntries        []*networking_v1.ServiceEntry
-	RegistryServices      []*kubernetes.RegistryService
 }
 
 func (n DestinationRuleReferences) References() models.IstioReferencesMap {
@@ -42,10 +41,11 @@ func (n DestinationRuleReferences) References() models.IstioReferencesMap {
 func (n DestinationRuleReferences) getServiceReferences(dr *networking_v1.DestinationRule) []models.ServiceReference {
 	result := make([]models.ServiceReference, 0)
 
-	fqdn := kubernetes.GetHost(dr.Spec.Host, dr.Namespace, n.Namespaces.GetNames())
-	if !fqdn.IsWildcard() && kubernetes.HasMatchingRegistryService(dr.Namespace, fqdn.String(), n.RegistryServices) {
-		result = append(result, models.ServiceReference{Name: fqdn.Service, Namespace: fqdn.Namespace})
-	}
+	// fqdn := kubernetes.GetHost(dr.Spec.Host, dr.Namespace, n.Namespaces.GetNames())
+	// TODO: kube services instead.
+	// if !fqdn.IsWildcard() && kubernetes.HasMatchingRegistryService(dr.Namespace, fqdn.String(), n.RegistryServices) {
+	// 	result = append(result, models.ServiceReference{Name: fqdn.Service, Namespace: fqdn.Namespace})
+	// }
 	return result
 }
 
@@ -60,17 +60,18 @@ func (n DestinationRuleReferences) getWorkloadReferences(dr *networking_v1.Desti
 	}
 
 	// Covering 'servicename.namespace' host format scenario
-	localSvc, localNs := kubernetes.ParseTwoPartHost(host)
+	_, localNs := kubernetes.ParseTwoPartHost(host)
 
 	var selectors map[string]string
 
 	// Find the correct service
-	for _, s := range n.RegistryServices {
-		if s.Attributes.Name == localSvc && s.Attributes.Namespace == localNs {
-			selectors = s.Attributes.LabelSelectors
-			break
-		}
-	}
+	// TODO: Kube services instead
+	// for _, s := range n.RegistryServices {
+	// 	if s.Attributes.Name == localSvc && s.Attributes.Namespace == localNs {
+	// 		selectors = s.Attributes.LabelSelectors
+	// 		break
+	// 	}
+	// }
 
 	// Check workloads
 	if len(selectors) == 0 {

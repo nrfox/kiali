@@ -10,7 +10,6 @@ import (
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/models"
-	"github.com/kiali/kiali/tests/data"
 )
 
 func prepareTestForServiceEntry(ap *security_v1.AuthorizationPolicy, dr *networking_v1.DestinationRule, se *networking_v1.ServiceEntry, sc *networking_v1.Sidecar) models.IstioReferences {
@@ -25,7 +24,7 @@ func prepareTestForServiceEntry(ap *security_v1.AuthorizationPolicy, dr *network
 		ServiceEntries:        []*networking_v1.ServiceEntry{se},
 		Sidecars:              []*networking_v1.Sidecar{sc},
 		DestinationRules:      []*networking_v1.DestinationRule{dr},
-		RegistryServices:      append(data.CreateFakeRegistryServices("foo-dev.bookinfo.svc.cluster.local", "bookinfo", "."), data.CreateFakeRegistryServices("foo-dev.istio-system.svc.cluster.local", "istio-system", "*")...),
+		// RegistryServices:      append(data.CreateFakeRegistryServices("foo-dev.bookinfo.svc.cluster.local", "bookinfo", "."), data.CreateFakeRegistryServices("foo-dev.istio-system.svc.cluster.local", "istio-system", "*")...),
 	}
 	return *drReferences.References()[models.IstioReferenceKey{ObjectGVK: kubernetes.ServiceEntries, Namespace: se.Namespace, Name: se.Name}]
 }

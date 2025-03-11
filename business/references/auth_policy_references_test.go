@@ -29,7 +29,7 @@ func prepareTestForAuthPolicy(ap *security_v1.AuthorizationPolicy, vs *networkin
 				data.CreateWorkloadListItem("istiod", map[string]string{"app": "istio-ingressgateway"}),
 			),
 		},
-		RegistryServices: data.CreateFakeRegistryServicesLabels("foo-dev", "istio-system"),
+		// RegistryServices: data.CreateFakeRegistryServicesLabels("foo-dev", "istio-system"),
 	}
 	return *drReferences.References()[models.IstioReferenceKey{ObjectGVK: kubernetes.AuthorizationPolicies, Namespace: ap.Namespace, Name: ap.Name}]
 }

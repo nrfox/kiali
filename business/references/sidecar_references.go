@@ -17,7 +17,6 @@ type SidecarReferences struct {
 	Namespace             string
 	Namespaces            models.Namespaces
 	ServiceEntries        []*networking_v1.ServiceEntry
-	RegistryServices      []*kubernetes.RegistryService
 	WorkloadsPerNamespace map[string]models.WorkloadList
 }
 
@@ -68,9 +67,10 @@ func getHostComponents(host string) (string, string, bool) {
 
 func (n SidecarReferences) getServiceReferences(host kubernetes.Host, itemNamespace string) []models.ServiceReference {
 	result := make([]models.ServiceReference, 0)
-	if kubernetes.HasMatchingRegistryService(itemNamespace, host.String(), n.RegistryServices) {
-		result = append(result, models.ServiceReference{Name: host.Service, Namespace: host.Namespace})
-	}
+	// TODO: Kube services instead
+	// if kubernetes.HasMatchingRegistryService(itemNamespace, host.String(), n.RegistryServices) {
+	// 	result = append(result, models.ServiceReference{Name: host.Service, Namespace: host.Namespace})
+	// }
 	return result
 }
 

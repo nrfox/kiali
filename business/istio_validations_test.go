@@ -16,7 +16,6 @@ import (
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/istio"
-	"github.com/kiali/kiali/istio/istiotest"
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/kubernetes/kubetest"
 	"github.com/kiali/kiali/models"
@@ -750,27 +749,6 @@ func fakeValidationMeshService(t *testing.T, cfg config.Config, objects ...runti
 	return NewValidationsService(&layer.IstioConfig, cache, &mesh, &namespace, &layer.Svc, k8sclients, &layer.Workload)
 }
 
-func fakeValidationMeshServiceWithRegistryStatus(t *testing.T, cfg config.Config, services []string, objects ...runtime.Object) IstioValidationsService {
-	k8s := kubetest.NewFakeK8sClient(objects...)
-	cache := SetupBusinessLayer(t, k8s, cfg)
-	conf := config.NewConfig()
-	cache.SetRegistryStatus(map[string]*kubernetes.RegistryStatus{
-		conf.KubernetesConfig.ClusterName: {
-			Services: data.CreateFakeMultiRegistryServices(services, "test", "*"),
-		},
-	})
-
-	k8sclients := make(map[string]kubernetes.ClientInterface)
-	k8sclients[cfg.KubernetesConfig.ClusterName] = k8s
-	discovery := &istiotest.FakeDiscovery{
-		MeshReturn: models.Mesh{ControlPlanes: []models.ControlPlane{{Cluster: &models.KubeCluster{IsKialiHome: true}, Config: models.ControlPlaneConfiguration{}}}},
-	}
-	namespace := NewNamespaceService(k8sclients, k8sclients, cache, conf, discovery)
-	mesh := NewMeshService(k8sclients, discovery)
-	layer := NewWithBackends(k8sclients, k8sclients, nil, nil)
-	return NewValidationsService(&layer.IstioConfig, cache, &mesh, &namespace, &layer.Svc, k8sclients, &layer.Workload)
-}
-
 func mockMultiNamespaceGateways(conf *config.Config) []runtime.Object {
 	fakeIstioObjects := []runtime.Object{
 		&core_v1.ConfigMap{ObjectMeta: v1.ObjectMeta{Name: "istio", Namespace: "istio-system"}},
@@ -835,7 +813,7 @@ func mockCombinedValidationService(t *testing.T, conf *config.Config, istioConfi
 	fakeIstioObjects = append(fakeIstioObjects, kubernetes.ToRuntimeObjects(istioConfigList.WorkloadEntries)...)
 	fakeIstioObjects = append(fakeIstioObjects, kubernetes.ToRuntimeObjects(istioConfigList.RequestAuthentications)...)
 
-	return fakeValidationMeshServiceWithRegistryStatus(t, *config.NewConfig(), services, fakeIstioObjects...)
+	return fakeValidationMeshService(t, *config.NewConfig(), fakeIstioObjects...)
 }
 
 func mockAmbient(t *testing.T, conf *config.Config) []runtime.Object {
