@@ -3,6 +3,7 @@ package business
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"strings"
@@ -1870,4 +1871,90 @@ func TestGetWorkloadListWithCustomKindThatMatchesCoreKind(t *testing.T) {
 	require.Equal(1, len(workloads))
 	assert.Equal("custom-controller-123", workloads[0].Name)
 	assert.Equal("DaemonSet", workloads[0].WorkloadGVK.Kind)
+}
+
+func TestGetWaypointsLoop(t *testing.T) {
+	conf := config.NewConfig()
+	config.Set(conf)
+
+	kubeObjs := []runtime.Object{
+		&osproject_v1.Project{ObjectMeta: metav1.ObjectMeta{Name: "Namespace", Labels: map[string]string{"istio.io/use-waypoint": "waypoint"}}},
+	}
+
+	for i := 1; i <= 30; i++ {
+		serviceName := fmt.Sprintf("service-%d", i)
+
+		service := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      serviceName,
+				Namespace: "Namespace",
+				Labels: map[string]string{
+					"app": "test-app",
+				},
+			},
+			Spec: corev1.ServiceSpec{
+				Selector: map[string]string{
+					"app": "test-app",
+				},
+			},
+		}
+
+		kubeObjs = append(kubeObjs, service)
+	}
+
+	waypointDeployment := &apps_v1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: kubernetes.Deployments.GroupVersion().String(),
+			Kind:       kubernetes.Deployments.Kind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "waypoint",
+			Namespace: "Namespace",
+		},
+		Spec: apps_v1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"gateway.istio.io/managed":               "istio.io-mesh-controller",
+						"gateway.networking.k8s.io/gateway-name": "waypoint",
+					},
+				},
+			},
+		},
+	}
+
+	waypointPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "waypoint-pod",
+			Namespace: "Namespace",
+			Annotations: map[string]string{
+				config.AmbientAnnotation: config.AmbientAnnotationEnabled,
+			},
+			Labels: map[string]string{
+				"gateway.istio.io/managed":               "istio.io-mesh-controller",
+				"gateway.networking.k8s.io/gateway-name": "waypoint",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
+					Name:       "waypoint",
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "waypoint", Image: "gcr.io/istio-release/proxyv2:1.24.1-distroless"},
+			},
+		},
+	}
+
+	kubeObjs = append(kubeObjs, waypointDeployment, waypointPod)
+
+	k8s := kubetest.NewFakeK8sClient(kubeObjs...)
+	k8s.OpenShift = true
+	svc := setupWorkloadService(t, k8s, conf)
+
+	_, err := svc.GetAllWorkloads(context.TODO(), k8s.ClusterInfo().Name, "")
+	require.NoError(t, err)
 }
