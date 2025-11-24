@@ -350,10 +350,6 @@ jobs:
       run: |
         git add Makefile
 
-        # Adding the frontend build folder to the release commit
-        # so that Kiali can be installed with "go install".
-        git add -f frontend/build
-
         git commit -m "Release $RELEASE_VERSION"
 
         git push origin $(git rev-parse HEAD):refs/tags/$RELEASE_VERSION
