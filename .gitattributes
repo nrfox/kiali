@@ -1,0 +1,2 @@
+# Hide production build files in the git diff.
+frontend/build/** linguist-generated
