@@ -16,6 +16,7 @@ import (
 	"github.com/kiali/kiali/tools/cmd/installer/certs"
 	installclient "github.com/kiali/kiali/tools/cmd/installer/client"
 	"github.com/kiali/kiali/tools/cmd/installer/command"
+	crcpkg "github.com/kiali/kiali/tools/cmd/installer/crc"
 	"github.com/kiali/kiali/tools/cmd/installer/istio"
 	"github.com/kiali/kiali/tools/cmd/installer/keycloak"
 	kialipkg "github.com/kiali/kiali/tools/cmd/installer/kiali"
@@ -74,7 +75,23 @@ It's a Go implementation of the hack/start-kind.sh script.`,
 	}
 	multiPrimaryCmd.Flags().StringVar(&helmChartPath, "helm-chart", "", "Path to the kiali-server helm chart tarball (defaults to https://kiali.org/helm-charts)")
 
+	crcConfig := crcpkg.NewConfig()
+	crcCmd := &cobra.Command{
+		Use:   "crc",
+		Short: "Create a CRC OpenShift cluster for Kiali development",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			log.InitializeLogger(log.WithColor())
+			logger := log.Logger()
+			return crcpkg.Start(crcConfig, logger)
+		},
+	}
+	crcCmd.Flags().StringVarP(&crcConfig.PullSecretFile, "pull-secret-file", "p", crcConfig.PullSecretFile, "Path to Red Hat pull secret file (required, download from https://console.redhat.com/openshift/create/local)")
+	crcCmd.Flags().IntVar(&crcConfig.CPUs, "cpus", crcConfig.CPUs, "Number of CPUs for the CRC VM")
+	crcCmd.Flags().IntVar(&crcConfig.Memory, "memory", crcConfig.Memory, "Memory in GB for the CRC VM")
+	crcCmd.Flags().IntVar(&crcConfig.DiskSize, "disk-size", crcConfig.DiskSize, "Disk size in GB for the CRC VM")
+
 	rootCmd.AddCommand(multiPrimaryCmd)
+	rootCmd.AddCommand(crcCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
