@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/kiali/kiali/log"
+	"github.com/kiali/kiali/tools/cmd/installer/acm"
 	"github.com/kiali/kiali/tools/cmd/installer/bookinfo"
 	"github.com/kiali/kiali/tools/cmd/installer/certs"
 	installclient "github.com/kiali/kiali/tools/cmd/installer/client"
@@ -90,6 +91,47 @@ It's a Go implementation of the hack/start-kind.sh script.`,
 	crcCmd.Flags().IntVar(&crcConfig.Memory, "memory", crcConfig.Memory, "Memory in GB for the CRC VM")
 	crcCmd.Flags().IntVar(&crcConfig.DiskSize, "disk-size", crcConfig.DiskSize, "Disk size in GB for the CRC VM")
 
+	acmCfg := acm.NewConfig()
+	acmCmd := &cobra.Command{
+		Use:   "acm",
+		Short: "Install and manage ACM on an OpenShift cluster",
+	}
+
+	acmInstallCmd := &cobra.Command{
+		Use:   "install",
+		Short: "Install ACM operator and MultiClusterHub",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			log.InitializeLogger(log.WithColor())
+			return acm.Install(cmd.Context(), acmCfg, log.Logger())
+		},
+	}
+
+	acmUninstallCmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "Remove ACM operator and MultiClusterHub",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			log.InitializeLogger(log.WithColor())
+			return acm.Uninstall(cmd.Context(), acmCfg, log.Logger())
+		},
+	}
+
+	acmStatusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show the status of ACM components",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			log.InitializeLogger(log.WithColor())
+			return acm.Status(cmd.Context(), acmCfg, log.Logger())
+		},
+	}
+
+	acmCmd.PersistentFlags().StringVar(&acmCfg.Channel, "channel", acmCfg.Channel, "ACM OLM channel")
+	acmCmd.PersistentFlags().StringVar(&acmCfg.KubeContext, "kube-context", acmCfg.KubeContext, "kubectl context to use (empty = current context)")
+	acmCmd.PersistentFlags().StringVar(&acmCfg.Namespace, "namespace", acmCfg.Namespace, "ACM namespace")
+	acmCmd.PersistentFlags().DurationVar(&acmCfg.Timeout, "timeout", acmCfg.Timeout, "Timeout for operations")
+
+	acmCmd.AddCommand(acmInstallCmd, acmUninstallCmd, acmStatusCmd)
+
+	rootCmd.AddCommand(acmCmd)
 	rootCmd.AddCommand(multiPrimaryCmd)
 	rootCmd.AddCommand(crcCmd)
 
