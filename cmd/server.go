@@ -99,7 +99,7 @@ func run(ctx context.Context, conf *config.Config, staticAssetFS fs.FS, clientFa
 		log.Info("Prometheus is disabled")
 		prom = prometheus.NewNoopClient()
 	} else {
-		prom = prometheus.NewLazyClient(ctx, *conf, kialiToken)
+		prom = prometheus.NewLazyClient(ctx, *conf, kialiToken, cache)
 	}
 
 	// Create shared tracing client shared by all tracing requests in the business layer.

@@ -21,7 +21,7 @@ import { Paths } from './Paths';
 import { jaegerQuery } from './JaegerQuery';
 
 // ServerConfig
-import { homeCluster, isMultiCluster, isPrometheusAvailable, serverConfig } from './ServerConfig';
+import { homeCluster, isMultiCluster, isPrometheusAvailable, setPromStatus, serverConfig } from './ServerConfig';
 
 export {
   authenticationConfig,
@@ -35,6 +35,7 @@ export {
   kialiIconLight,
   kialiIconDark,
   isPrometheusAvailable,
+  setPromStatus,
   serverConfig,
   jaegerQuery
 };

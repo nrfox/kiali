@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { render, screen } from '@testing-library/react';
 import { EmptyGraphLayout } from '../EmptyGraphLayout';
-import { serverConfig, setServerConfig } from '../../../config/ServerConfig';
+import { serverConfig, setServerConfig, setPromStatus } from '../../../config/ServerConfig';
 
 describe('EmptyGraphLayout', () => {
   const defaultProps = {
@@ -17,8 +17,9 @@ describe('EmptyGraphLayout', () => {
   afterEach(() => {
     setServerConfig({
       ...serverConfig,
-      prometheus: { ...serverConfig.prometheus, enabled: true, disabledReason: undefined }
+      prometheus: { ...serverConfig.prometheus, enabled: true }
     });
+    setPromStatus(undefined);
   });
 
   it('shows prometheus disabled message when prometheus is explicitly disabled', () => {
@@ -31,10 +32,7 @@ describe('EmptyGraphLayout', () => {
   });
 
   it('shows prometheus disabled message when prometheus is enabled but unreachable', () => {
-    setServerConfig({
-      ...serverConfig,
-      prometheus: { ...serverConfig.prometheus, enabled: true, disabledReason: 'Prometheus unreachable' }
-    });
+    setPromStatus('Prometheus unreachable');
 
     const { container } = render(<EmptyGraphLayout {...defaultProps} />);
 

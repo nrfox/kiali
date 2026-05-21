@@ -25,6 +25,7 @@ export type TempoConfig = {
 
 export interface ExternalServiceInfo {
   name: string;
+  status?: string;
   tempoConfig?: TempoConfig;
   url?: string;
   version?: string;

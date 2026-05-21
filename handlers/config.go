@@ -35,10 +35,9 @@ type IstioAnnotations struct {
 // PrometheusConfig holds actual Prometheus configuration that is useful to Kiali.
 // All durations are in seconds.
 type PrometheusConfig struct {
-	DisabledReason       string `json:"disabledReason,omitempty"`
-	Enabled              bool   `json:"enabled"`
-	GlobalScrapeInterval int64  `json:"globalScrapeInterval,omitempty"`
-	StorageTsdbRetention int64  `json:"storageTsdbRetention,omitempty"`
+	Enabled              bool  `json:"enabled"`
+	GlobalScrapeInterval int64 `json:"globalScrapeInterval,omitempty"`
+	StorageTsdbRetention int64 `json:"storageTsdbRetention,omitempty"`
 }
 
 type DeploymentConfig struct {
@@ -115,7 +114,7 @@ func Config(conf *config.Config, cache cache.KialiCache, discovery istio.MeshDis
 
 		// Note that we determine the Prometheus config at request time because it is not
 		// guaranteed to remain the same during the Kiali lifespan.
-		promConfig := getPrometheusConfig(conf, prom, logger)
+		promConfig := getPrometheusConfig(conf, cache, prom, logger)
 		publicConfig := PublicConfig{
 			AuthStrategy: conf.Auth.Strategy,
 			ChatAI: ChatAIConfig{
@@ -214,18 +213,13 @@ type PrometheusPartialConfig struct {
 	}
 }
 
-func getPrometheusConfig(conf *config.Config, client prometheus.ClientInterface, logger *zerolog.Logger) PrometheusConfig {
-	var disabledReason string
-	if drp, ok := client.(prometheus.DisabledReasonProvider); ok {
-		disabledReason = drp.DisabledReason()
-	}
+func getPrometheusConfig(conf *config.Config, cache cache.KialiCache, client prometheus.ClientInterface, logger *zerolog.Logger) PrometheusConfig {
 	promConfig := PrometheusConfig{
-		DisabledReason:       disabledReason,
 		Enabled:              conf.ExternalServices.Prometheus.Enabled,
 		GlobalScrapeInterval: defaultPrometheusGlobalScrapeInterval,
 		StorageTsdbRetention: defaultPrometheusGlobalStorageTSDBRetention,
 	}
-	if !conf.ExternalServices.Prometheus.Enabled || disabledReason != "" || conf.RunMode == config.RunModeOffline {
+	if !conf.ExternalServices.Prometheus.Enabled || cache.GetPromStatus() != "" || conf.RunMode == config.RunModeOffline {
 		return promConfig
 	}
 	// Check if thanosProxy

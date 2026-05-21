@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kiali/kiali/cache"
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/grafana"
 	"github.com/kiali/kiali/kubernetes"
@@ -19,15 +20,22 @@ import (
 	"github.com/kiali/kiali/util/httputil"
 )
 
-func getVersions(ctx context.Context, conf *config.Config, clientFactory kubernetes.ClientFactory, grafana *grafana.Service, perses *perses.Service, prom prometheus.ClientInterface) []models.ExternalServiceInfo {
+func getVersions(ctx context.Context, conf *config.Config, clientFactory kubernetes.ClientFactory, cache cache.KialiCache, grafana *grafana.Service, perses *perses.Service, prom prometheus.ClientInterface) []models.ExternalServiceInfo {
 	components := getKubernetesVersions(clientFactory)
 
 	if conf.ExternalServices.Prometheus.Enabled {
-		pv, err := prometheusVersion(ctx, prom)
-		if err != nil {
-			log.Infof("Error getting Prometheus version: %v", err)
+		if promStatus := cache.GetPromStatus(); promStatus != "" {
+			components = append(components, models.ExternalServiceInfo{
+				Name:   "Prometheus",
+				Status: promStatus,
+			})
 		} else {
-			components = append(components, *pv)
+			pv, err := prometheusVersion(ctx, prom)
+			if err != nil {
+				log.Infof("Error getting Prometheus version: %v", err)
+			} else {
+				components = append(components, *pv)
+			}
 		}
 	}
 

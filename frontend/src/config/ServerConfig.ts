@@ -161,6 +161,8 @@ export { homeCluster, isMultiCluster };
 let appLabelNames: string[] = [];
 let versionLabelNames: string[] = [];
 
+let promStatus: string | undefined;
+
 export const toValidDuration = (duration: number): number => {
   // Check if valid
   if (serverConfig.durations[duration]) {
@@ -201,8 +203,12 @@ export const setServerConfig = (cfg: ServerConfig): void => {
   }
 };
 
+export const setPromStatus = (status: string | undefined): void => {
+  promStatus = status;
+};
+
 export const isPrometheusAvailable = (): boolean => {
-  return serverConfig.prometheus.enabled && !serverConfig.prometheus.disabledReason;
+  return serverConfig.prometheus.enabled && !promStatus;
 };
 
 export const isIstioNamespace = (namespace: string): boolean => {

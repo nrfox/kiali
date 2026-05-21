@@ -13,7 +13,7 @@ import { KialiDispatch } from '../types/Redux';
 import { InitializingScreen } from './InitializingScreen';
 import { getKioskMode, isKioskMode } from '../utils/SearchParamUtils';
 import { addError, addInfo, addWarning } from '../utils/AlertUtils';
-import { setServerConfig, serverConfig, humanDurations } from '../config/ServerConfig';
+import { setServerConfig, setPromStatus, serverConfig, humanDurations } from '../config/ServerConfig';
 import { AuthStrategy } from '../types/Auth';
 import { TracingInfo } from '../types/TracingInfo';
 import { LoginActions } from '../actions/LoginActions';
@@ -201,12 +201,7 @@ class AuthenticationControllerComponent extends React.Component<
       this.props.setChatAI(configs[1].data.chatAI);
       this.applyUIDefaults();
 
-      // Notify the user about Prometheus availability.
-      if (configs[1].data.prometheus.disabledReason) {
-        // Prometheus is enabled but was unreachable at startup — warn the user.
-        addWarning(configs[1].data.prometheus.disabledReason);
-      } else if (!configs[1].data.prometheus.enabled) {
-        // Prometheus was explicitly disabled by the user.
+      if (!configs[1].data.prometheus.enabled) {
         addInfo(
           'Prometheus metrics store is disabled. Some features (graph, metrics, health) are unavailable.',
           '',
@@ -351,6 +346,12 @@ class AuthenticationControllerComponent extends React.Component<
 
   private processServerStatus = (status: StatusState): void => {
     this.props.statusRefresh(status);
+
+    const promService = status.externalServices.find(s => s.name === 'Prometheus');
+    setPromStatus(promService?.status);
+    if (promService?.status) {
+      addWarning(promService.status);
+    }
 
     if (status.status[StatusKey.DISABLED_FEATURES]) {
       this.props.addMessage(

@@ -28,6 +28,7 @@ const (
 	kialiCacheGatewaysKey    = "gateways"
 	kialiCacheIstioStatusKey = "istioStatus"
 	kialiCacheMeshKey        = "mesh"
+	kialiCachePromStatusKey  = "promStatus"
 	kialiCacheWaypointsKey   = "waypoints"
 )
 
@@ -49,6 +50,9 @@ type KialiCache interface {
 	// GetClusters returns the list of clusters that the cache knows about.
 	// This gets set by the mesh service.
 	GetClusters() []models.KubeCluster
+
+	GetPromStatus() string
+	SetPromStatus(status string)
 
 	GetGateways() (models.Workloads, bool)
 	SetGateways(models.Workloads)
@@ -176,6 +180,8 @@ type kialiCacheImpl struct {
 	// that the map returned from the store is threadsafe.
 	namespacesLock sync.RWMutex
 
+	promStatusStore store.Store[string, string]
+
 	// ProxyStatusStore stores the proxy status and should be key'd off cluster + namespace + pod.
 	proxyStatusStore store.Store[string, *kubernetes.ProxyStatus]
 
@@ -208,6 +214,7 @@ func NewKialiCache(ctx context.Context, kialiSAClients map[string]kubernetes.Cli
 		kubeCache:               kubeCache,
 		meshStore:               store.NewExpirationStore(ctx, store.New[string, *models.Mesh](), util.AsPtr(conf.KialiInternal.CacheExpiration.Mesh), nil),
 		namespaceStore:          store.NewExpirationStore(ctx, store.New[namespacesKey, map[string]models.Namespace](), &namespaceKeyTTL, nil),
+		promStatusStore:         store.New[string, string](),
 		proxyStatusStore:        store.New[string, *kubernetes.ProxyStatus](),
 		refreshDuration:         time.Duration(conf.KubernetesConfig.CacheDuration) * time.Second,
 		waypointStore:           store.NewExpirationStore(ctx, store.New[string, models.Workloads](), util.AsPtr(conf.KialiInternal.CacheExpiration.Waypoint), nil),
@@ -765,6 +772,15 @@ func (c *kialiCacheImpl) GetBuildInfo() models.BuildInfo {
 
 func (c *kialiCacheImpl) SetBuildInfo(buildInfo models.BuildInfo) {
 	c.buildInfo = buildInfo
+}
+
+func (c *kialiCacheImpl) GetPromStatus() string {
+	s, _ := c.promStatusStore.Get(kialiCachePromStatusKey)
+	return s
+}
+
+func (c *kialiCacheImpl) SetPromStatus(status string) {
+	c.promStatusStore.Set(kialiCachePromStatusKey, status)
 }
 
 // Interface guard for kiali cache impl

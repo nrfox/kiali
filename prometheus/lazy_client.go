@@ -18,12 +18,8 @@ var _ ClientInterface = (*LazyClient)(nil)
 
 const defaultLazyClientRetryInterval = 30 * time.Second
 
-// DisabledReasonProvider is implemented by clients that can report why Prometheus
-// features are currently unavailable. Handlers use this interface via a type
-// assertion rather than adding the method to ClientInterface, keeping the core
-// interface free of lifecycle concerns.
-type DisabledReasonProvider interface {
-	DisabledReason() string
+type PromStatusSetter interface {
+	SetPromStatus(status string)
 }
 
 // LazyClient implements ClientInterface with deferred Prometheus connectivity.
@@ -33,31 +29,22 @@ type DisabledReasonProvider interface {
 // consumers hold a pointer to the same LazyClient, so the swap transparently
 // upgrades every caller with no locking on reads.
 type LazyClient struct {
-	ptr            atomic.Pointer[ClientInterface]
-	disabledReason atomic.Value // stores string; empty means fully operational
+	ptr   atomic.Pointer[ClientInterface]
+	cache PromStatusSetter
 }
 
-func NewLazyClient(ctx context.Context, conf config.Config, kialiSAToken string) *LazyClient {
-	return newLazyClient(ctx, conf, kialiSAToken, defaultLazyClientRetryInterval)
+func NewLazyClient(ctx context.Context, conf config.Config, kialiSAToken string, cache PromStatusSetter) *LazyClient {
+	return newLazyClient(ctx, conf, kialiSAToken, cache, defaultLazyClientRetryInterval)
 }
 
-func newLazyClient(ctx context.Context, conf config.Config, kialiSAToken string, retryInterval time.Duration) *LazyClient {
-	lc := &LazyClient{}
+func newLazyClient(ctx context.Context, conf config.Config, kialiSAToken string, cache PromStatusSetter, retryInterval time.Duration) *LazyClient {
+	lc := &LazyClient{cache: cache}
 	var noop ClientInterface = NewNoopClient()
 	lc.ptr.Store(&noop)
-	lc.disabledReason.Store("Connecting to Prometheus, metrics features are temporarily unavailable")
+	cache.SetPromStatus("Connecting to Prometheus, metrics features are temporarily unavailable")
 
 	go lc.connect(ctx, conf, kialiSAToken, retryInterval)
 	return lc
-}
-
-// DisabledReason returns the human-readable message explaining why Prometheus
-// features are currently unavailable, or an empty string when fully operational.
-func (lc *LazyClient) DisabledReason() string {
-	if v := lc.disabledReason.Load(); v != nil {
-		return v.(string)
-	}
-	return ""
 }
 
 func (lc *LazyClient) connect(ctx context.Context, conf config.Config, kialiSAToken string, retryInterval time.Duration) {
@@ -87,7 +74,7 @@ func (lc *LazyClient) connect(ctx context.Context, conf config.Config, kialiSATo
 	}
 
 	lc.set(client)
-	lc.disabledReason.Store("")
+	lc.cache.SetPromStatus("")
 	log.Info("Prometheus connected -- metrics features restored")
 }
 

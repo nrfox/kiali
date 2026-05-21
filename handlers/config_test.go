@@ -35,17 +35,6 @@ func (fpc *fakePromClient) GetRuntimeinfo(ctx context.Context) (prom_v1.Runtimei
 	return prom_v1.RuntimeinfoResult{}, nil
 }
 
-// fakeDisabledPromClient extends fakePromClient with a DisabledReason,
-// simulating a LazyClient that hasn't yet connected to Prometheus.
-type fakeDisabledPromClient struct {
-	fakePromClient
-	reason string
-}
-
-func (f *fakeDisabledPromClient) DisabledReason() string {
-	return f.reason
-}
-
 func TestConfigHandler(t *testing.T) {
 	require := require.New(t)
 
@@ -114,7 +103,6 @@ func TestConfigHandlerPrometheusDisabled(t *testing.T) {
 	require.NoError(json.Unmarshal(actual, &confResp))
 
 	require.False(confResp.Prometheus.Enabled, "Prometheus should be disabled")
-	require.Empty(confResp.Prometheus.DisabledReason, "DisabledReason should be empty when user explicitly disabled Prometheus")
 }
 
 func TestConfigHandlerPrometheusEnabledButUnreachable(t *testing.T) {
@@ -122,21 +110,16 @@ func TestConfigHandlerPrometheusEnabledButUnreachable(t *testing.T) {
 
 	conf := config.NewConfig()
 	conf.ExternalServices.Prometheus.Enabled = true
-	expectedReason := "Prometheus unreachable at [http://prometheus:9090/-/healthy] (status [0])"
 
 	k8s := kubetest.NewFakeK8sClient()
 	cf := kubetest.NewFakeClientFactoryWithClient(conf, k8s)
-	cache := cache.NewTestingCacheWithFactory(t, cf, *conf)
+	kialiCache := cache.NewTestingCacheWithFactory(t, cf, *conf)
+	kialiCache.SetPromStatus("Connecting to Prometheus, metrics features are temporarily unavailable")
 	discovery := &istiotest.FakeDiscovery{}
 
-	// Use a client that implements DisabledReasonProvider to simulate the LazyClient
-	// reporting a disabled reason to the config handler.
-	prom := &fakeDisabledPromClient{
-		fakePromClient: fakePromClient{PromClientMock: prometheustest.PromClientMock{}},
-		reason:         expectedReason,
-	}
+	prom := &fakePromClient{PromClientMock: prometheustest.PromClientMock{}}
 
-	handler := handlers.WithFakeAuthInfo(conf, handlers.Config(conf, cache, discovery, cf, prom))
+	handler := handlers.WithFakeAuthInfo(conf, handlers.Config(conf, kialiCache, discovery, cf, prom))
 	mr := mux.NewRouter()
 	mr.Handle("/api/config", handler)
 
@@ -156,8 +139,7 @@ func TestConfigHandlerPrometheusEnabledButUnreachable(t *testing.T) {
 	require.NoError(json.Unmarshal(actual, &confResp))
 
 	require.True(confResp.Prometheus.Enabled, "Prometheus should still be enabled (user's intent)")
-	require.NotEmpty(confResp.Prometheus.DisabledReason, "DisabledReason should be set when Prometheus is unreachable")
-	require.Equal(expectedReason, confResp.Prometheus.DisabledReason)
+	require.Equal(int64(15), confResp.Prometheus.GlobalScrapeInterval, "should return default scrape interval without querying Prometheus")
 }
 
 func TestConfigHandlerResolvesIdentityDomainFromMeshTrustDomain(t *testing.T) {

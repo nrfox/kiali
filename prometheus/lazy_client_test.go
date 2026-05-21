@@ -16,6 +16,14 @@ import (
 
 const shortRetry = 5 * time.Millisecond
 
+type fakePromStatusSetter struct {
+	status atomic.Value
+}
+
+func (f *fakePromStatusSetter) SetPromStatus(status string) {
+	f.status.Store(status)
+}
+
 func newTestConf(t *testing.T, serverURL string) config.Config {
 	t.Helper()
 	conf := config.NewConfig()
@@ -37,7 +45,7 @@ func TestLazyClientStartsWithNoopClient(t *testing.T) {
 	defer server.Close()
 
 	conf := newTestConf(t, server.URL)
-	lc := newLazyClient(ctx, conf, "", shortRetry)
+	lc := newLazyClient(ctx, conf, "", &fakePromStatusSetter{}, shortRetry)
 
 	_, err := lc.GetBuildInfo(t.Context())
 	assert.ErrorIs(t, err, ErrPrometheusDisabled, "should delegate to NoopClient before connect succeeds")
@@ -50,7 +58,7 @@ func TestLazyClientUpgradesOnConnect(t *testing.T) {
 	defer server.Close()
 
 	conf := newTestConf(t, server.URL)
-	lc := newLazyClient(t.Context(), conf, "", shortRetry)
+	lc := newLazyClient(t.Context(), conf, "", &fakePromStatusSetter{}, shortRetry)
 
 	require.Eventually(t, func() bool {
 		_, err := lc.GetBuildInfo(t.Context())
@@ -73,7 +81,7 @@ func TestLazyClientRetriesUntilHealthy(t *testing.T) {
 	defer server.Close()
 
 	conf := newTestConf(t, server.URL)
-	lc := newLazyClient(t.Context(), conf, "", shortRetry)
+	lc := newLazyClient(t.Context(), conf, "", &fakePromStatusSetter{}, shortRetry)
 
 	require.Eventually(t, func() bool {
 		_, err := lc.GetBuildInfo(t.Context())
@@ -93,7 +101,7 @@ func TestLazyClientContextCancelled(t *testing.T) {
 	defer cancel()
 
 	conf := newTestConf(t, server.URL)
-	lc := newLazyClient(ctx, conf, "", shortRetry)
+	lc := newLazyClient(ctx, conf, "", &fakePromStatusSetter{}, shortRetry)
 
 	<-ctx.Done()
 	time.Sleep(20 * time.Millisecond)
@@ -118,7 +126,7 @@ func TestLazyClientCustomHealthCheckURL(t *testing.T) {
 	conf := newTestConf(t, server.URL)
 	conf.ExternalServices.Prometheus.HealthCheckUrl = server.URL + "/custom/health"
 
-	lc := newLazyClient(t.Context(), conf, "", shortRetry)
+	lc := newLazyClient(t.Context(), conf, "", &fakePromStatusSetter{}, shortRetry)
 
 	require.Eventually(t, func() bool {
 		_, err := lc.GetBuildInfo(t.Context())
@@ -135,7 +143,7 @@ func TestLazyClientConstructionFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 
-	lc := newLazyClient(ctx, conf, "", shortRetry)
+	lc := newLazyClient(ctx, conf, "", &fakePromStatusSetter{}, shortRetry)
 
 	<-ctx.Done()
 	time.Sleep(20 * time.Millisecond)
@@ -154,7 +162,7 @@ func TestLazyClientAPINotNil(t *testing.T) {
 	defer server.Close()
 
 	conf := newTestConf(t, server.URL)
-	lc := newLazyClient(ctx, conf, "", shortRetry)
+	lc := newLazyClient(ctx, conf, "", &fakePromStatusSetter{}, shortRetry)
 	require.NotNil(t, lc.API())
 }
 
@@ -165,7 +173,7 @@ func TestLazyClientAtomicVisibility(t *testing.T) {
 	defer server.Close()
 
 	conf := newTestConf(t, server.URL)
-	lc := newLazyClient(t.Context(), conf, "", shortRetry)
+	lc := newLazyClient(t.Context(), conf, "", &fakePromStatusSetter{}, shortRetry)
 
 	require.Eventually(t, func() bool {
 		_, err := lc.GetBuildInfo(t.Context())

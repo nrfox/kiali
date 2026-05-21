@@ -26,5 +26,10 @@ type ExternalServiceInfo struct {
 	// example: jaeger-query-istio-system.127.0.0.1.nip.io
 	Url string `json:"url,omitempty"`
 
+	// The service status when unavailable
+	//
+	// required: false
+	Status string `json:"status,omitempty"`
+
 	TempoConfig config.TempoConfig `json:"tempoConfig,omitempty"`
 }
