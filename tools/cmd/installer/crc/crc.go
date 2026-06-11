@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -44,12 +45,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("%s not found in PATH: %w", crcBinary, err)
 	}
 
-	if c.PullSecretFile == "" {
-		return fmt.Errorf("pull secret file is required (download from https://console.redhat.com/openshift/create/local)")
-	}
-
-	if _, err := os.Stat(c.PullSecretFile); err != nil {
-		return fmt.Errorf("pull secret file not found: %s", c.PullSecretFile)
+	if c.PullSecretFile != "" {
+		if _, err := os.Stat(c.PullSecretFile); err != nil {
+			return fmt.Errorf("pull secret file not found: %s", c.PullSecretFile)
+		}
 	}
 
 	return nil
@@ -77,6 +76,10 @@ func Start(config *Config, logger *zerolog.Logger) error {
 		return fmt.Errorf("running crc start: %w", err)
 	}
 
+	if err := waitForAPIServer(logger); err != nil {
+		return fmt.Errorf("waiting for API server: %w", err)
+	}
+
 	if err := login(config, logger); err != nil {
 		return fmt.Errorf("logging into cluster: %w", err)
 	}
@@ -100,10 +103,19 @@ func isRunning(logger *zerolog.Logger) bool {
 		logger.Info().Msg("CRC does not appear to be running")
 		return false
 	}
-	return strings.Contains(output, "Running")
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, "OpenShift:") {
+			return strings.Contains(line, "Running")
+		}
+	}
+	return false
 }
 
 func configure(config *Config, logger *zerolog.Logger) error {
+	if config.PullSecretFile == "" {
+		return fmt.Errorf("pull secret file is required (download from https://console.redhat.com/openshift/create/local)")
+	}
+
 	logger.Info().Msg("Configuring CRC...")
 
 	memoryMB := strconv.Itoa(config.Memory * 1024)
@@ -142,12 +154,29 @@ func start(logger *zerolog.Logger) error {
 	return command.Command(crcBinary, "start").Run()
 }
 
+func waitForAPIServer(logger *zerolog.Logger) error {
+	logger.Info().Msg("Waiting for OpenShift API server to become ready...")
+	deadline := time.Now().Add(10 * time.Minute)
+	for {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for API server to become ready")
+		}
+
+		if isRunning(logger) {
+			return nil
+		}
+
+		time.Sleep(15 * time.Second)
+	}
+}
+
 func login(config *Config, logger *zerolog.Logger) error {
 	logger.Info().Msgf("Logging into cluster as %s...", defaultUser)
 	return command.Command(ocBinary, "login",
 		"-u", defaultUser,
 		"-p", config.KubeAdminPassword,
 		"--server", apiServer,
+		"--insecure-skip-tls-verify=true",
 	).Run()
 }
 

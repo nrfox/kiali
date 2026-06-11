@@ -106,15 +106,6 @@ It's a Go implementation of the hack/start-kind.sh script.`,
 		},
 	}
 
-	acmUninstallCmd := &cobra.Command{
-		Use:   "uninstall",
-		Short: "Remove ACM operator and MultiClusterHub",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			log.InitializeLogger(log.WithColor())
-			return acm.Uninstall(cmd.Context(), acmCfg, log.Logger())
-		},
-	}
-
 	acmStatusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show the status of ACM components",
@@ -129,7 +120,7 @@ It's a Go implementation of the hack/start-kind.sh script.`,
 	acmCmd.PersistentFlags().StringVar(&acmCfg.Namespace, "namespace", acmCfg.Namespace, "ACM namespace")
 	acmCmd.PersistentFlags().DurationVar(&acmCfg.Timeout, "timeout", acmCfg.Timeout, "Timeout for operations")
 
-	acmCmd.AddCommand(acmInstallCmd, acmUninstallCmd, acmStatusCmd)
+	acmCmd.AddCommand(acmInstallCmd, acmStatusCmd)
 
 	rootCmd.AddCommand(acmCmd)
 	rootCmd.AddCommand(multiPrimaryCmd)

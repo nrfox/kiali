@@ -141,66 +141,6 @@ spec: {}
 	return nil
 }
 
-func Uninstall(ctx context.Context, cfg *Config, logger *zerolog.Logger) error {
-	timeoutSec := fmt.Sprintf("%ds", int(cfg.Timeout.Seconds()))
-
-	logger.Info().Msg("Deleting MultiClusterHub")
-	if err := kubectl(cfg, "delete", "mch", "multiclusterhub",
-		"-n", cfg.Namespace, "--wait=false", "--ignore-not-found").Run(); err != nil {
-		return fmt.Errorf("deleting MultiClusterHub: %w", err)
-	}
-
-	logger.Info().Msg("Waiting for MultiClusterHub deletion")
-	if err := waitForMCHDeletion(ctx, cfg, logger); err != nil {
-		return err
-	}
-
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	logger.Info().Msg("Deleting Subscription")
-	if err := kubectl(cfg, "delete", "subscription.operators.coreos.com",
-		"advanced-cluster-management", "-n", cfg.Namespace, "--ignore-not-found").Run(); err != nil {
-		return fmt.Errorf("deleting Subscription: %w", err)
-	}
-
-	csvName := detectCSVName(cfg)
-	if csvName != "" {
-		logger.Info().Msgf("Deleting CSV %s", csvName)
-		if err := kubectl(cfg, "delete", "csv", csvName,
-			"-n", cfg.Namespace, "--ignore-not-found").Run(); err != nil {
-			return fmt.Errorf("deleting CSV: %w", err)
-		}
-	}
-
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	logger.Info().Msg("Deleting OperatorGroup")
-	if err := kubectl(cfg, "delete", "operatorgroup", "acm-operator-group",
-		"-n", cfg.Namespace, "--ignore-not-found").Run(); err != nil {
-		return fmt.Errorf("deleting OperatorGroup: %w", err)
-	}
-
-	logger.Info().Msgf("Deleting namespace %s", cfg.Namespace)
-	if err := kubectl(cfg, "delete", "namespace", cfg.Namespace,
-		"--timeout="+timeoutSec, "--ignore-not-found").Run(); err != nil {
-		return fmt.Errorf("deleting namespace: %w", err)
-	}
-
-	logger.Info().Msg("Deleting ACM CRDs")
-	if err := kubectl(cfg, "delete", "crd",
-		"-l", fmt.Sprintf("operators.coreos.com/advanced-cluster-management.%s", cfg.Namespace),
-		"--timeout="+timeoutSec, "--ignore-not-found").Run(); err != nil {
-		return fmt.Errorf("deleting ACM CRDs: %w", err)
-	}
-
-	logger.Info().Msg("ACM uninstall complete")
-	return nil
-}
-
 func Status(_ context.Context, cfg *Config, logger *zerolog.Logger) error {
 	logger.Info().Msg("ACM Status")
 
@@ -309,26 +249,6 @@ func waitForMCH(ctx context.Context, cfg *Config, logger *zerolog.Logger) error 
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(15 * time.Second):
-		}
-	}
-}
-
-func waitForMCHDeletion(ctx context.Context, cfg *Config, logger *zerolog.Logger) error {
-	deadline := time.Now().Add(cfg.Timeout)
-	for {
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for MultiClusterHub deletion after %s", cfg.Timeout)
-		}
-
-		if err := kubectl(cfg, "get", "mch", "multiclusterhub", "-n", cfg.Namespace).Run(); err != nil {
-			return nil
-		}
-
-		logger.Info().Msg("MultiClusterHub still exists, waiting for deletion...")
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(5 * time.Second):
 		}
 	}
 }
